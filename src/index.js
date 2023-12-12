@@ -1,5 +1,6 @@
+/** @ignore */
 import { PerspectiveCamera } from "three";
-
+export { version } from "../package.json";
 export * from "./core/index.js";
 export * from "./effects/index.js";
 export * from "./enums/index.js";

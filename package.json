@@ -1,6 +1,6 @@
 {
 	"name": "postprocessing",
-	"version": "6.33.0",
+	"version": "6.33.4",
 	"description": "A post processing library for three.js.",
 	"homepage": "https://github.com/pmndrs/postprocessing",
 	"license": "Zlib",
@@ -41,8 +41,7 @@
 		"email": "vanruesc@outlook.de"
 	},
 	"repository": {
-		"type": "git",
-		"url": "https://github.com/pmndrs/postprocessing.git"
+		"url": "git+https://github.com/pmndrs/postprocessing.git"
 	},
 	"bugs": {
 		"url": "https://github.com/pmndrs/postprocessing/issues"
@@ -88,7 +87,7 @@
 		"watch:js": "node esbuild -w"
 	},
 	"peerDependencies": {
-		"three": ">= 0.138.0 < 0.156.0"
+		"three": ">= 0.138.0 < 0.160.0"
 	},
 	"devDependencies": {
 		"@tweakpane/core": "2.x.x",
@@ -118,7 +117,7 @@
 		"sass": "1.x.x",
 		"spatial-controls": "6.x.x",
 		"stylelint": "15.x.x",
-		"stylelint-config-standard-scss": "10.x.x",
+		"stylelint-config-standard-scss": "11.x.x",
 		"stylelint-order": "6.x.x",
 		"three": "0.x.x",
 		"three-demo": "5.x.x",

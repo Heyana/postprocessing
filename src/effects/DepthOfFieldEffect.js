@@ -59,6 +59,7 @@ export class DepthOfFieldEffect extends Effect {
 				["nearColorBuffer", new Uniform(null)],
 				["farColorBuffer", new Uniform(null)],
 				["nearCoCBuffer", new Uniform(null)],
+				["farCoCBuffer", new Uniform(null)],
 				["scale", new Uniform(1.0)]
 			])
 		});
@@ -126,6 +127,7 @@ export class DepthOfFieldEffect extends Effect {
 
 		this.renderTargetCoC = this.renderTarget.clone();
 		this.renderTargetCoC.texture.name = "DoF.CoC";
+		this.uniforms.get("farCoCBuffer").value = this.renderTargetCoC.texture;
 
 		/**
 		 * A render target that stores a blurred copy of the circle of confusion.
@@ -180,8 +182,8 @@ export class DepthOfFieldEffect extends Effect {
 
 		this.maskPass = new ShaderPass(new MaskMaterial(this.renderTargetCoC.texture));
 		const maskMaterial = this.maskPass.fullscreenMaterial;
-		maskMaterial.maskFunction = MaskFunction.MULTIPLY_RGB_SET_ALPHA;
 		maskMaterial.colorChannel = ColorChannel.GREEN;
+		this.maskFunction = MaskFunction.MULTIPLY_RGB;
 
 		/**
 		 * A bokeh blur pass for the foreground colors.
@@ -265,6 +267,30 @@ export class DepthOfFieldEffect extends Effect {
 	}
 
 	/**
+	 * The mask function. Default is `MULTIPLY_RGB`.
+	 *
+	 * @type {MaskFunction}
+	 */
+
+	get maskFunction() {
+
+		return this.maskPass.fullscreenMaterial.maskFunction;
+
+	}
+
+	set maskFunction(value) {
+
+		if(this.maskFunction !== value) {
+
+			this.defines.set("MASK_FUNCTION", value.toFixed(0));
+			this.maskPass.fullscreenMaterial.maskFunction = value;
+			this.setChanged();
+
+		}
+
+	}
+
+	/**
 	 * The circle of confusion material.
 	 *
 	 * @type {CircleOfConfusionMaterial}
@@ -298,7 +324,7 @@ export class DepthOfFieldEffect extends Effect {
 
 	getCircleOfConfusionMaterial() {
 
-		return this.circleOfConfusionMaterial;
+		return this.cocMaterial;
 
 	}
 
@@ -427,8 +453,8 @@ export class DepthOfFieldEffect extends Effect {
 
 	setDepthTexture(depthTexture, depthPacking = BasicDepthPacking) {
 
-		this.circleOfConfusionMaterial.depthBuffer = depthTexture;
-		this.circleOfConfusionMaterial.depthPacking = depthPacking;
+		this.cocMaterial.depthBuffer = depthTexture;
+		this.cocMaterial.depthPacking = depthPacking;
 
 	}
 
@@ -490,12 +516,12 @@ export class DepthOfFieldEffect extends Effect {
 		this.maskPass.setSize(width, height);
 
 		// These buffers require full resolution to prevent color bleeding.
+		this.renderTargetFar.setSize(width, height);
 		this.renderTargetCoC.setSize(width, height);
 		this.renderTargetMasked.setSize(width, height);
 
 		this.renderTarget.setSize(w, h);
 		this.renderTargetNear.setSize(w, h);
-		this.renderTargetFar.setSize(w, h);
 		this.renderTargetCoCBlurred.setSize(w, h);
 
 		// Optimization: 1 / (TexelSize * ResolutionScale) = FullResolution
