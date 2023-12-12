@@ -294,12 +294,9 @@ export class SelectiveBloomEffect extends BloomEffect {
 			renderTarget = this.renderTargetMasked;
 			this.clearPass.render(renderer, renderTarget);
 			this.depthMaskPass.render(renderer, inputBuffer, renderTarget);
-
 		}
-
 		// Render the bloom texture as usual.
 		super.update(renderer, renderTarget, deltaTime);
-
 	}
 
 	/**

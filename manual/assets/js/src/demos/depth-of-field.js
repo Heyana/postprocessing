@@ -86,7 +86,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	scene.background = assets.get("sky");
 	scene.add(Domain.createLights());
 	scene.add(Domain.createEnvironment(scene.background));
-	scene.add(Domain.createActors(scene.background));
+	scene. add(Domain.createActors(scene.background));
 
 	// Post Processing
 
@@ -126,7 +126,6 @@ window.addEventListener("load", () => load().then((assets) => {
 	const folder = pane.addFolder({ title: "Settings" });
 	folder.addBinding(cocDebugPass, "enabled", { label: "debug" });
 	folder.addBinding(effect.resolution, "scale", { label: "resolution", min: 0.5, max: 1, step: 0.05 });
-
 	folder.addBinding(effect.blurPass, "kernelSize", { options: KernelSize });
 	folder.addBinding(cocMaterial, "worldFocusDistance", { min: 0, max: 50, step: 0.1 });
 	folder.addBinding(cocMaterial, "worldFocusRange", { min: 0, max: 20, step: 0.1 });

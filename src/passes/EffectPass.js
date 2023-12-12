@@ -578,10 +578,8 @@ export class EffectPass extends Pass {
 			const material = this.fullscreenMaterial;
 			material.inputBuffer = inputBuffer.texture;
 			material.time += deltaTime * this.timeScale;
-
 			renderer.setRenderTarget(this.renderToScreen ? null : outputBuffer);
 			renderer.render(this.scene, this.camera);
-
 		}
 
 	}

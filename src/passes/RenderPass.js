@@ -279,7 +279,6 @@ export class RenderPass extends Pass {
 	 */
 
 	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest) {
-
 		const scene = this.scene;
 		const camera = this.camera;
 		const selection = this.selection;

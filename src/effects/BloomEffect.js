@@ -407,7 +407,6 @@ export class BloomEffect extends Effect {
 			} else {
 
 				this.blurPass.render(renderer, inputBuffer, renderTarget);
-
 			}
 
 		}

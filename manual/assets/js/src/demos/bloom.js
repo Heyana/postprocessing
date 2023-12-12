@@ -56,8 +56,7 @@ function load() {
 	});
 
 }
-
-window.addEventListener("load", () => load().then((assets) => {
+() => load().then((assets) => {
 
 	// Renderer
 
@@ -99,7 +98,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	const radius = 4.0;
 	let angle = 0.0;
 
-	for(let i = 0; i < n; ++i) {
+	for (let i = 0; i < n; ++i) {
 
 		const orb = new Mesh(
 			new IcosahedronGeometry(1, 3),
@@ -149,7 +148,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		raycaster.setFromCamera(ndc, camera);
 		const intersects = raycaster.intersectObjects(orbs.children, true);
 
-		if(intersects.length > 0) {
+		if (intersects.length > 0) {
 
 			effect.selection.toggle(intersects[0].object);
 
@@ -206,4 +205,4 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	});
 
-}));
+})
