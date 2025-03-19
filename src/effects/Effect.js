@@ -1,7 +1,17 @@
-import { BasicDepthPacking, EventDispatcher, Material, Texture, WebGLRenderTarget } from "three";
-import { BlendFunction, EffectAttribute, LinearSRGBColorSpace, NoColorSpace } from "../enums/index.js";
-import { Pass } from "../passes/index.js";
-import { BlendMode } from "./blending/index.js";
+import {
+	BasicDepthPacking,
+	EventDispatcher,
+	LinearSRGBColorSpace,
+	Material,
+	NoColorSpace,
+	Texture,
+	WebGLRenderTarget
+} from "three";
+
+import { BlendFunction } from "../enums/BlendFunction.js";
+import { EffectAttribute } from "../enums/EffectAttribute.js";
+import { Pass } from "../passes/Pass.js";
+import { BlendMode } from "./blending/BlendMode.js";
 
 /**
  * An abstract effect.

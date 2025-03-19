@@ -1,8 +1,10 @@
-import { Uniform, WebGLRenderTarget } from "three";
-import { Resolution } from "../core/index.js";
-import { BlendFunction, KernelSize, SRGBColorSpace } from "../enums/index.js";
-import { KawaseBlurPass, LuminancePass, MipmapBlurPass } from "../passes/index.js";
-import { getOutputColorSpace, setTextureColorSpace } from "../utils/index.js";
+import { SRGBColorSpace, Uniform, WebGLRenderTarget } from "three";
+import { Resolution } from "../core/Resolution.js";
+import { BlendFunction } from "../enums/BlendFunction.js";
+import { KernelSize } from "../enums/KernelSize.js";
+import { KawaseBlurPass } from "../passes/KawaseBlurPass.js";
+import { LuminancePass } from "../passes/LuminancePass.js";
+import { MipmapBlurPass } from "../passes/MipmapBlurPass.js";
 import { Effect } from "./Effect.js";
 
 import fragmentShader from "./glsl/bloom.frag";
@@ -74,6 +76,7 @@ export class BloomEffect extends Effect {
 		 *
 		 * @type {KawaseBlurPass}
 		 * @readonly
+		 * @deprecated Use mipmapBlurPass instead.
 		 */
 
 		this.blurPass = new KawaseBlurPass({ kernelSize });
@@ -95,7 +98,7 @@ export class BloomEffect extends Effect {
 		 * A mipmap blur pass.
 		 *
 		 * @type {MipmapBlurPass}
-		 * @private
+		 * @readonly
 		 */
 
 		this.mipmapBlurPass = new MipmapBlurPass();
@@ -110,7 +113,6 @@ export class BloomEffect extends Effect {
 		 *
 		 * @type {Resolution}
 		 * @readonly
-		 * @deprecated
 		 */
 
 		const resolution = this.resolution = new Resolution(this, resolutionX, resolutionY, resolutionScale);
@@ -451,9 +453,9 @@ export class BloomEffect extends Effect {
 
 			this.renderTarget.texture.type = frameBufferType;
 
-			if(getOutputColorSpace(renderer) === SRGBColorSpace) {
+			if(renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
 
-				setTextureColorSpace(this.renderTarget.texture, SRGBColorSpace);
+				this.renderTarget.texture.colorSpace = SRGBColorSpace;
 
 			}
 

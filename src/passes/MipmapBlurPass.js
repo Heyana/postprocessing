@@ -1,7 +1,6 @@
-import { UnsignedByteType, Vector2, WebGLRenderTarget } from "three";
-import { SRGBColorSpace } from "../enums/index.js";
-import { DownsamplingMaterial, UpsamplingMaterial } from "../materials/index.js";
-import { getOutputColorSpace, setTextureColorSpace } from "../utils/index.js";
+import { SRGBColorSpace, UnsignedByteType, Vector2, WebGLRenderTarget } from "three";
+import { DownsamplingMaterial } from "../materials/DownsamplingMaterial.js";
+import { UpsamplingMaterial } from "../materials/UpsamplingMaterial.js";
 import { Pass } from "./Pass.js";
 
 /**
@@ -39,6 +38,7 @@ export class MipmapBlurPass extends Pass {
 		 * The mipmaps used for downsampling.
 		 *
 		 * @type {WebGLRenderTarget[]}
+		 * @private
 		 * @readonly
 		 */
 
@@ -48,6 +48,7 @@ export class MipmapBlurPass extends Pass {
 		 * The mipmaps used for upsampling.
 		 *
 		 * @type {WebGLRenderTarget[]}
+		 * @private
 		 * @readonly
 		 */
 
@@ -264,11 +265,11 @@ export class MipmapBlurPass extends Pass {
 				this.downsamplingMaterial.defines.FRAMEBUFFER_PRECISION_HIGH = "1";
 				this.upsamplingMaterial.defines.FRAMEBUFFER_PRECISION_HIGH = "1";
 
-			} else if(getOutputColorSpace(renderer) === SRGBColorSpace) {
+			} else if(renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
 
 				for(const mipmap of mipmaps) {
 
-					setTextureColorSpace(mipmap.texture, SRGBColorSpace);
+					mipmap.texture.colorSpace = SRGBColorSpace;
 
 				}
 

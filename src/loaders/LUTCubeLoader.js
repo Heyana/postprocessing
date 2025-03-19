@@ -1,5 +1,5 @@
 import { FileLoader, Loader, LoadingManager, Vector3 } from "three";
-import { LookupTexture } from "../textures/index.js";
+import { LookupTexture } from "../textures/lut/LookupTexture.js";
 
 /**
  * A 3D LUT loader that supports the .cube file format.
@@ -9,6 +9,8 @@ import { LookupTexture } from "../textures/index.js";
  *
  * For more details see:
  * https://wwwimages2.adobe.com/content/dam/acom/en/products/speedgrade/cc/pdfs/cube-lut-specification-1.0.pdf
+ *
+ * @deprecated Use `three/addons/loaders/LUTCubeLoader.js` instead.
  */
 
 export class LUTCubeLoader extends Loader {

@@ -1,15 +1,10 @@
-import { BasicDepthPacking, UnsignedByteType } from "three";
-import { EffectShaderData } from "../core/index.js";
+import { BasicDepthPacking, NoColorSpace, SRGBColorSpace, UnsignedByteType } from "three";
+import { EffectShaderData } from "../core/EffectShaderData.js";
+import { BlendFunction } from "../enums/BlendFunction.js";
+import { EffectAttribute } from "../enums/EffectAttribute.js";
+import { EffectShaderSection as Section } from "../enums/EffectShaderSection.js";
 
-import {
-	BlendFunction,
-	EffectAttribute,
-	EffectShaderSection as Section,
-	NoColorSpace,
-	SRGBColorSpace
-} from "../enums/index.js";
-
-import { EffectMaterial } from "../materials/index.js";
+import { EffectMaterial } from "../materials/EffectMaterial.js";
 import { Pass } from "./Pass.js";
 
 /**
@@ -169,7 +164,7 @@ function integrateEffect(prefix, effect, data) {
 			if(effect.inputColorSpace !== null && effect.inputColorSpace !== data.colorSpace) {
 
 				fragmentMainImage += (effect.inputColorSpace === SRGBColorSpace) ?
-					"color0 = LinearTosRGB(color0);\n\t" :
+					"color0 = sRGBTransferOETF(color0);\n\t" :
 					"color0 = sRGBToLinear(color0);\n\t";
 
 			}

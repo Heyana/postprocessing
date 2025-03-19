@@ -2,6 +2,7 @@ import {
 	DepthStencilFormat,
 	DepthTexture,
 	LinearFilter,
+	SRGBColorSpace,
 	UnsignedByteType,
 	UnsignedIntType,
 	UnsignedInt248Type,
@@ -9,10 +10,11 @@ import {
 	WebGLRenderTarget
 } from "three";
 
-import { ClearMaskPass, CopyPass, MaskPass } from "../passes/index.js";
-import { SRGBColorSpace } from "../enums/ColorSpace.js";
-import { getOutputColorSpace, setTextureColorSpace } from "../utils/BackCompat.js";
 import { Timer } from "./Timer.js";
+import { ClearMaskPass } from "../passes/ClearMaskPass.js";
+import { CopyPass } from "../passes/CopyPass.js";
+import { MaskPass } from "../passes/MaskPass.js";
+import { Pass } from "../passes/Pass.js";
 
 /**
  * The EffectComposer may be used in place of a normal WebGLRenderer.
@@ -217,10 +219,10 @@ export class EffectComposer {
 			const alpha = renderer.getContext().getContextAttributes().alpha;
 			const frameBufferType = this.inputBuffer.texture.type;
 
-			if(frameBufferType === UnsignedByteType && getOutputColorSpace(renderer) === SRGBColorSpace) {
+			if(frameBufferType === UnsignedByteType && renderer.outputColorSpace === SRGBColorSpace) {
 
-				setTextureColorSpace(this.inputBuffer.texture, SRGBColorSpace);
-				setTextureColorSpace(this.outputBuffer.texture, SRGBColorSpace);
+				this.inputBuffer.texture.colorSpace = SRGBColorSpace;
+				this.outputBuffer.texture.colorSpace = SRGBColorSpace;
 
 				this.inputBuffer.dispose();
 				this.outputBuffer.dispose();
@@ -366,9 +368,9 @@ export class EffectComposer {
 
 		}
 
-		if(type === UnsignedByteType && getOutputColorSpace(renderer) === SRGBColorSpace) {
+		if(type === UnsignedByteType && renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
 
-			setTextureColorSpace(renderTarget.texture, SRGBColorSpace);
+			renderTarget.texture.colorSpace = SRGBColorSpace;
 
 		}
 
@@ -585,7 +587,7 @@ export class EffectComposer {
 		if(deltaTime === undefined) {
 
 			this.timer.update();
-			deltaTime = this.timer.delta;
+			deltaTime = this.timer.getDelta();
 
 		}
 
@@ -678,10 +680,8 @@ export class EffectComposer {
 
 	reset() {
 
-		const autoReset = this.timer.autoReset;
 		this.dispose();
 		this.autoRenderToScreen = true;
-		this.timer.autoReset = autoReset;
 
 	}
 
@@ -714,6 +714,8 @@ export class EffectComposer {
 		this.deleteDepthTexture();
 		this.copyPass.dispose();
 		this.timer.dispose();
+
+		Pass.fullscreenGeometry.dispose();
 
 	}
 

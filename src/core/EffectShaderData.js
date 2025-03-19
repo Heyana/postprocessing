@@ -1,4 +1,6 @@
-import { EffectAttribute, EffectShaderSection as Section, LinearSRGBColorSpace } from "../enums/index.js";
+import { LinearSRGBColorSpace } from "three";
+import { EffectAttribute } from "../enums/EffectAttribute.js";
+import { EffectShaderSection as Section } from "../enums/EffectShaderSection.js";
 
 /**
  * A collection of shader data.

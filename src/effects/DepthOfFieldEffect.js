@@ -1,9 +1,15 @@
-import { BasicDepthPacking, Uniform, UnsignedByteType, WebGLRenderTarget } from "three";
-import { Resolution } from "../core/index.js";
-import { ColorChannel, EffectAttribute, KernelSize, MaskFunction, SRGBColorSpace } from "../enums/index.js";
-import { BokehMaterial, CircleOfConfusionMaterial, MaskMaterial } from "../materials/index.js";
-import { KawaseBlurPass, ShaderPass } from "../passes/index.js";
-import { getOutputColorSpace, setTextureColorSpace, viewZToOrthographicDepth } from "../utils/index.js";
+import { BasicDepthPacking, SRGBColorSpace, Uniform, UnsignedByteType, WebGLRenderTarget } from "three";
+import { Resolution } from "../core/Resolution.js";
+import { ColorChannel } from "../enums/ColorChannel.js";
+import { EffectAttribute } from "../enums/EffectAttribute.js";
+import { KernelSize } from "../enums/KernelSize.js";
+import { MaskFunction } from "../enums/MaskFunction.js";
+import { BokehMaterial } from "../materials/BokehMaterial.js";
+import { CircleOfConfusionMaterial } from "../materials/CircleOfConfusionMaterial.js";
+import { MaskMaterial } from "../materials/MaskMaterial.js";
+import { KawaseBlurPass } from "../passes/KawaseBlurPass.js";
+import { ShaderPass } from "../passes/ShaderPass.js";
+import { viewZToOrthographicDepth } from "../utils/viewZToOrthographicDepth.js";
 import { Effect } from "./Effect.js";
 
 import fragmentShader from "./glsl/depth-of-field.frag";
@@ -565,12 +571,12 @@ export class DepthOfFieldEffect extends Effect {
 			this.renderTargetFar.texture.type = frameBufferType;
 			this.renderTargetMasked.texture.type = frameBufferType;
 
-			if(getOutputColorSpace(renderer) === SRGBColorSpace) {
+			if(renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
 
-				setTextureColorSpace(this.renderTarget.texture, SRGBColorSpace);
-				setTextureColorSpace(this.renderTargetNear.texture, SRGBColorSpace);
-				setTextureColorSpace(this.renderTargetFar.texture, SRGBColorSpace);
-				setTextureColorSpace(this.renderTargetMasked.texture, SRGBColorSpace);
+				this.renderTarget.texture.colorSpace = SRGBColorSpace;
+				this.renderTargetNear.texture.colorSpace = SRGBColorSpace;
+				this.renderTargetFar.texture.colorSpace = SRGBColorSpace;
+				this.renderTargetMasked.texture.colorSpace = SRGBColorSpace;
 
 			}
 

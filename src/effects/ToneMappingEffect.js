@@ -1,7 +1,8 @@
-import { LinearMipmapLinearFilter, Uniform, WebGLRenderTarget } from "three";
-import { AdaptiveLuminancePass, LuminancePass } from "../passes/index.js";
-import { BlendFunction, ToneMappingMode } from "../enums/index.js";
-import { validateToneMappingMode } from "../utils/index.js";
+import { LinearMipmapLinearFilter, REVISION, Uniform, WebGLRenderTarget } from "three";
+import { AdaptiveLuminancePass } from "../passes/AdaptiveLuminancePass.js";
+import { LuminancePass } from "../passes/LuminancePass.js";
+import { BlendFunction } from "../enums/BlendFunction.js";
+import { ToneMappingMode } from "../enums/ToneMappingMode.js";
 import { Effect } from "./Effect.js";
 
 import fragmentShader from "./glsl/tone-mapping.frag";
@@ -119,42 +120,54 @@ export class ToneMappingEffect extends Effect {
 
 	set mode(value) {
 
-		if(this.mode !== value) {
+		if(this.mode === value) {
 
-			this.defines.clear();
-			this.defines.set("TONE_MAPPING_MODE", value.toFixed(0));
-
-			value = validateToneMappingMode(value);
-
-			// Use one of the built-in tone mapping operators.
-			switch(value) {
-
-				case ToneMappingMode.REINHARD:
-					this.defines.set("toneMapping(texel)", "ReinhardToneMapping(texel)");
-					break;
-
-				case ToneMappingMode.OPTIMIZED_CINEON:
-					this.defines.set("toneMapping(texel)", "OptimizedCineonToneMapping(texel)");
-					break;
-
-				case ToneMappingMode.ACES_FILMIC:
-					this.defines.set("toneMapping(texel)", "ACESFilmicToneMapping(texel)");
-					break;
-
-				case ToneMappingMode.AGX:
-					this.defines.set("toneMapping(texel)", "AgXToneMapping(texel)");
-					break;
-
-				default:
-					this.defines.set("toneMapping(texel)", "texel");
-					break;
-
-			}
-
-			this.adaptiveLuminancePass.enabled = (value === ToneMappingMode.REINHARD2_ADAPTIVE);
-			this.setChanged();
+			return;
 
 		}
+
+		const revision = REVISION.replace(/\D+/g, "");
+		const cineonToneMapping = (revision >= 168) ? "CineonToneMapping(texel)" : "OptimizedCineonToneMapping(texel)";
+
+		this.defines.clear();
+		this.defines.set("TONE_MAPPING_MODE", value.toFixed(0));
+
+		// Use one of the built-in tone mapping operators.
+		switch(value) {
+
+			case ToneMappingMode.LINEAR:
+				this.defines.set("toneMapping(texel)", "LinearToneMapping(texel)");
+				break;
+
+			case ToneMappingMode.REINHARD:
+				this.defines.set("toneMapping(texel)", "ReinhardToneMapping(texel)");
+				break;
+
+			case ToneMappingMode.CINEON:
+			case ToneMappingMode.OPTIMIZED_CINEON:
+				this.defines.set("toneMapping(texel)", cineonToneMapping);
+				break;
+
+			case ToneMappingMode.ACES_FILMIC:
+				this.defines.set("toneMapping(texel)", "ACESFilmicToneMapping(texel)");
+				break;
+
+			case ToneMappingMode.AGX:
+				this.defines.set("toneMapping(texel)", "AgXToneMapping(texel)");
+				break;
+
+			case ToneMappingMode.NEUTRAL:
+				this.defines.set("toneMapping(texel)", "NeutralToneMapping(texel)");
+				break;
+
+			default:
+				this.defines.set("toneMapping(texel)", "texel");
+				break;
+
+		}
+
+		this.adaptiveLuminancePass.enabled = (value === ToneMappingMode.REINHARD2_ADAPTIVE);
+		this.setChanged();
 
 	}
 

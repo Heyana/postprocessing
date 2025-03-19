@@ -1,8 +1,7 @@
-import { UnsignedByteType, WebGLRenderTarget } from "three";
-import { Resolution } from "../core/index.js";
-import { SRGBColorSpace } from "../enums/index.js";
-import { CopyMaterial, GaussianBlurMaterial } from "../materials/index.js";
-import { getOutputColorSpace, setTextureColorSpace } from "../utils/index.js";
+import { SRGBColorSpace, UnsignedByteType, WebGLRenderTarget } from "three";
+import { Resolution } from "../core/Resolution.js";
+import { CopyMaterial } from "../materials/CopyMaterial.js";
+import { GaussianBlurMaterial } from "../materials/GaussianBlurMaterial.js";
 import { Pass } from "./Pass.js";
 
 /**
@@ -182,10 +181,10 @@ export class GaussianBlurPass extends Pass {
 				this.blurMaterial.defines.FRAMEBUFFER_PRECISION_HIGH = "1";
 				this.copyMaterial.defines.FRAMEBUFFER_PRECISION_HIGH = "1";
 
-			} else if(getOutputColorSpace(renderer) === SRGBColorSpace) {
+			} else if(renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
 
-				setTextureColorSpace(this.renderTargetA.texture, SRGBColorSpace);
-				setTextureColorSpace(this.renderTargetB.texture, SRGBColorSpace);
+				this.renderTargetA.texture.colorSpace = SRGBColorSpace;
+				this.renderTargetB.texture.colorSpace = SRGBColorSpace;
 
 			}
 
