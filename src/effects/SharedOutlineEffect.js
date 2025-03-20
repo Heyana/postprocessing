@@ -10,19 +10,7 @@ import { Effect } from "./Effect.js";
 
 import fragmentShader from "./glsl/outline.frag";
 import vertexShader from "./glsl/outline.vert";
-const myConsole = {
-    log: (...args) => {
-        return;
-    },
-    time: (...args) => {
-        console.time(...args);
-        return;
-    },
-    timeEnd: (...args) => {
-        console.timeEnd(...args);
-        return;
-    }
-}
+
 /**
  * An outline effect that can share resources with other outline effects.
  */
@@ -60,8 +48,7 @@ export class SharedOutlineEffect extends Effect {
         xRay = true,
         resolutionScale = 0.5,
         resolutionX = Resolution.AUTO_SIZE,
-        resolutionY = Resolution.AUTO_SIZE,
-        managerIndex = 10
+        resolutionY = Resolution.AUTO_SIZE
     } = {}) {
 
         super("SharedOutlineEffect", fragmentShader, {
@@ -295,8 +282,8 @@ export class SharedOutlineEffect extends Effect {
      * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
      */
     update(renderer, inputBuffer, deltaTime) {
-        myConsole.time(`SharedOutlineEffect.update[layer=${this._selectionLayer}]`);
-        myConsole.log(`开始渲染轮廓效果 - 层: ${this._selectionLayer}, 选中对象数: ${this.selection.size}`);
+        console.time(`SharedOutlineEffect.update[layer=${this._selectionLayer}]`);
+        console.log(`开始渲染轮廓效果 - 层: ${this._selectionLayer}, 选中对象数: ${this.selection.size}`);
 
         // Collect all active objects from all SharedOutlineEffects
         // This is a static property shared across all instances
@@ -318,7 +305,7 @@ export class SharedOutlineEffect extends Effect {
         SharedOutlineEffect.updateCounter++;
 
         const renderCounter = SharedOutlineEffect.updateCounter;
-        myConsole.log(`轮廓渲染计数: ${renderCounter} - 层: ${this._selectionLayer}`);
+        console.log(`轮廓渲染计数: ${renderCounter} - 层: ${this._selectionLayer}`);
 
         // 设置当前处理的层
         this.manager.currentLayer = this._selectionLayer;
@@ -358,14 +345,14 @@ export class SharedOutlineEffect extends Effect {
             this.manager.update(renderer, deltaTime);
 
             // 渲染轮廓
-            myConsole.time(`SharedOutlineEffect.outlinePass[layer=${this._selectionLayer}]`);
+            console.time(`SharedOutlineEffect.outlinePass[layer=${this._selectionLayer}]`);
             this.outlinePass.render(renderer, null, this.renderTargetOutline);
-            myConsole.timeEnd(`SharedOutlineEffect.outlinePass[layer=${this._selectionLayer}]`);
+            console.timeEnd(`SharedOutlineEffect.outlinePass[layer=${this._selectionLayer}]`);
 
             if (this.blurPass.enabled) {
-                myConsole.time(`SharedOutlineEffect.blurPass[layer=${this._selectionLayer}]`);
+                console.time(`SharedOutlineEffect.blurPass[layer=${this._selectionLayer}]`);
                 this.blurPass.render(renderer, this.renderTargetOutline, this.renderTargetOutline);
-                myConsole.timeEnd(`SharedOutlineEffect.blurPass[layer=${this._selectionLayer}]`);
+                console.timeEnd(`SharedOutlineEffect.blurPass[layer=${this._selectionLayer}]`);
             }
         }
 
@@ -377,8 +364,8 @@ export class SharedOutlineEffect extends Effect {
             SharedOutlineEffect.currentLayer = null;
         }
 
-        myConsole.log(`完成渲染轮廓效果 - 层: ${this._selectionLayer}`);
-        myConsole.timeEnd(`SharedOutlineEffect.update[layer=${this._selectionLayer}]`);
+        console.log(`完成渲染轮廓效果 - 层: ${this._selectionLayer}`);
+        console.timeEnd(`SharedOutlineEffect.update[layer=${this._selectionLayer}]`);
     }
 
     /**

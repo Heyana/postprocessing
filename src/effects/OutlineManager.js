@@ -7,19 +7,6 @@ import { RenderPass } from "../passes/RenderPass.js";
 /**
  * A manager for sharing resources between multiple outline effects.
  */
-const myConsole = {
-    log: (...args) => {
-        return;
-    },
-    time: (...args) => {
-        console.time(...args);
-        return;
-    },
-    timeEnd: (...args) => {
-        console.timeEnd(...args);
-        return;
-    }
-}
 export class OutlineManager {
 
     /**
@@ -198,14 +185,14 @@ export class OutlineManager {
         // 这样每一帧只需要执行一次深度渲染，多个轮廓效果可以共享结果
         const now = Date.now();
         if (!OutlineManager.lastDepthPassTime || now - OutlineManager.lastDepthPassTime > 16) { // 假设16ms为帧间隔
-            myConsole.time("SharedOutline.update");
+            console.time("SharedOutline.update");
             const background = scene.background;
             const mask = camera.layers.mask;
 
             scene.background = null;
 
             // 只在每帧第一次调用时执行深度渲染
-            myConsole.time("SharedOutline.depthPass");
+            console.time("SharedOutline.depthPass");
 
             // Hide all selected objects across all layers
             for (const selection of this.selectionsByLayer.values()) {
@@ -219,7 +206,7 @@ export class OutlineManager {
                 selection.setVisible(true);
             }
 
-            myConsole.timeEnd("SharedOutline.depthPass");
+            console.timeEnd("SharedOutline.depthPass");
 
             // 记录本次深度渲染的时间
             OutlineManager.lastDepthPassTime = now;
@@ -229,7 +216,7 @@ export class OutlineManager {
         }
 
         // 每个轮廓效果的遮罩通道单独渲染
-        myConsole.time("SharedOutline.maskPass");
+        console.time("SharedOutline.maskPass");
 
         const mask = camera.layers.mask; // 保存当前相机层掩码
 
@@ -259,13 +246,13 @@ export class OutlineManager {
             this.maskPass.render(renderer, this.renderTargetMask);
         }
 
-        myConsole.timeEnd("SharedOutline.maskPass");
+        console.timeEnd("SharedOutline.maskPass");
 
         // Restore the camera layer mask
         camera.layers.mask = mask;
 
         this.needsUpdate = false;
-        myConsole.timeEnd("SharedOutline.update");
+        console.timeEnd("SharedOutline.update");
 
         return true;
     }
