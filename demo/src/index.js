@@ -19,6 +19,7 @@ import { DepthOfFieldDemo } from "./demos/DepthOfFieldDemo";
 import { GlitchDemo } from "./demos/GlitchDemo";
 import { GodRaysDemo } from "./demos/GodRaysDemo";
 import { OutlineDemo } from "./demos/OutlineDemo";
+import { OutlineMultiDemo } from "./demos/OutlineMultiDemo";
 import { PatternDemo } from "./demos/PatternDemo";
 import { PixelationDemo } from "./demos/PixelationDemo";
 import { ShockWaveDemo } from "./demos/ShockWaveDemo";
@@ -83,7 +84,7 @@ window.addEventListener("load", (event) => {
 		const camera = demo.getCamera();
 		demo.renderPass.camera = camera;
 
-		if(!demoCache.has(demo)) {
+		if (!demoCache.has(demo)) {
 
 			// Prevent stuttering when new objects come into view.
 			demo.scene.traverse((node) => void (node.frustumCulled = false));
@@ -102,11 +103,11 @@ window.addEventListener("load", (event) => {
 		const height = window.innerHeight;
 		const demo = manager.getCurrentDemo();
 
-		if(demo !== null) {
+		if (demo !== null) {
 
 			const camera = demo.getCamera();
 
-			if(camera !== null) {
+			if (camera !== null) {
 
 				const aspect = Math.max(width / height, 16 / 9);
 				const vFoV = calculateVerticalFoV(90, aspect);
@@ -123,7 +124,7 @@ window.addEventListener("load", (event) => {
 
 	document.addEventListener("keyup", (event) => {
 
-		if(event.key === "h") {
+		if (event.key === "h") {
 
 			const aside = document.querySelector("aside");
 			const footer = document.querySelector("footer");
@@ -132,11 +133,11 @@ window.addEventListener("load", (event) => {
 			aside.classList.toggle("hidden");
 			footer.classList.toggle("hidden");
 
-		} else if(event.key === "c") {
+		} else if (event.key === "c") {
 
 			const camera = manager.getCurrentDemo().getCamera();
 
-			if(camera !== null) {
+			if (camera !== null) {
 
 				const v = new Vector3();
 				console.log("Camera position", camera.position);
@@ -162,6 +163,7 @@ window.addEventListener("load", (event) => {
 		new GlitchDemo(composer),
 		new GodRaysDemo(composer),
 		new OutlineDemo(composer),
+		new OutlineMultiDemo(composer),
 		new PatternDemo(composer),
 		new PixelationDemo(composer),
 		new ShockWaveDemo(composer),
@@ -174,14 +176,14 @@ window.addEventListener("load", (event) => {
 	const id = window.location.hash.slice(1);
 	const exists = demos.reduce((a, b) => (a || b.id === id), false);
 
-	if(!exists) {
+	if (!exists) {
 
 		// Invalid URL hash: demo doesn't exist.
 		window.location.hash = "";
 
 	}
 
-	for(const demo of demos) {
+	for (const demo of demos) {
 
 		manager.addDemo(demo);
 
@@ -202,7 +204,7 @@ document.addEventListener("DOMContentLoaded", (event) => {
 	const img = document.querySelector(".info img");
 	const div = document.querySelector(".info div");
 
-	if(img !== null && div !== null) {
+	if (img !== null && div !== null) {
 
 		img.addEventListener("click", (event) => {
 

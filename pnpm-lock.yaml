@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      hugo-bin:
+        specifier: 0.142.0
+        version: 0.142.0
     devDependencies:
       '@tweakpane/core':
         specifier: 2.x.x
@@ -15,8 +19,8 @@ importers:
         specifier: 22.x.x
         version: 22.13.9
       '@types/three':
-        specifier: 0.x.x
-        version: 0.174.0
+        specifier: 0.170.0
+        version: 0.170.0
       '@typescript-eslint/eslint-plugin':
         specifier: 8.x.x
         version: 8.26.0(@typescript-eslint/parser@8.26.0(eslint@9.21.0)(typescript@5.8.2))(eslint@9.21.0)(typescript@5.8.2)
@@ -65,9 +69,6 @@ importers:
       gzipper:
         specifier: 8.x.x
         version: 8.2.0
-      hugo-bin:
-        specifier: 0.x.x
-        version: 0.142.0
       npm-run-all:
         specifier: 4.x.x
         version: 4.1.5
@@ -85,7 +86,7 @@ importers:
         version: 1.85.1
       spatial-controls:
         specifier: 6.x.x
-        version: 6.1.2(three@0.174.0)
+        version: 6.1.2(three@0.169.0)
       stylelint:
         specifier: 16.x.x
         version: 16.15.0(typescript@5.8.2)
@@ -96,11 +97,11 @@ importers:
         specifier: 6.x.x
         version: 6.0.4(stylelint@16.15.0(typescript@5.8.2))
       three:
-        specifier: 0.x.x
-        version: 0.174.0
+        specifier: 0.169.0
+        version: 0.169.0
       three-demo:
         specifier: 5.x.x
-        version: 5.1.3(dat.gui@0.7.9)(three@0.174.0)
+        version: 5.1.3(dat.gui@0.7.9)(three@0.169.0)
       tiny-glob:
         specifier: 0.x.x
         version: 0.2.9
@@ -644,36 +645,42 @@ packages:
     engines: {node: '>= 10.0.0'}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@parcel/watcher-linux-arm-musl@2.5.1':
     resolution: {integrity: sha512-6E+m/Mm1t1yhB8X412stiKFG3XykmgdIOqhjWj+VL8oHkKABfu/gjFj8DvLrYVHSBNC+/u5PeNrujiSQ1zwd1Q==}
     engines: {node: '>= 10.0.0'}
     cpu: [arm]
     os: [linux]
+    libc: [musl]
 
   '@parcel/watcher-linux-arm64-glibc@2.5.1':
     resolution: {integrity: sha512-LrGp+f02yU3BN9A+DGuY3v3bmnFUggAITBGriZHUREfNEzZh/GO06FF5u2kx8x+GBEUYfyTGamol4j3m9ANe8w==}
     engines: {node: '>= 10.0.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@parcel/watcher-linux-arm64-musl@2.5.1':
     resolution: {integrity: sha512-cFOjABi92pMYRXS7AcQv9/M1YuKRw8SZniCDw0ssQb/noPkRzA+HBDkwmyOJYp5wXcsTrhxO0zq1U11cK9jsFg==}
     engines: {node: '>= 10.0.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@parcel/watcher-linux-x64-glibc@2.5.1':
     resolution: {integrity: sha512-GcESn8NZySmfwlTsIur+49yDqSny2IhPeZfXunQi48DMugKeZ7uy1FX83pO0X22sHntJ4Ub+9k34XQCX+oHt2A==}
     engines: {node: '>= 10.0.0'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@parcel/watcher-linux-x64-musl@2.5.1':
     resolution: {integrity: sha512-n0E2EQbatQ3bXhcH2D1XIAANAcTZkQICBPVaxMeaCVBtOpBZpWJuf7LwyWPSBDITb7In8mqQgJ7gH8CILCURXg==}
     engines: {node: '>= 10.0.0'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@parcel/watcher-win32-arm64@2.5.1':
     resolution: {integrity: sha512-RFzklRvmc3PkjKjry3hLF9wD7ppR4AKcWNzH7kXR7GUe0Igb3Nz8fyPwtZCSquGrhU5HhUNDr/mKBqj7tqA2Vw==}
@@ -759,8 +766,8 @@ packages:
   '@types/stats.js@0.17.3':
     resolution: {integrity: sha512-pXNfAD3KHOdif9EQXZ9deK82HVNaXP5ZIF5RP2QG6OQFNTaY2YIetfrE9t528vEreGQvEPRDDc8muaoYeK0SxQ==}
 
-  '@types/three@0.174.0':
-    resolution: {integrity: sha512-De/+vZnfg2aVWNiuy1Ldu+n2ydgw1osinmiZTAn0necE++eOfsygL8JpZgFjR2uHmAPo89MkxBj3JJ+2BMe+Uw==}
+  '@types/three@0.170.0':
+    resolution: {integrity: sha512-CUm2uckq+zkCY7ZbFpviRttY+6f9fvwm6YqSqPfA5K22s9w7R4VnA3rzJse8kHVvuzLcTx+CjNCs2NYe0QFAyg==}
 
   '@types/webxr@0.5.21':
     resolution: {integrity: sha512-geZIAtLzjGmgY2JUi6VxXdCrTb99A7yP49lxLr2Nm/uIK0PkkxcEi4OGhoGDO4pxCf3JwGz2GiJL2Ej4K2bKaA==}
@@ -2605,10 +2612,6 @@ packages:
     resolution: {integrity: sha512-sPU4uV7dYlvtWJxwwxHD0PuihVNiE7TyAbQ5SWxDCB9mUYvOgroQOwYQQOKPJ8CIbE+1ETVlOoK1UC2nU3gYvg==}
     engines: {node: '>= 0.6'}
 
-  mime-db@1.53.0:
-    resolution: {integrity: sha512-oHlN/w+3MQ3rba9rqFr6V/ypF10LSkdwUysQL7GkXoTgIWeV+tcXGA852TBxH+gsh8UWoyhR1hKcoMJTuWflpg==}
-    engines: {node: '>= 0.6'}
-
   mime-types@2.1.35:
     resolution: {integrity: sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==}
     engines: {node: '>= 0.6'}
@@ -3808,8 +3811,8 @@ packages:
       dat.gui: 0.x.x
       three: 0.x.x
 
-  three@0.174.0:
-    resolution: {integrity: sha512-p+WG3W6Ov74alh3geCMkGK9NWuT62ee21cV3jEnun201zodVF4tCE5aZa2U122/mkLRmhJJUQmLLW1BH00uQJQ==}
+  three@0.169.0:
+    resolution: {integrity: sha512-Ed906MA3dR4TS5riErd4QBsRGPcx+HBDX2O5yYE5GqJeFQTPU+M56Va/f/Oph9X7uZo3W3o4l2ZhBZ6f6qUv0w==}
 
   through2@2.0.5:
     resolution: {integrity: sha512-/mrRod8xqpA+IHSLyGCQ2s8SPHiCDEeQJSep1jqLYeEUClOFG2Qsh+4FU6G9VeqpZnGW/Su8LQGc4YKni5rYSQ==}
@@ -4603,7 +4606,7 @@ snapshots:
 
   '@types/stats.js@0.17.3': {}
 
-  '@types/three@0.174.0':
+  '@types/three@0.170.0':
     dependencies:
       '@tweenjs/tween.js': 23.1.3
       '@types/stats.js': 0.17.3
@@ -5957,7 +5960,7 @@ snapshots:
 
   ext-list@2.2.2:
     dependencies:
-      mime-db: 1.53.0
+      mime-db: 1.52.0
 
   ext-name@5.0.0:
     dependencies:
@@ -6765,10 +6768,7 @@ snapshots:
       braces: 3.0.3
       picomatch: 2.3.1
 
-  mime-db@1.52.0:
-    optional: true
-
-  mime-db@1.53.0: {}
+  mime-db@1.52.0: {}
 
   mime-types@2.1.35:
     dependencies:
@@ -7783,9 +7783,9 @@ snapshots:
   source-map@0.6.1:
     optional: true
 
-  spatial-controls@6.1.2(three@0.174.0):
+  spatial-controls@6.1.2(three@0.169.0):
     dependencies:
-      three: 0.174.0
+      three: 0.169.0
 
   spdx-correct@3.2.0:
     dependencies:
@@ -8083,12 +8083,12 @@ snapshots:
 
   thenby@1.3.4: {}
 
-  three-demo@5.1.3(dat.gui@0.7.9)(three@0.174.0):
+  three-demo@5.1.3(dat.gui@0.7.9)(three@0.169.0):
     dependencies:
       dat.gui: 0.7.9
-      three: 0.174.0
+      three: 0.169.0
 
-  three@0.174.0: {}
+  three@0.169.0: {}
 
   through2@2.0.5:
     dependencies:

@@ -1,27 +1,22 @@
 {
-	"include": [
-		"./src",
-		"./demo/src",
-		"./manual/js",
-		"./types"
-	],
-	"compilerOptions": {
-		"baseUrl": ".",
-		"outDir": "./build",
-		"moduleResolution": "bundler",
-		"module": "ES2022",
-		"target": "ES2022",
-		"strict": true,
-		"allowJs": true,
-		"sourceMap": false,
-		"skipLibCheck": true,
-		"importHelpers": true,
-		"resolveJsonModule": true,
-		"noImplicitOverride": true,
-		"allowSyntheticDefaultImports": true,
-		"paths": {
-			"postprocessing": ["./src/index.js"],
-			"temp": ["./temp"]
-		}
-	}
+  "include": ["./src", "./demo/src", "./manual/js", "./types"],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "outDir": "./build",
+    "moduleResolution": "bundler",
+    "module": "ES2022",
+    "target": "ES2022",
+    "strict": true,
+    "allowJs": true,
+    "sourceMap": false,
+    "skipLibCheck": true,
+    "importHelpers": true,
+    "resolveJsonModule": true,
+    "noImplicitOverride": true,
+    "allowSyntheticDefaultImports": true,
+    "paths": {
+      "postprocessing": ["./src/index.js"],
+      "temp": ["./temp"]
+    }
+  }
 }

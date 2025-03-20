@@ -80,7 +80,7 @@ export class OutlineEffect extends Effect {
 		// Handle alpha blending.
 		this.blendMode.addEventListener("change", (event) => {
 
-			if(this.blendMode.blendFunction === BlendFunction.ALPHA) {
+			if (this.blendMode.blendFunction === BlendFunction.ALPHA) {
 
 				this.defines.set("ALPHA", "1");
 
@@ -544,9 +544,9 @@ export class OutlineEffect extends Effect {
 
 	set xRay(value) {
 
-		if(this.xRay !== value) {
+		if (this.xRay !== value) {
 
-			if(value) {
+			if (value) {
 
 				this.defines.set("X_RAY", "1");
 
@@ -602,7 +602,7 @@ export class OutlineEffect extends Effect {
 
 	set patternTexture(value) {
 
-		if(value !== null) {
+		if (value !== null) {
 
 			value.wrapS = value.wrapT = RepeatWrapping;
 			this.defines.set("USE_PATTERN", "1");
@@ -737,45 +737,57 @@ export class OutlineEffect extends Effect {
 		const background = scene.background;
 		const mask = camera.layers.mask;
 
-		if(this.forceUpdate || selection.size > 0) {
+		console.time("OutlineEffect.update");
+		console.log("OutlineEffect update called, selection size:", selection.size);
 
+		if (this.forceUpdate || selection.size > 0) {
+			console.time("OutlineEffect.update.preparation");
 			scene.background = null;
 			pulse.value = 1;
 
-			if(this.pulseSpeed > 0) {
-
+			if (this.pulseSpeed > 0) {
 				pulse.value = Math.cos(this.time * this.pulseSpeed * 10.0) * 0.375 + 0.625;
-
 			}
 
 			this.time += deltaTime;
+			console.timeEnd("OutlineEffect.update.preparation");
 
 			// Render a custom depth texture and ignore selected objects.
+			console.time("OutlineEffect.update.depthPass");
 			selection.setVisible(false);
 			this.depthPass.render(renderer);
 			selection.setVisible(true);
+			console.timeEnd("OutlineEffect.update.depthPass");
 
 			// Compare the depth of the selected objects with the depth texture.
+			console.time("OutlineEffect.update.maskPass");
 			camera.layers.set(selection.layer);
 			this.maskPass.render(renderer, this.renderTargetMask);
+			console.timeEnd("OutlineEffect.update.maskPass");
 
 			// Restore the camera layer mask and the scene background.
+			console.time("OutlineEffect.update.restoration");
 			camera.layers.mask = mask;
 			scene.background = background;
+			console.timeEnd("OutlineEffect.update.restoration");
 
 			// Detect the outline.
+			console.time("OutlineEffect.update.outlinePass");
 			this.outlinePass.render(renderer, null, this.renderTargetOutline);
+			console.timeEnd("OutlineEffect.update.outlinePass");
 
-			if(this.blurPass.enabled) {
-
+			if (this.blurPass.enabled) {
+				console.time("OutlineEffect.update.blurPass");
 				this.blurPass.render(renderer, this.renderTargetOutline, this.renderTargetOutline);
-
+				console.timeEnd("OutlineEffect.update.blurPass");
 			}
-
+		} else {
+			console.log("OutlineEffect update skipped (no selection or update not forced)");
 		}
 
 		this.forceUpdate = selection.size > 0;
-
+		console.timeEnd("OutlineEffect.update");
+		console.log("OutlineEffect.update completed, forceUpdate set to:", this.forceUpdate);
 	}
 
 	/**
@@ -813,7 +825,7 @@ export class OutlineEffect extends Effect {
 		// No need for high precision: the blur pass operates on a mask texture.
 		this.blurPass.initialize(renderer, alpha, UnsignedByteType);
 
-		if(frameBufferType !== undefined) {
+		if (frameBufferType !== undefined) {
 
 			// These passes ignore the buffer type.
 			this.depthPass.initialize(renderer, alpha, frameBufferType);
