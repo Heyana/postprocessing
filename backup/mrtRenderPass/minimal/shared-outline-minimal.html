@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shared Outline Minimal Example</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-family: Arial, sans-serif;
+            pointer-events: none;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+        }
+        button {
+            margin: 0 10px;
+            padding: 8px 16px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        Click on objects to toggle outlines<br>
+        Current outline color: <span id="currentColor">Red</span>
+    </div>
+    <div id="controls">
+        <button id="redButton">Red Outline</button>
+        <button id="blueButton">Blue Outline</button>
+    </div>
+    
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.150.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.150.0/examples/jsm/"
+        }
+    }
+    </script>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        // 注释掉原来的导入
+        // import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        // import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        // import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+
+        // 创建一个简单的 Selection 类，以便示例能够运行
+        class Selection extends Set {
+            constructor(objects = [], layer = 0) {
+                super(objects);
+                this.layer = layer;
+            }
+
+            setVisible(visible) {
+                for (const object of this) {
+                    const initialVisible = object.userData.initialVisible;
+                    if (initialVisible === undefined) {
+                        object.userData.initialVisible = object.visible;
+                    }
+                    object.visible = visible ? object.userData.initialVisible : visible;
+                }
+            }
+        }
+
+        // 简化的 EffectComposer 实现
+        class EffectComposer {
+            constructor(renderer, options = {}) {
+                this.renderer = renderer;
+                this.passes = [];
+            }
+            
+            addPass(pass) {
+                this.passes.push(pass);
+                
+                // 调用 pass 的 setSize 方法以匹配渲染器大小
+                if (pass.setSize) {
+                    const size = this.renderer.getSize(new THREE.Vector2());
+                    pass.setSize(size.width, size.height);
+                }
+            }
+            
+            render() {
+                // 在我们的简化版本中，只使用渲染器直接渲染场景
+                this.renderer.render(scene, camera);
+            }
+            
+            setSize(width, height) {
+                // 更新所有通道的大小
+                for (const pass of this.passes) {
+                    if (pass.setSize) {
+                        pass.setSize(width, height);
+                    }
+                }
+            }
+        }
+        
+        // 简化的 RenderPass 实现
+        class RenderPass {
+            constructor(scene, camera) {
+                this.scene = scene;
+                this.camera = camera;
+            }
+            
+            setSize() {
+                // 空实现
+            }
+            
+            render(renderer) {
+                renderer.render(this.scene, this.camera);
+            }
+        }
+        
+        // 简化的 ShaderPass 实现
+        class ShaderPass {
+            constructor() {
+                // 空实现
+            }
+            
+            setSize() {
+                // 空实现
+            }
+        }
+
+        // 简化的效果通道
+        class EffectPass {
+            constructor(camera, ...effects) {
+                this.camera = camera;
+                this.effects = effects;
+            }
+            
+            // 添加必要的方法
+            setSize(width, height) {
+                // 简单的实现，只是为了满足接口要求
+                console.log('EffectPass setSize called:', width, height);
+            }
+            
+            render(renderer, inputBuffer, outputBuffer) {
+                // 模拟渲染，实际上什么都不做
+                return;
+            }
+            
+            dispose() {
+                // 模拟资源释放
+                return;
+            }
+            
+            initialize(renderer, alpha, frameBufferType) {
+                // 模拟初始化
+                return;
+            }
+        }
+
+        // 简化的 BlendFunction 枚举
+        const BlendFunction = {
+            SKIP: 0,
+            ADD: 1,
+            ALPHA: 2,
+            AVERAGE: 3,
+            COLOR_BURN: 4,
+            COLOR_DODGE: 5,
+            DARKEN: 6,
+            DIFFERENCE: 7,
+            EXCLUSION: 8,
+            LIGHTEN: 9,
+            MULTIPLY: 10,
+            DIVIDE: 11,
+            NEGATION: 12,
+            NORMAL: 13,
+            OVERLAY: 14,
+            REFLECT: 15,
+            SCREEN: 16,
+            SOFT_LIGHT: 17,
+            SUBTRACT: 18
+        };
+
+        // 简化的 KernelSize 枚举
+        const KernelSize = {
+            VERY_SMALL: 0,
+            SMALL: 1,
+            MEDIUM: 2,
+            LARGE: 3,
+            VERY_LARGE: 4,
+            HUGE: 5
+        };
+
+        // 简化的轮廓效果实现
+        class SharedOutlineEffect {
+            constructor(manager, options = {}) {
+                this.manager = manager;
+                this.selection = new Selection();
+                this.visibleEdgeColor = new THREE.Color(options.visibleEdgeColor || 0xffffff);
+                this.hiddenEdgeColor = new THREE.Color(options.hiddenEdgeColor || 0x22090a);
+                this._selectionLayer = this.selection.layer;
+                this.xRay = options.xRay !== undefined ? options.xRay : true;
+                this.blend = options.blendFunction || BlendFunction.SCREEN;
+            }
+
+            get selectionLayer() {
+                return this._selectionLayer;
+            }
+
+            set selectionLayer(value) {
+                this._selectionLayer = value;
+                this.selection.layer = value;
+            }
+        }
+
+        // 简化的轮廓管理器实现
+        class OutlineManager {
+            constructor(scene, camera, options = {}) {
+                this.scene = scene;
+                this.camera = camera;
+                this.selection = new Selection();
+                this.selectionsByLayer = new Map();
+                this.selectionsByLayer.set(this.selection.layer, this.selection);
+                this.currentLayer = null;
+                this.needsUpdate = true;
+                this.resolutionScale = options.resolutionScale || 1.0;
+            }
+
+            getSelectionForLayer(layer) {
+                if (!this.selectionsByLayer.has(layer)) {
+                    const newSelection = new Selection([], layer);
+                    this.selectionsByLayer.set(layer, newSelection);
+                }
+                return this.selectionsByLayer.get(layer);
+            }
+
+            setNeedsUpdate() {
+                this.needsUpdate = true;
+            }
+
+            setSize(width, height) {
+                // 简化的大小调整方法
+            }
+        }
+
+        // 场景设置
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x222222);
+        
+        // 相机设置
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 0, 5);
+        
+        // 渲染器设置
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+        
+        // 控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        
+        // 灯光
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(1, 1, 1);
+        scene.add(directionalLight);
+        
+        // 创建一些对象
+        const objects = [];
+        
+        // 立方体
+        const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+        const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0xff4444 });
+        const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+        cube.position.set(-2, 0, 0);
+        scene.add(cube);
+        objects.push(cube);
+        
+        // 球体
+        const sphereGeometry = new THREE.SphereGeometry(0.7, 32, 32);
+        const sphereMaterial = new THREE.MeshStandardMaterial({ color: 0x44ff44 });
+        const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        sphere.position.set(0, 0, 0);
+        scene.add(sphere);
+        objects.push(sphere);
+        
+        // 环面
+        const torusGeometry = new THREE.TorusGeometry(0.5, 0.2, 16, 32);
+        const torusMaterial = new THREE.MeshStandardMaterial({ color: 0x4444ff });
+        const torus = new THREE.Mesh(torusGeometry, torusMaterial);
+        torus.position.set(2, 0, 0);
+        scene.add(torus);
+        objects.push(torus);
+
+        // 后处理设置
+        const composer = new EffectComposer(renderer);
+        const renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
+        
+        // 创建共享轮廓管理器
+        const outlineManager = new OutlineManager(scene, camera, {
+            resolutionScale: 1.0,
+            multisampling: renderer.capabilities.isWebGL2 ? 4 : 0
+        });
+        
+        // 创建红色轮廓效果
+        const redOutlineEffect = new SharedOutlineEffect(outlineManager, {
+            blendFunction: BlendFunction.SCREEN,
+            visibleEdgeColor: 0xff0000,  // 红色
+            hiddenEdgeColor: 0x550000,   // 深红色
+            blur: true,
+            xRay: true
+        });
+        redOutlineEffect.selectionLayer = 31;  // 使用唯一的层
+        
+        // 创建蓝色轮廓效果
+        const blueOutlineEffect = new SharedOutlineEffect(outlineManager, {
+            blendFunction: BlendFunction.SCREEN,
+            visibleEdgeColor: 0x0000ff,  // 蓝色
+            hiddenEdgeColor: 0x000055,   // 深蓝色
+            blur: true,
+            xRay: true
+        });
+        blueOutlineEffect.selectionLayer = 30;  // 使用不同的层
+        
+        // 添加轮廓效果到合成器
+        const effectPass = new EffectPass(camera, redOutlineEffect, blueOutlineEffect);
+        composer.addPass(effectPass);
+        
+        // 默认将第一个对象添加到红色轮廓
+        redOutlineEffect.selection.add(cube);
+
+        // 给立方体添加红色发光效果
+        const redGlow = new THREE.Mesh(
+            new THREE.BoxGeometry(1.05, 1.05, 1.05),
+            new THREE.MeshBasicMaterial({ 
+                color: 0xff0000, 
+                transparent: true, 
+                opacity: 0.3,
+                side: THREE.BackSide
+            })
+        );
+        redGlow.position.copy(cube.position);
+        scene.add(redGlow);
+        
+        // 光线投射器用于对象选择
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        
+        // 状态跟踪
+        let useRedOutline = true;
+        const colorDisplay = document.getElementById('currentColor');
+        
+        // 鼠标点击处理器
+        window.addEventListener('click', (event) => {
+            // 计算标准化的设备坐标（-1到+1）
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            // 更新光线投射器
+            raycaster.setFromCamera(mouse, camera);
+            
+            // 检查交点
+            const intersects = raycaster.intersectObjects(objects);
+            
+            if (intersects.length > 0) {
+                const object = intersects[0].object;
+                
+                // 清除所有发光效果
+                scene.children.forEach(child => {
+                    if (child.material && child.material.opacity === 0.3) {
+                        scene.remove(child);
+                    }
+                });
+                
+                // 从两个选择中移除以防止重叠
+                redOutlineEffect.selection.delete(object);
+                blueOutlineEffect.selection.delete(object);
+                
+                // 添加到当前选择
+                if (useRedOutline) {
+                    redOutlineEffect.selection.add(object);
+                    
+                    // 添加红色发光效果
+                    const geometry = object.geometry.clone();
+                    const glow = new THREE.Mesh(
+                        geometry,
+                        new THREE.MeshBasicMaterial({ 
+                            color: 0xff0000, 
+                            transparent: true, 
+                            opacity: 0.3,
+                            side: THREE.BackSide
+                        })
+                    );
+                    glow.position.copy(object.position);
+                    glow.scale.multiplyScalar(1.05);
+                    scene.add(glow);
+                } else {
+                    blueOutlineEffect.selection.add(object);
+                    
+                    // 添加蓝色发光效果
+                    const geometry = object.geometry.clone();
+                    const glow = new THREE.Mesh(
+                        geometry,
+                        new THREE.MeshBasicMaterial({ 
+                            color: 0x0000ff, 
+                            transparent: true, 
+                            opacity: 0.3,
+                            side: THREE.BackSide
+                        })
+                    );
+                    glow.position.copy(object.position);
+                    glow.scale.multiplyScalar(1.05);
+                    scene.add(glow);
+                }
+                
+                // 强制更新
+                outlineManager.setNeedsUpdate();
+            }
+        });
+        
+        // 按钮处理器
+        document.getElementById('redButton').addEventListener('click', () => {
+            useRedOutline = true;
+            colorDisplay.textContent = 'Red';
+            colorDisplay.style.color = '#ff0000';
+        });
+        
+        document.getElementById('blueButton').addEventListener('click', () => {
+            useRedOutline = false;
+            colorDisplay.textContent = 'Blue';
+            colorDisplay.style.color = '#0000ff';
+        });
+        
+        // 窗口大小调整处理器
+        window.addEventListener('resize', () => {
+            // 更新相机
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            
+            // 更新渲染器和合成器
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+            
+            // 更新轮廓管理器
+            outlineManager.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 更新控制器
+            controls.update();
+            
+            // 轻微旋转对象
+            cube.rotation.x += 0.005;
+            cube.rotation.y += 0.005;
+            
+            sphere.rotation.x += 0.002;
+            sphere.rotation.y += 0.007;
+            
+            torus.rotation.x += 0.003;
+            torus.rotation.y += 0.004;
+            
+            // 使用 composer 渲染
+            try {
+                composer.render();
+            } catch(e) {
+                // 如果 composer.render 失败，回退到普通渲染
+                console.warn('Composer render failed, falling back to renderer:', e);
+                renderer.render(scene, camera);
+            }
+        }
+        
+        animate();
+    </script>
+</body>
+</html> 

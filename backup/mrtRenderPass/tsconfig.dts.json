@@ -1,0 +1,26 @@
+{
+  "include": ["./src/**/*.ts"],
+  "exclude": ["node_modules", "build", "temp", "**/*.js", "**/*.jsx"],
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "module": "ES2022",
+    "target": "ES2022",
+    "strict": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./build/types",
+    "skipLibCheck": true,
+    "noImplicitOverride": false,
+    "allowSyntheticDefaultImports": true,
+    "allowJs": true,
+    "skipDefaultLibCheck": true,
+    "noImplicitAny": false,
+    "ignoreDeprecations": "5.0",
+    "isolatedModules": true,
+    "noEmitOnError": false,
+    "allowUmdGlobalAccess": true,
+    "paths": {
+      "three": ["./node_modules/@types/three"]
+    }
+  }
+}
