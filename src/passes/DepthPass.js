@@ -2,6 +2,7 @@ import { Color, MeshDepthMaterial, NearestFilter, RGBADepthPacking, WebGLRenderT
 import { Resolution } from "../core/Resolution.js";
 import { Pass } from "./Pass.js";
 import { RenderPass } from "./RenderPass.js";
+import { timeLog, timeEndLog, log } from "../utils/PerformanceLogger.js";
 
 /**
  * A pass that renders depth into an RGBA buffer.
@@ -188,7 +189,7 @@ export class DepthPass extends Pass {
 
 	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest) {
 
-		console.time("DepthPass.render");
+		timeLog("DepthPass.render");
 		const renderTarget = this.renderToScreen ? null : this.renderTarget;
 
 		// 获取场景中第一个子对象的类名（如果存在）
@@ -196,10 +197,10 @@ export class DepthPass extends Pass {
 		if (this.renderPass.scene && this.renderPass.scene.children && this.renderPass.scene.children.length > 0) {
 			childClassName = this.renderPass.scene.children[0].constructor.name;
 		}
-		console.log(`DepthPass 渲染场景, 第一个子对象类型: ${childClassName}`);
+		log(`DepthPass 渲染场景, 第一个子对象类型: ${childClassName}`);
 
 		this.renderPass.render(renderer, renderTarget);
-		console.timeEnd("DepthPass.render");
+		timeEndLog("DepthPass.render");
 
 	}
 

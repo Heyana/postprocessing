@@ -15,7 +15,7 @@ import { ClearMaskPass } from "../passes/ClearMaskPass.js";
 import { CopyPass } from "../passes/CopyPass.js";
 import { MaskPass } from "../passes/MaskPass.js";
 import { Pass } from "../passes/Pass.js";
-
+import { timeLog, timeEndLog, log } from "../utils/PerformanceLogger.js";
 import { DepthPass } from "../passes/DepthPass.js";
 /**
  * The EffectComposer may be used in place of a normal WebGLRenderer.
@@ -576,6 +576,7 @@ export class EffectComposer {
 
 	render(deltaTime) {
 
+		timeLog("EffectComposer.render");
 		const renderer = this.renderer;
 		const copyPass = this.copyPass;
 
@@ -645,14 +646,14 @@ export class EffectComposer {
 				}
 
 				// 打印pass信息并开始计时
-				console.log(`执行 pass: ${pass.constructor.name}, 第一个子对象类型: ${childClassName}`);
-				console.time(`${pass.constructor.name}.render`);
+				log(`执行 pass: ${pass.constructor.name}, 第一个子对象类型: ${childClassName}`);
+				timeLog(`${pass.constructor.name}.render`);
 
 				// 传递深度通道作为额外参数
 				pass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass);
 
 				// 结束计时
-				console.timeEnd(`${pass.constructor.name}.render`);
+				timeEndLog(`${pass.constructor.name}.render`);
 
 				if (pass.needsSwap) {
 
@@ -688,7 +689,7 @@ export class EffectComposer {
 			}
 
 		}
-
+		timeEndLog("EffectComposer.render");
 	}
 
 	/**

@@ -14,6 +14,7 @@ import { Effect } from "./Effect.js";
 
 import fragmentShader from "./glsl/outline.frag";
 import vertexShader from "./glsl/outline.vert";
+import { log, timeEndLog, timeLog } from "src/utils/PerformanceLogger.js";
 
 /**
  * An outline effect.
@@ -738,11 +739,11 @@ export class OutlineEffect extends Effect {
 		const background = scene.background;
 		const mask = camera.layers.mask;
 
-		console.time("OutlineEffect.update");
-		console.log("OutlineEffect update called, selection size:", selection.size);
+		timeLog("OutlineEffect.update");
+		log("OutlineEffect update called, selection size:", selection.size);
 
 		if (this.forceUpdate || selection.size > 0) {
-			console.time("OutlineEffect.update.preparation");
+			timeLog("OutlineEffect.update.preparation");
 			scene.background = null;
 			pulse.value = 1;
 
@@ -751,11 +752,11 @@ export class OutlineEffect extends Effect {
 			}
 
 			this.time += deltaTime;
-			console.timeEnd("OutlineEffect.update.preparation");
+			timeLog("OutlineEffect.update.preparation");
 
 			// 使用共享的深度通道（如果提供）或自己的深度通道
 			if (depthPass !== null) {
-				console.time("OutlineEffect.update.useSharedDepthPass");
+				timeLog("OutlineEffect.update.useSharedDepthPass");
 				// 从检查 DepthComparisonMaterial 源码可知，正确的 uniform 名称是 depthBuffer
 				// 设置深度缓冲区并同步深度打包格式
 				const depthMaterial = this.maskPass.overrideMaterial;
@@ -776,45 +777,45 @@ export class OutlineEffect extends Effect {
 					this.depthPass.render(renderer);
 					selection.setVisible(true);
 				}
-				console.timeEnd("OutlineEffect.update.useSharedDepthPass");
+				timeEndLog("OutlineEffect.update.useSharedDepthPass");
 			} else {
 				// 渲染自己的深度纹理
-				console.time("OutlineEffect.update.depthPass");
+				timeLog("OutlineEffect.update.depthPass");
 				selection.setVisible(false);
 				this.depthPass.render(renderer);
 				selection.setVisible(true);
-				console.timeEnd("OutlineEffect.update.depthPass");
+				timeEndLog("OutlineEffect.update.depthPass");
 			}
 
 			// 比较选定对象的深度与深度纹理
 			console.time("OutlineEffect.update.maskPass");
 			camera.layers.set(selection.layer);
 			this.maskPass.render(renderer, this.renderTargetMask);
-			console.timeEnd("OutlineEffect.update.maskPass");
+			timeEndLog("OutlineEffect.update.maskPass");
 
 			// 恢复相机层遮罩和场景背景
-			console.time("OutlineEffect.update.restoration");
+			timeLog("OutlineEffect.update.restoration");
 			camera.layers.mask = mask;
 			scene.background = background;
-			console.timeEnd("OutlineEffect.update.restoration");
+			timeEndLog("OutlineEffect.update.restoration");
 
 			// 检测轮廓
-			console.time("OutlineEffect.update.outlinePass");
+			timeLog("OutlineEffect.update.outlinePass");
 			this.outlinePass.render(renderer, null, this.renderTargetOutline);
-			console.timeEnd("OutlineEffect.update.outlinePass");
+			timeEndLog("OutlineEffect.update.outlinePass");
 
 			if (this.blurPass.enabled) {
-				console.time("OutlineEffect.update.blurPass");
+				timeLog("OutlineEffect.update.blurPass");
 				this.blurPass.render(renderer, this.renderTargetOutline, this.renderTargetOutline);
-				console.timeEnd("OutlineEffect.update.blurPass");
+				timeEndLog("OutlineEffect.update.blurPass");
 			}
 		} else {
-			console.log("OutlineEffect update skipped (no selection or update not forced)");
+			log("OutlineEffect update skipped (no selection or update not forced)");
 		}
 
 		this.forceUpdate = selection.size > 0;
-		console.timeEnd("OutlineEffect.update");
-		console.log("OutlineEffect.update completed, forceUpdate set to:", this.forceUpdate);
+		timeEndLog("OutlineEffect.update");
+		log("OutlineEffect.update completed, forceUpdate set to:", this.forceUpdate);
 	}
 
 	/**

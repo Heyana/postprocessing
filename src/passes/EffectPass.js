@@ -6,6 +6,7 @@ import { EffectShaderSection as Section } from "../enums/EffectShaderSection.js"
 
 import { EffectMaterial } from "../materials/EffectMaterial.js";
 import { Pass } from "./Pass.js";
+import { timeLog, timeEndLog } from "../utils/PerformanceLogger.js";
 
 /**
  * Prefixes substrings within the given strings.
@@ -562,12 +563,12 @@ export class EffectPass extends Pass {
 
 	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass) {
 
-		console.time("EffectPass.render");
+		timeLog("EffectPass.render");
 
 		for (const effect of this.effects) {
-			console.time(`EffectPass.${effect.name}.update`);
+			timeLog(`EffectPass.${effect.name}.update`);
 			effect.update(renderer, inputBuffer, deltaTime, depthPass);
-			console.timeEnd(`EffectPass.${effect.name}.update`);
+			timeEndLog(`EffectPass.${effect.name}.update`);
 		}
 
 		if (!this.skipRendering || this.renderToScreen) {
@@ -576,13 +577,13 @@ export class EffectPass extends Pass {
 			material.inputBuffer = inputBuffer.texture;
 			material.time += deltaTime * this.timeScale;
 
-			console.time("EffectPass.finalRender");
+			timeLog("EffectPass.finalRender");
 			renderer.setRenderTarget(this.renderToScreen ? null : outputBuffer);
 			renderer.render(this.scene, this.camera);
-			console.timeEnd("EffectPass.finalRender");
+			timeEndLog("EffectPass.finalRender");
 		}
 
-		console.timeEnd("EffectPass.render");
+		timeEndLog("EffectPass.render");
 	}
 
 	/**

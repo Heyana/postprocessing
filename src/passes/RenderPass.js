@@ -1,6 +1,7 @@
 import { OverrideMaterialManager } from "../core/OverrideMaterialManager.js";
 import { ClearPass } from "./ClearPass.js";
 import { Pass } from "./Pass.js";
+import { timeLog, timeEndLog, log } from "../utils/PerformanceLogger.js";
 
 /**
  * A pass that renders a given scene into the input buffer or to screen.
@@ -279,7 +280,7 @@ export class RenderPass extends Pass {
 	 */
 
 	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest) {
-		console.time("RenderPass.render");
+		timeLog("RenderPass.render");
 		const scene = this.scene;
 		const camera = this.camera;
 		const selection = this.selection;
@@ -293,7 +294,7 @@ export class RenderPass extends Pass {
 		if (scene && scene.children && scene.children.length > 0) {
 			childClassName = scene.children[0].constructor.name;
 		}
-		console.log(`RenderPass 渲染场景, 第一个子对象类型: ${childClassName}`);
+		log(`RenderPass 渲染场景, 第一个子对象类型: ${childClassName}`);
 
 		if (selection !== null) {
 
@@ -336,7 +337,7 @@ export class RenderPass extends Pass {
 		scene.background = background;
 		renderer.shadowMap.autoUpdate = shadowMapAutoUpdate;
 
-		console.timeEnd("RenderPass.render");
+		timeEndLog("RenderPass.render");
 	}
 
 }

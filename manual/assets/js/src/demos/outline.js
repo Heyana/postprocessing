@@ -54,7 +54,7 @@ function load() {
 
 			gltf.scene.traverse((object) => {
 
-				if(object.isMesh) {
+				if (object.isMesh) {
 
 					object.castShadow = object.receiveShadow = true;
 
@@ -136,7 +136,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	const radius = 3.0;
 	let angle = 3.5;
 
-	for(const mesh of actors.children) {
+	for (const mesh of actors.children) {
 
 		// Arrange the objects in a circle.
 		mesh.position.set(radius * Math.cos(angle), 0, radius * Math.sin(angle));
@@ -162,6 +162,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		multisampling
 	});
 
+	// effect.efficientMaskGeneration = true;
 	effect.selection.add(actors.children[0]);
 
 	composer.addPass(new RenderPass(scene, camera));
@@ -181,7 +182,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		raycaster.setFromCamera(ndc, camera);
 		const intersects = raycaster.intersectObjects(scene.children, true);
 
-		if(intersects.length > 0) {
+		if (intersects.length > 0) {
 
 			effect.selection.toggle(intersects[0].object);
 

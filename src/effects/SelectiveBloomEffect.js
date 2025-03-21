@@ -16,6 +16,7 @@ import { ClearPass } from "../passes/ClearPass.js";
 import { DepthPass } from "../passes/DepthPass.js";
 import { ShaderPass } from "../passes/ShaderPass.js";
 import { BloomEffect } from "./BloomEffect.js";
+import { timeLog, timeEndLog, log } from "../utils/PerformanceLogger.js";
 
 /**
  * A selective bloom effect.
@@ -283,14 +284,14 @@ export class SelectiveBloomEffect extends BloomEffect {
 		const inverted = this.inverted;
 		let renderTarget = inputBuffer;
 
-		console.time("SelectiveBloomEffect.update");
-		console.log("SelectiveBloomEffect update called, selection size:", selection.size);
+		timeLog("SelectiveBloomEffect.update");
+		log("SelectiveBloomEffect update called, selection size:", selection.size);
 
 		if (this.ignoreBackground || !inverted || selection.size > 0) {
 
 			// 使用共享的深度通道或渲染自己的深度
 			if (depthPass !== null) {
-				console.time("SelectiveBloomEffect.update.useSharedDepthPass");
+				timeLog("SelectiveBloomEffect.update.useSharedDepthPass");
 				// 根据 DepthMaskMaterial 源码，设置深度纹理有两种方式：
 				// 1. 使用 setDepthBuffer1 方法
 				// 2. 分别设置 depthBuffer1 和 depthPacking1 属性
@@ -302,31 +303,31 @@ export class SelectiveBloomEffect extends BloomEffect {
 					this.depthMaskMaterial.depthBuffer1 = depthPass.texture;
 					this.depthMaskMaterial.depthPacking1 = depthPass.depthPacking || RGBADepthPacking;
 				}
-				console.timeEnd("SelectiveBloomEffect.update.useSharedDepthPass");
+				timeEndLog("SelectiveBloomEffect.update.useSharedDepthPass");
 			} else {
 				// 渲染选定对象的深度
-				console.time("SelectiveBloomEffect.update.depthPass");
+				timeLog("SelectiveBloomEffect.update.depthPass");
 				const mask = camera.layers.mask;
 				camera.layers.set(selection.layer);
 				this.depthPass.render(renderer);
 				camera.layers.mask = mask;
-				console.timeEnd("SelectiveBloomEffect.update.depthPass");
+				timeEndLog("SelectiveBloomEffect.update.depthPass");
 			}
 
 			// 基于深度丢弃颜色
-			console.time("SelectiveBloomEffect.update.maskRender");
+			timeLog("SelectiveBloomEffect.update.maskRender");
 			renderTarget = this.renderTargetMasked;
 			this.clearPass.render(renderer, renderTarget);
 			this.depthMaskPass.render(renderer, inputBuffer, renderTarget);
-			console.timeEnd("SelectiveBloomEffect.update.maskRender");
+			timeEndLog("SelectiveBloomEffect.update.maskRender");
 		}
 
 		// 正常渲染泛光纹理
-		console.time("SelectiveBloomEffect.update.superUpdate");
+		timeLog("SelectiveBloomEffect.update.superUpdate");
 		super.update(renderer, renderTarget, deltaTime);
-		console.timeEnd("SelectiveBloomEffect.update.superUpdate");
+		timeEndLog("SelectiveBloomEffect.update.superUpdate");
 
-		console.timeEnd("SelectiveBloomEffect.update");
+		timeEndLog("SelectiveBloomEffect.update");
 	}
 
 	/**
