@@ -162,11 +162,11 @@ export class Pass {
 
 	set renderToScreen(value) {
 
-		if(this.rtt === value) {
+		if (this.rtt === value) {
 
 			const material = this.fullscreenMaterial;
 
-			if(material !== null) {
+			if (material !== null) {
 
 				material.needsUpdate = true;
 
@@ -184,7 +184,7 @@ export class Pass {
 	 * @type {Scene}
 	 */
 
-	set mainScene(value) {}
+	set mainScene(value) { }
 
 	/**
 	 * Sets the main camera.
@@ -192,7 +192,7 @@ export class Pass {
 	 * @type {Camera}
 	 */
 
-	set mainCamera(value) {}
+	set mainCamera(value) { }
 
 	/**
 	 * Sets the renderer
@@ -249,7 +249,7 @@ export class Pass {
 
 		let screen = this.screen;
 
-		if(screen !== null) {
+		if (screen !== null) {
 
 			screen.material = value;
 
@@ -258,7 +258,7 @@ export class Pass {
 			screen = new Mesh(Pass.fullscreenGeometry, value);
 			screen.frustumCulled = false;
 
-			if(this.scene === null) {
+			if (this.scene === null) {
 
 				this.scene = new Scene();
 
@@ -320,7 +320,7 @@ export class Pass {
 	 * @param {DepthPackingStrategy} [depthPacking=BasicDepthPacking] - The depth packing.
 	 */
 
-	setDepthTexture(depthTexture, depthPacking = BasicDepthPacking) {}
+	setDepthTexture(depthTexture, depthPacking = BasicDepthPacking) { }
 
 	/**
 	 * Renders this pass.
@@ -334,9 +334,10 @@ export class Pass {
 	 * @param {WebGLRenderTarget} outputBuffer - A frame buffer that serves as the output render target unless this pass renders to screen.
 	 * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
 	 * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
+	 * @param {DepthPass} [depthPass] - An optional shared depth pass for optimizing multiple effects.
 	 */
 
-	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest) {
+	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass) {
 
 		throw new Error("Render method not implemented!");
 
@@ -352,7 +353,7 @@ export class Pass {
 	 * @param {Number} height - The height.
 	 */
 
-	setSize(width, height) {}
+	setSize(width, height) { }
 
 	/**
 	 * Performs initialization tasks.
@@ -364,7 +365,7 @@ export class Pass {
 	 * @param {Number} frameBufferType - The type of the main frame buffers.
 	 */
 
-	initialize(renderer, alpha, frameBufferType) {}
+	initialize(renderer, alpha, frameBufferType) { }
 
 	/**
 	 * Performs a shallow search for disposable properties and deletes them.
@@ -375,7 +376,7 @@ export class Pass {
 
 	dispose() {
 
-		for(const key of Object.keys(this)) {
+		for (const key of Object.keys(this)) {
 
 			const property = this[key];
 			const isDisposable = (
@@ -385,7 +386,7 @@ export class Pass {
 				property instanceof Pass
 			);
 
-			if(isDisposable) {
+			if (isDisposable) {
 
 				this[key].dispose();
 
@@ -393,7 +394,7 @@ export class Pass {
 
 		}
 
-		if(this.fullscreenMaterial !== null) {
+		if (this.fullscreenMaterial !== null) {
 
 			this.fullscreenMaterial.dispose();
 

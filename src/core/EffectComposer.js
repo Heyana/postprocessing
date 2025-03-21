@@ -16,6 +16,7 @@ import { CopyPass } from "../passes/CopyPass.js";
 import { MaskPass } from "../passes/MaskPass.js";
 import { Pass } from "../passes/Pass.js";
 
+import { DepthPass } from "../passes/DepthPass.js";
 /**
  * The EffectComposer may be used in place of a normal WebGLRenderer.
  *
@@ -152,14 +153,14 @@ export class EffectComposer {
 		const buffer = this.inputBuffer;
 		const multisampling = this.multisampling;
 
-		if(multisampling > 0 && value > 0) {
+		if (multisampling > 0 && value > 0) {
 
 			this.inputBuffer.samples = value;
 			this.outputBuffer.samples = value;
 			this.inputBuffer.dispose();
 			this.outputBuffer.dispose();
 
-		} else if(multisampling !== value) {
+		} else if (multisampling !== value) {
 
 			this.inputBuffer.dispose();
 			this.outputBuffer.dispose();
@@ -213,13 +214,13 @@ export class EffectComposer {
 
 		this.renderer = renderer;
 
-		if(renderer !== null) {
+		if (renderer !== null) {
 
 			const size = renderer.getSize(new Vector2());
 			const alpha = renderer.getContext().getContextAttributes().alpha;
 			const frameBufferType = this.inputBuffer.texture.type;
 
-			if(frameBufferType === UnsignedByteType && renderer.outputColorSpace === SRGBColorSpace) {
+			if (frameBufferType === UnsignedByteType && renderer.outputColorSpace === SRGBColorSpace) {
 
 				this.inputBuffer.texture.colorSpace = SRGBColorSpace;
 				this.outputBuffer.texture.colorSpace = SRGBColorSpace;
@@ -232,7 +233,7 @@ export class EffectComposer {
 			renderer.autoClear = false;
 			this.setSize(size.width, size.height);
 
-			for(const pass of this.passes) {
+			for (const pass of this.passes) {
 
 				pass.initialize(renderer, alpha, frameBufferType);
 
@@ -264,7 +265,7 @@ export class EffectComposer {
 
 		this.setRenderer(renderer);
 
-		if(updateDOM && parent !== null) {
+		if (updateDOM && parent !== null) {
 
 			parent.removeChild(oldRenderer.domElement);
 			parent.appendChild(renderer.domElement);
@@ -293,7 +294,7 @@ export class EffectComposer {
 		this.inputBuffer.depthTexture = depthTexture;
 		this.inputBuffer.dispose();
 
-		if(this.inputBuffer.stencilBuffer) {
+		if (this.inputBuffer.stencilBuffer) {
 
 			depthTexture.format = DepthStencilFormat;
 			depthTexture.type = UnsignedInt248Type;
@@ -316,7 +317,7 @@ export class EffectComposer {
 
 	deleteDepthTexture() {
 
-		if(this.depthTexture !== null) {
+		if (this.depthTexture !== null) {
 
 			this.depthTexture.dispose();
 			this.depthTexture = null;
@@ -325,7 +326,7 @@ export class EffectComposer {
 			this.inputBuffer.depthTexture = null;
 			this.inputBuffer.dispose();
 
-			for(const pass of this.passes) {
+			for (const pass of this.passes) {
 
 				pass.setDepthTexture(null);
 
@@ -361,14 +362,14 @@ export class EffectComposer {
 
 		const renderTarget = new WebGLRenderTarget(size.width, size.height, options);
 
-		if(multisampling > 0) {
+		if (multisampling > 0) {
 
 			renderTarget.ignoreDepthForMultisampleCopy = false;
 			renderTarget.samples = multisampling;
 
 		}
 
-		if(type === UnsignedByteType && renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
+		if (type === UnsignedByteType && renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
 
 			renderTarget.texture.colorSpace = SRGBColorSpace;
 
@@ -389,7 +390,7 @@ export class EffectComposer {
 
 	setMainScene(scene) {
 
-		for(const pass of this.passes) {
+		for (const pass of this.passes) {
 
 			pass.mainScene = scene;
 
@@ -405,7 +406,7 @@ export class EffectComposer {
 
 	setMainCamera(camera) {
 
-		for(const pass of this.passes) {
+		for (const pass of this.passes) {
 
 			pass.mainCamera = camera;
 
@@ -433,15 +434,15 @@ export class EffectComposer {
 		pass.setSize(drawingBufferSize.width, drawingBufferSize.height);
 		pass.initialize(renderer, alpha, frameBufferType);
 
-		if(this.autoRenderToScreen) {
+		if (this.autoRenderToScreen) {
 
-			if(passes.length > 0) {
+			if (passes.length > 0) {
 
 				passes[passes.length - 1].renderToScreen = false;
 
 			}
 
-			if(pass.renderToScreen) {
+			if (pass.renderToScreen) {
 
 				this.autoRenderToScreen = false;
 
@@ -449,7 +450,7 @@ export class EffectComposer {
 
 		}
 
-		if(index !== undefined) {
+		if (index !== undefined) {
 
 			passes.splice(index, 0, pass);
 
@@ -459,19 +460,19 @@ export class EffectComposer {
 
 		}
 
-		if(this.autoRenderToScreen) {
+		if (this.autoRenderToScreen) {
 
 			passes[passes.length - 1].renderToScreen = true;
 
 		}
 
-		if(pass.needsDepthTexture || this.depthTexture !== null) {
+		if (pass.needsDepthTexture || this.depthTexture !== null) {
 
-			if(this.depthTexture === null) {
+			if (this.depthTexture === null) {
 
 				const depthTexture = this.createDepthTexture();
 
-				for(pass of passes) {
+				for (pass of passes) {
 
 					pass.setDepthTexture(depthTexture);
 
@@ -500,17 +501,17 @@ export class EffectComposer {
 		const exists = (index !== -1);
 		const removed = exists && (passes.splice(index, 1).length > 0);
 
-		if(removed) {
+		if (removed) {
 
-			if(this.depthTexture !== null) {
+			if (this.depthTexture !== null) {
 
 				// Check if the depth texture is still required.
 				const reducer = (a, b) => (a || b.needsDepthTexture);
 				const depthTextureRequired = passes.reduce(reducer, false);
 
-				if(!depthTextureRequired) {
+				if (!depthTextureRequired) {
 
-					if(pass.getDepthTexture() === this.depthTexture) {
+					if (pass.getDepthTexture() === this.depthTexture) {
 
 						pass.setDepthTexture(null);
 
@@ -522,14 +523,14 @@ export class EffectComposer {
 
 			}
 
-			if(this.autoRenderToScreen) {
+			if (this.autoRenderToScreen) {
 
 				// Check if the removed pass was the last one.
-				if(index === passes.length) {
+				if (index === passes.length) {
 
 					pass.renderToScreen = false;
 
-					if(passes.length > 0) {
+					if (passes.length > 0) {
 
 						passes[passes.length - 1].renderToScreen = true;
 
@@ -553,9 +554,9 @@ export class EffectComposer {
 
 		this.deleteDepthTexture();
 
-		if(passes.length > 0) {
+		if (passes.length > 0) {
 
-			if(this.autoRenderToScreen) {
+			if (this.autoRenderToScreen) {
 
 				passes[passes.length - 1].renderToScreen = false;
 
@@ -584,22 +585,78 @@ export class EffectComposer {
 		let stencilTest = false;
 		let context, stencil, buffer;
 
-		if(deltaTime === undefined) {
+		// 用于存储深度通道的引用和深度纹理
+		let depthPass = null;
+
+		if (deltaTime === undefined) {
 
 			this.timer.update();
 			deltaTime = this.timer.getDelta();
 
 		}
 
-		for(const pass of this.passes) {
+		// 查找是否有深度通道或需要深度信息的通道
+		let needsDepthPass = false;
+		for (const pass of this.passes) {
+			if (pass.enabled) {
+				if (pass instanceof DepthPass) {
+					depthPass = pass;
+					break;
+				} else if (pass.needsDepthTexture) {
+					needsDepthPass = true;
+				}
+			}
+		}
 
-			if(pass.enabled) {
+		// 如果没有找到现有的深度通道但有通道需要深度信息，则使用已创建的共享深度纹理
+		if (depthPass === null && needsDepthPass && this.depthTexture !== null) {
+			// 场景和相机应该在第一个通道中找到
+			for (const pass of this.passes) {
+				if (pass.enabled && pass.scene && pass.camera) {
+					// 如果我们还没有创建过 depthPass，现在创建一个
+					if (depthPass === null) {
+						// 导入 DepthPass 类
+						depthPass = new DepthPass(pass.scene, pass.camera);
+						depthPass.initialize(renderer, false, 0);
+						// 这只是一个临时的深度通道，不添加到 passes 中
+					}
+					break;
+				}
+			}
 
-				pass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest);
+			// 如果有深度通道，先渲染它
+			if (depthPass !== null) {
+				depthPass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest);
+			}
+		}
 
-				if(pass.needsSwap) {
+		for (const pass of this.passes) {
 
-					if(stencilTest) {
+			if (pass.enabled) {
+				// 如果这是一个深度通道并且我们已经渲染过深度，跳过它
+				if (pass instanceof DepthPass && pass !== depthPass && depthPass !== null) {
+					continue;
+				}
+
+				// 获取pass的第一个子对象的类名（如果存在）
+				let childClassName = "无子对象";
+				if (pass.effects && pass.effects && pass.effects.length > 0) {
+					childClassName = pass.effects[0].constructor.name;
+				}
+
+				// 打印pass信息并开始计时
+				console.log(`执行 pass: ${pass.constructor.name}, 第一个子对象类型: ${childClassName}`);
+				console.time(`${pass.constructor.name}.render`);
+
+				// 传递深度通道作为额外参数
+				pass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass);
+
+				// 结束计时
+				console.timeEnd(`${pass.constructor.name}.render`);
+
+				if (pass.needsSwap) {
+
+					if (stencilTest) {
 
 						copyPass.renderToScreen = pass.renderToScreen;
 						context = renderer.getContext();
@@ -618,11 +675,11 @@ export class EffectComposer {
 
 				}
 
-				if(pass instanceof MaskPass) {
+				if (pass instanceof MaskPass) {
 
 					stencilTest = true;
 
-				} else if(pass instanceof ClearMaskPass) {
+				} else if (pass instanceof ClearMaskPass) {
 
 					stencilTest = false;
 
@@ -647,14 +704,14 @@ export class EffectComposer {
 		const renderer = this.renderer;
 		const currentSize = renderer.getSize(new Vector2());
 
-		if(width === undefined || height === undefined) {
+		if (width === undefined || height === undefined) {
 
 			width = currentSize.width;
 			height = currentSize.height;
 
 		}
 
-		if(currentSize.width !== width || currentSize.height !== height) {
+		if (currentSize.width !== width || currentSize.height !== height) {
 
 			// Update the logical render size.
 			renderer.setSize(width, height, updateStyle);
@@ -666,7 +723,7 @@ export class EffectComposer {
 		this.inputBuffer.setSize(drawingBufferSize.width, drawingBufferSize.height);
 		this.outputBuffer.setSize(drawingBufferSize.width, drawingBufferSize.height);
 
-		for(const pass of this.passes) {
+		for (const pass of this.passes) {
 
 			pass.setSize(drawingBufferSize.width, drawingBufferSize.height);
 
@@ -691,7 +748,7 @@ export class EffectComposer {
 
 	dispose() {
 
-		for(const pass of this.passes) {
+		for (const pass of this.passes) {
 
 			pass.dispose();
 
@@ -699,13 +756,13 @@ export class EffectComposer {
 
 		this.passes = [];
 
-		if(this.inputBuffer !== null) {
+		if (this.inputBuffer !== null) {
 
 			this.inputBuffer.dispose();
 
 		}
 
-		if(this.outputBuffer !== null) {
+		if (this.outputBuffer !== null) {
 
 			this.outputBuffer.dispose();
 

@@ -724,9 +724,10 @@ export class OutlineEffect extends Effect {
 	 * @param {WebGLRenderer} renderer - The renderer.
 	 * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
 	 * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+	 * @param {DepthPass} [depthPass] - An optional shared depth pass for optimized rendering.
 	 */
 
-	update(renderer, inputBuffer, deltaTime) {
+	update(renderer, inputBuffer, deltaTime, depthPass) {
 
 		const scene = this.scene;
 		const camera = this.camera;
@@ -752,26 +753,52 @@ export class OutlineEffect extends Effect {
 			this.time += deltaTime;
 			console.timeEnd("OutlineEffect.update.preparation");
 
-			// Render a custom depth texture and ignore selected objects.
-			console.time("OutlineEffect.update.depthPass");
-			selection.setVisible(false);
-			this.depthPass.render(renderer);
-			selection.setVisible(true);
-			console.timeEnd("OutlineEffect.update.depthPass");
+			// 使用共享的深度通道（如果提供）或自己的深度通道
+			if (depthPass !== null) {
+				console.time("OutlineEffect.update.useSharedDepthPass");
+				// 从检查 DepthComparisonMaterial 源码可知，正确的 uniform 名称是 depthBuffer
+				// 设置深度缓冲区并同步深度打包格式
+				const depthMaterial = this.maskPass.overrideMaterial;
 
-			// Compare the depth of the selected objects with the depth texture.
+				if (depthMaterial) {
+					// 设置深度缓冲区
+					depthMaterial.depthBuffer = depthPass.texture;
+
+					// 确保深度打包格式匹配
+					if (depthPass.depthPacking !== undefined) {
+						depthMaterial.depthPacking = depthPass.depthPacking;
+					}
+				} else {
+					console.warn('maskPass 没有 overrideMaterial');
+
+					// 回退到使用自己的深度通道
+					selection.setVisible(false);
+					this.depthPass.render(renderer);
+					selection.setVisible(true);
+				}
+				console.timeEnd("OutlineEffect.update.useSharedDepthPass");
+			} else {
+				// 渲染自己的深度纹理
+				console.time("OutlineEffect.update.depthPass");
+				selection.setVisible(false);
+				this.depthPass.render(renderer);
+				selection.setVisible(true);
+				console.timeEnd("OutlineEffect.update.depthPass");
+			}
+
+			// 比较选定对象的深度与深度纹理
 			console.time("OutlineEffect.update.maskPass");
 			camera.layers.set(selection.layer);
 			this.maskPass.render(renderer, this.renderTargetMask);
 			console.timeEnd("OutlineEffect.update.maskPass");
 
-			// Restore the camera layer mask and the scene background.
+			// 恢复相机层遮罩和场景背景
 			console.time("OutlineEffect.update.restoration");
 			camera.layers.mask = mask;
 			scene.background = background;
 			console.timeEnd("OutlineEffect.update.restoration");
 
-			// Detect the outline.
+			// 检测轮廓
 			console.time("OutlineEffect.update.outlinePass");
 			this.outlinePass.render(renderer, null, this.renderTargetOutline);
 			console.timeEnd("OutlineEffect.update.outlinePass");

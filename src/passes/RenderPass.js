@@ -111,9 +111,9 @@ export class RenderPass extends Pass {
 
 		const manager = this.overrideMaterialManager;
 
-		if(value !== null) {
+		if (value !== null) {
 
-			if(manager !== null) {
+			if (manager !== null) {
 
 				manager.setMaterial(value);
 
@@ -123,7 +123,7 @@ export class RenderPass extends Pass {
 
 			}
 
-		} else if(manager !== null) {
+		} else if (manager !== null) {
 
 			manager.dispose();
 			this.overrideMaterialManager = null;
@@ -279,6 +279,7 @@ export class RenderPass extends Pass {
 	 */
 
 	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest) {
+		console.time("RenderPass.render");
 		const scene = this.scene;
 		const camera = this.camera;
 		const selection = this.selection;
@@ -287,25 +288,32 @@ export class RenderPass extends Pass {
 		const shadowMapAutoUpdate = renderer.shadowMap.autoUpdate;
 		const renderTarget = this.renderToScreen ? null : inputBuffer;
 
-		if(selection !== null) {
+		// 获取场景中第一个子对象的类名（如果存在）
+		let childClassName = "无子对象";
+		if (scene && scene.children && scene.children.length > 0) {
+			childClassName = scene.children[0].constructor.name;
+		}
+		console.log(`RenderPass 渲染场景, 第一个子对象类型: ${childClassName}`);
+
+		if (selection !== null) {
 
 			camera.layers.set(selection.getLayer());
 
 		}
 
-		if(this.skipShadowMapUpdate) {
+		if (this.skipShadowMapUpdate) {
 
 			renderer.shadowMap.autoUpdate = false;
 
 		}
 
-		if(this.ignoreBackground || this.clearPass.overrideClearColor !== null) {
+		if (this.ignoreBackground || this.clearPass.overrideClearColor !== null) {
 
 			scene.background = null;
 
 		}
 
-		if(this.clearPass.enabled) {
+		if (this.clearPass.enabled) {
 
 			this.clearPass.render(renderer, inputBuffer);
 
@@ -313,7 +321,7 @@ export class RenderPass extends Pass {
 
 		renderer.setRenderTarget(renderTarget);
 
-		if(this.overrideMaterialManager !== null) {
+		if (this.overrideMaterialManager !== null) {
 
 			this.overrideMaterialManager.render(renderer, scene, camera);
 
@@ -328,6 +336,7 @@ export class RenderPass extends Pass {
 		scene.background = background;
 		renderer.shadowMap.autoUpdate = shadowMapAutoUpdate;
 
+		console.timeEnd("RenderPass.render");
 	}
 
 }

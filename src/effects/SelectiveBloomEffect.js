@@ -273,30 +273,60 @@ export class SelectiveBloomEffect extends BloomEffect {
 	 * @param {WebGLRenderer} renderer - The renderer.
 	 * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
 	 * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+	 * @param {DepthPass} [depthPass] - An optional shared depth pass for optimized rendering.
 	 */
 
-	update(renderer, inputBuffer, deltaTime) {
+	update(renderer, inputBuffer, deltaTime, depthPass) {
 
 		const camera = this.camera;
 		const selection = this.selection;
 		const inverted = this.inverted;
 		let renderTarget = inputBuffer;
 
-		if(this.ignoreBackground || !inverted || selection.size > 0) {
+		console.time("SelectiveBloomEffect.update");
+		console.log("SelectiveBloomEffect update called, selection size:", selection.size);
 
-			// Render depth of selected objects.
-			const mask = camera.layers.mask;
-			camera.layers.set(selection.layer);
-			this.depthPass.render(renderer);
-			camera.layers.mask = mask;
+		if (this.ignoreBackground || !inverted || selection.size > 0) {
 
-			// Discard colors based on depth.
+			// 使用共享的深度通道或渲染自己的深度
+			if (depthPass !== null) {
+				console.time("SelectiveBloomEffect.update.useSharedDepthPass");
+				// 根据 DepthMaskMaterial 源码，设置深度纹理有两种方式：
+				// 1. 使用 setDepthBuffer1 方法
+				// 2. 分别设置 depthBuffer1 和 depthPacking1 属性
+				if (typeof this.depthMaskMaterial.setDepthBuffer1 === 'function') {
+					// 优先使用专门的设置方法
+					this.depthMaskMaterial.setDepthBuffer1(depthPass.texture, depthPass.depthPacking || RGBADepthPacking);
+				} else {
+					// 回退到单独设置属性
+					this.depthMaskMaterial.depthBuffer1 = depthPass.texture;
+					this.depthMaskMaterial.depthPacking1 = depthPass.depthPacking || RGBADepthPacking;
+				}
+				console.timeEnd("SelectiveBloomEffect.update.useSharedDepthPass");
+			} else {
+				// 渲染选定对象的深度
+				console.time("SelectiveBloomEffect.update.depthPass");
+				const mask = camera.layers.mask;
+				camera.layers.set(selection.layer);
+				this.depthPass.render(renderer);
+				camera.layers.mask = mask;
+				console.timeEnd("SelectiveBloomEffect.update.depthPass");
+			}
+
+			// 基于深度丢弃颜色
+			console.time("SelectiveBloomEffect.update.maskRender");
 			renderTarget = this.renderTargetMasked;
 			this.clearPass.render(renderer, renderTarget);
 			this.depthMaskPass.render(renderer, inputBuffer, renderTarget);
+			console.timeEnd("SelectiveBloomEffect.update.maskRender");
 		}
-		// Render the bloom texture as usual.
+
+		// 正常渲染泛光纹理
+		console.time("SelectiveBloomEffect.update.superUpdate");
 		super.update(renderer, renderTarget, deltaTime);
+		console.timeEnd("SelectiveBloomEffect.update.superUpdate");
+
+		console.timeEnd("SelectiveBloomEffect.update");
 	}
 
 	/**
@@ -330,17 +360,17 @@ export class SelectiveBloomEffect extends BloomEffect {
 		this.depthPass.initialize(renderer, alpha, frameBufferType);
 		this.depthMaskPass.initialize(renderer, alpha, frameBufferType);
 
-		if(renderer !== null && renderer.capabilities.logarithmicDepthBuffer) {
+		if (renderer !== null && renderer.capabilities.logarithmicDepthBuffer) {
 
 			this.depthMaskPass.fullscreenMaterial.defines.LOG_DEPTH = "1";
 
 		}
 
-		if(frameBufferType !== undefined) {
+		if (frameBufferType !== undefined) {
 
 			this.renderTargetMasked.texture.type = frameBufferType;
 
-			if(renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
+			if (renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
 
 				this.renderTargetMasked.texture.colorSpace = SRGBColorSpace;
 
