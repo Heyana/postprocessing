@@ -788,7 +788,7 @@ export class OutlineEffect extends Effect {
 			}
 
 			// 比较选定对象的深度与深度纹理
-			console.time("OutlineEffect.update.maskPass");
+			timeLog("OutlineEffect.update.maskPass");
 			camera.layers.set(selection.layer);
 			this.maskPass.render(renderer, this.renderTargetMask);
 			timeEndLog("OutlineEffect.update.maskPass");
