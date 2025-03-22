@@ -3,7 +3,7 @@
  * 提供全局控制的性能测量和日志功能
  */
 
-const theEnabled = true;
+const theEnabled = false;
 export class PerformanceLogger {
 
     /**

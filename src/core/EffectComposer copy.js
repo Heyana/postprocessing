@@ -4,19 +4,19 @@ import {
 	LinearFilter,
 	SRGBColorSpace,
 	UnsignedByteType,
-	UnsignedInt248Type,
 	UnsignedIntType,
+	UnsignedInt248Type,
 	Vector2,
 	WebGLRenderTarget
 } from "three";
-import { Timer } from "./Timer.js";
 
+import { Timer } from "./Timer.js";
 import { ClearMaskPass } from "../passes/ClearMaskPass.js";
 import { CopyPass } from "../passes/CopyPass.js";
-import { DepthPass } from "../passes/DepthPass.js";
 import { MaskPass } from "../passes/MaskPass.js";
 import { Pass } from "../passes/Pass.js";
-import { timeEndLog, timeLog } from "../utils/PerformanceLogger.js";
+import { timeLog, timeEndLog, log } from "../utils/PerformanceLogger.js";
+import { DepthPass } from "../passes/DepthPass.js";
 /**
  * The EffectComposer may be used in place of a normal WebGLRenderer.
  *
@@ -47,7 +47,7 @@ export class EffectComposer {
 		depthBuffer = true,
 		stencilBuffer = false,
 		multisampling = 0,
-		frameBufferType,
+		frameBufferType
 	} = {}) {
 
 		/**
@@ -56,7 +56,6 @@ export class EffectComposer {
 		 * @type {WebGLRenderer}
 		 * @private
 		 */
-
 
 		this.renderer = null;
 
@@ -239,9 +238,6 @@ export class EffectComposer {
 				pass.initialize(renderer, alpha, frameBufferType);
 
 			}
-			this.depthPass = new DepthPass(this.scene, this.camera);
-			this.depthPass.initialize(renderer, false, 0);
-			console.log('Log-- ', this.depthPass, this.scene, this.camera, 'this.depthPass,this.scene,this.');
 
 		}
 
@@ -591,7 +587,7 @@ export class EffectComposer {
 		let context, stencil, buffer;
 
 		// 用于存储深度通道的引用和深度纹理
-		let depthPass = this.depthPass;
+		let depthPass = null;
 
 		if (deltaTime === undefined) {
 
@@ -603,29 +599,53 @@ export class EffectComposer {
 		// 查找是否有深度通道或需要深度信息的通道
 
 
-
 		// 如果没有找到现有的深度通道但有通道需要深度信息，则使用已创建的共享深度纹理
-
-
-		const renderPasses = this.passes[0]
-		if (renderPasses.isRenderPass) {
-			renderPasses.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass);
-			if (this.depthTexture !== null) {
-
-				// 如果有深度通道，先渲染它
-				if (depthPass !== null) {
-					depthPass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest);
+		if (depthPass === null) {
+			// 场景和相机应该在第一个通道中找到
+			for (const pass of this.passes) {
+				console.log('Log-- ', pass.enabled && pass.scene && pass.camera, 'pass.enabled && pass.scene && pass.camera');
+				if (pass.enabled && pass.scene && pass.camera) {
+					// 如果我们还没有创建过 depthPass，现在创建一个
+					if (depthPass === null) {
+						// 导入 DepthPass 类
+						depthPass = new DepthPass(pass.scene, pass.camera);
+						depthPass.initialize(renderer, false, 0);
+						// 这只是一个临时的深度通道，不添加到 passes 中
+					}
+					break;
 				}
 			}
+
+			// 如果有深度通道，先渲染它
+			if (depthPass !== null) {
+				depthPass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest);
+			}
 		}
+
+		console.log('Log-- ', depthPass, 'depthPass');
 		for (const pass of this.passes) {
 
-			if (pass.enabled && !pass.isRenderPass) {
+			if (pass.enabled) {
+				// 如果这是一个深度通道并且我们已经渲染过深度，跳过它
+				// if (pass instanceof DepthPass && pass !== depthPass && depthPass !== null) {
+				// 	continue;
+				// }
+
+				// 获取pass的第一个子对象的类名（如果存在）
+				// let childClassName = "无子对象";
+				// if (pass.effects && pass.effects && pass.effects.length > 0) {
+				// 	childClassName = pass.effects[0].constructor.name;
+				// }
+
+				// 打印pass信息并开始计时
+				// log(`执行 pass: ${pass.constructor.name}, 第一个子对象类型: ${childClassName}`);
+				// timeLog(`${pass.constructor.name}.render`);
 
 				// 传递深度通道作为额外参数
 				pass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass);
 
-
+				// // 结束计时
+				// timeEndLog(`${pass.constructor.name}.render`);
 
 				if (pass.needsSwap) {
 
@@ -657,7 +677,6 @@ export class EffectComposer {
 					stencilTest = false;
 
 				}
-
 
 			}
 

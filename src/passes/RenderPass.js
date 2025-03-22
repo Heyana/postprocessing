@@ -10,6 +10,7 @@ import { timeLog, timeEndLog, log } from "../utils/PerformanceLogger.js";
  */
 
 export class RenderPass extends Pass {
+	isRenderPass = true;
 
 	/**
 	 * Constructs a new render pass.
