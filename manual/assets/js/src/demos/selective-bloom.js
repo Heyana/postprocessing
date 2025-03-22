@@ -179,6 +179,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
     // Enable dithering for smoother bloom
     bloomEffect.mipmapBlurPass.dithering = true;
+    console.log('Log-- ', bloomEffect, 'bloomEffect');
 
     composer.addPass(new RenderPass(scene, camera));
     composer.addPass(new EffectPass(camera, bloomEffect));

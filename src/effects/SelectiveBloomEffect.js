@@ -290,7 +290,8 @@ export class SelectiveBloomEffect extends BloomEffect {
 		if (this.ignoreBackground || !inverted || selection.size > 0) {
 
 			// 使用共享的深度通道或渲染自己的深度
-			if (depthPass !== null) {
+			//用了会有bug 不能为true
+			if (false) {
 				timeLog("SelectiveBloomEffect.update.useSharedDepthPass");
 				// 根据 DepthMaskMaterial 源码，设置深度纹理有两种方式：
 				// 1. 使用 setDepthBuffer1 方法
