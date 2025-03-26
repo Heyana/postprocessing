@@ -28,3 +28,8 @@ export {
 
 // 在效果导出部分添加SSREffect
 export * from "./effects/SSREffect.js";
+
+// 查找导出部分，添加以下两行：
+export { SharpenEffect } from "./effects/SharpenEffect.js";
+export { AdaptiveSharpenEffect } from "./effects/AdaptiveSharpenEffect.js";
+export { DenoiseEffect } from "./effects/DenoiseEffect.js";
