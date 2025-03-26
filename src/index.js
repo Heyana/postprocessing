@@ -21,3 +21,10 @@ export {
     printSummary
 } from "./utils/PerformanceLogger.js";
 
+
+export {
+    ThreeCompatPass
+} from "./passes/ThreeCompatPass.js";
+
+// 在效果导出部分添加SSREffect
+export * from "./effects/SSREffect.js";

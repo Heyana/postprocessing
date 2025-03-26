@@ -18,6 +18,7 @@ export * from "./NormalPass.js";
 export * from "./Pass.js";
 export * from "./RenderPass.js";
 export * from "./ShaderPass.js";
+export * from "./ThreeCompatPass.js";
 export * from "./TiltShiftBlurPass.js";
 
 /** @deprecated Renamed to CopyPass. */

@@ -127,7 +127,5 @@
     "tweakpane": "4.x.x",
     "typescript": "5.8.x"
   },
-  "dependencies": {
-    "hugo-bin": "0.142.0"
-  }
+  "dependencies": {}
 }
