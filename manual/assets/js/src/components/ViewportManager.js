@@ -99,7 +99,7 @@ export class ViewportManager {
 
 	handleScroll(event) {
 
-		if(this.preventScrolling) {
+		if (this.preventScrolling) {
 
 			event.preventDefault();
 
@@ -115,9 +115,9 @@ export class ViewportManager {
 
 	toggleFullscreen() {
 
-		if(document.fullscreenEnabled) {
+		if (document.fullscreenEnabled) {
 
-			if(document.fullscreenElement !== null) {
+			if (document.fullscreenElement !== null) {
 
 				document.exitFullscreen();
 
@@ -133,7 +133,7 @@ export class ViewportManager {
 
 	handleEvent(event) {
 
-		switch(event.type) {
+		switch (event.type) {
 
 			case "mouseenter":
 				this.preventScrolling = true;
@@ -167,7 +167,7 @@ export class ViewportManager {
 
 		const viewport = this.viewport = document.querySelector(".viewport");
 
-		if(viewport !== null) {
+		if (viewport !== null) {
 
 			// Error Handling
 
@@ -190,9 +190,9 @@ export class ViewportManager {
 
 			const observer = new MutationObserver((mutationsList, observer) => {
 
-				for(const mutation of mutationsList) {
+				for (const mutation of mutationsList) {
 
-					if(mutation.type === "childList") {
+					if (mutation.type === "childList") {
 
 						// Stop the loading animation when something is added to the viewport.
 						viewport.classList.remove("loading");
@@ -200,7 +200,7 @@ export class ViewportManager {
 						// Show an epilepsy warning if applicable.
 						const alreadyShown = (sessionStorage.getItem("epilepsy-warning") !== null);
 
-						if(viewport.dataset.epilepsyWarning && !alreadyShown) {
+						if (viewport.dataset.epilepsyWarning && !alreadyShown) {
 
 							this.showEpilepsyWarning();
 

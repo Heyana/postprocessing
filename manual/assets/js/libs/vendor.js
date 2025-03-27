@@ -13,3 +13,6 @@ export { SSAOPass } from "run-scene-core/examples/jsm/postprocessing/SSAOPass.js
 export { ControlMode, SpatialControls } from "spatial-controls";
 export { Pane } from "tweakpane";
 export { ReflectorForSSRPass } from "run-scene-core/examples/jsm/Addons.js";
+
+export { OrbitControls } from "three/addons/controls/OrbitControls.js";
+// export { VelocityDepthNormalPass } from "../../libs/realism-effects/src/temporal-reproject/pass/VelocityDepthNormalPass.js";

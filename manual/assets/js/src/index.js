@@ -17,7 +17,7 @@ window.addEventListener("DOMContentLoaded", (event) => {
 		new ViewportManager()
 	];
 
-	for(const component of components) {
+	for (const component of components) {
 
 		component.initialize();
 

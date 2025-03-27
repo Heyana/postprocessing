@@ -88,9 +88,7 @@
     "watch:css": "sass --no-source-map -I manual/assets/css/src/values manual/assets/css/src:manual/assets/css/dist -w",
     "watch:js": "node esbuild -w"
   },
-  "peerDependencies": {
-    "three": ">= 0.157.0 < 0.175.0"
-  },
+  "peerDependencies": {},
   "devDependencies": {
     "@tweakpane/core": "2.x.x",
     "@types/node": "22.x.x",
@@ -120,12 +118,14 @@
     "stylelint": "16.x.x",
     "stylelint-config-standard-scss": "14.x.x",
     "stylelint-order": "6.x.x",
-    "three": "0.169.0",
     "three-demo": "5.x.x",
     "tiny-glob": "0.x.x",
     "tslib": "2.x.x",
     "tweakpane": "4.x.x",
     "typescript": "5.8.x"
   },
-  "dependencies": {}
+  "dependencies": {
+    "postprocessing": "^6.37.1",
+    "three": "0.165.0"
+  }
 }

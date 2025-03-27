@@ -33,3 +33,5 @@ export * from "./effects/SSREffect.js";
 export { SharpenEffect } from "./effects/SharpenEffect.js";
 export { AdaptiveSharpenEffect } from "./effects/AdaptiveSharpenEffect.js";
 export { DenoiseEffect } from "./effects/DenoiseEffect.js";
+export { VolumetricFogEffect } from "./effects/VolumetricFogEffect.js";
+export { SSGIEffect } from "./effects/SSGIEffect.js";

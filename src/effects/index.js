@@ -33,6 +33,7 @@ export * from "./SepiaEffect.js";
 export * from "./SharedOutlineEffect.js";
 export * from "./SMAAEffect.js";
 export * from "./SSAOEffect.js";
+export * from "./SSGIEffect.js";
 export * from "./TextureEffect.js";
 export * from "./TiltShiftEffect.js";
 export * from "./ToneMappingEffect.js";
