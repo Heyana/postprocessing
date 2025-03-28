@@ -501,6 +501,312 @@ window.addEventListener("load", () => load().then((assets) => {
     // 场景设置
     const sceneFolder = pane.addFolder({ title: "场景控制" });
 
+    // 添加调试面板，用于查看不同通道
+    const debugFolder = pane.addFolder({ title: "调试视图" });
+
+    // 可查看的纹理选项
+    const textureOptions = {
+        "最终效果": "final",
+        "SSGI原始输出": "ssgi_raw",
+        "降噪后结果": "denoised",
+        "降噪中间步骤": "denoise_step",
+        "G-Buffer法线": "normal",
+        "G-Buffer粗糙度": "roughness",
+        "G-Buffer金属度": "metalness"
+    };
+
+    const debugSettings = {
+        currentView: "final",
+        denoiseMidStep: 0
+    };
+
+    // 存储原始输出纹理的引用，以便可以在调试和正常模式之间切换
+    const originalOutputTexture = ssgiEffect.outputTexture;
+
+    // 更新通道视图的函数
+    function updateDebugView() {
+        // 重置到原始输出
+        ssgiEffect.outputTexture = originalOutputTexture;
+
+        switch (debugSettings.currentView) {
+            case "final":
+                // 使用最终合成结果
+                ssgiEffect.outputTexture = originalOutputTexture;
+                break;
+            case "ssgi_raw":
+                // 查看SSGI原始输出（未经降噪处理）
+                if (ssgiEffect.ssgiPass && ssgiEffect.ssgiPass.texture) {
+                    ssgiEffect.outputTexture = ssgiEffect.ssgiPass.texture;
+                    console.log("显示SSGI原始输出");
+                }
+                break;
+            case "denoised":
+                // 查看降噪后的结果
+                if (ssgiEffect.denoiser && ssgiEffect.denoiser.texture) {
+                    ssgiEffect.outputTexture = ssgiEffect.denoiser.texture;
+                    console.log("显示降噪后结果");
+                }
+                break;
+            case "denoise_step":
+                // 查看降噪中间步骤
+                if (ssgiEffect.denoiser && ssgiEffect.denoiser.denoisePass) {
+                    // 尝试访问多步降噪的中间结果
+                    const stepIndex = Math.min(debugSettings.denoiseMidStep, 1); // 限制到可用纹理
+                    if (ssgiEffect.denoiser.denoisePass.renderTargetB &&
+                        ssgiEffect.denoiser.denoisePass.renderTargetB.texture &&
+                        ssgiEffect.denoiser.denoisePass.renderTargetB.texture[stepIndex]) {
+                        ssgiEffect.outputTexture = ssgiEffect.denoiser.denoisePass.renderTargetB.texture[stepIndex];
+                        console.log(`显示降噪步骤 ${stepIndex} 的结果`);
+                    }
+                }
+                break;
+            case "normal":
+            case "roughness":
+            case "metalness":
+                // 使用G-Buffer中的特定通道
+                ssgiEffect.outputTexture = debugSettings.currentView;
+                console.log(`显示G-Buffer ${debugSettings.currentView} 通道`);
+                break;
+        }
+    }
+
+    debugFolder.addBinding(debugSettings, "currentView", {
+        options: textureOptions,
+        label: "查看通道"
+    }).on("change", updateDebugView);
+
+    // 如果选择了中间降噪步骤，允许选择步骤索引
+    debugFolder.addBinding(debugSettings, "denoiseMidStep", {
+        min: 0, max: 1, step: 1,
+        label: "降噪步骤索引",
+        hidden: debugSettings.currentView !== "denoise_step"
+    }).on("change", () => {
+        if (debugSettings.currentView === "denoise_step") {
+            updateDebugView();
+        }
+    });
+
+    // 添加调试辅助按钮
+    debugFolder.addButton({
+        title: "诊断黑点"
+    }).on("click", () => {
+        // 打印关键信息到控制台
+        console.log("SSGI诊断信息:", {
+            "SSGI模式": ssgiEffect.mode,
+            "采样步数": ssgiEffect.steps,
+            "降噪迭代": ssgiEffect.denoiseIterations,
+            "分辨率缩放": ssgiEffect.resolutionScale,
+            "纹理情况": {
+                "原始SSGI纹理": ssgiEffect.ssgiPass && ssgiEffect.ssgiPass.texture ? "可用" : "不可用",
+                "降噪器纹理": ssgiEffect.denoiser && ssgiEffect.denoiser.texture ? "可用" : "不可用",
+                "denoisePass纹理": ssgiEffect.denoiser && ssgiEffect.denoiser.denoisePass ? "可用" : "不可用"
+            }
+        });
+
+        // 依次切换到不同视图进行比较
+        debugSettings.currentView = "ssgi_raw";
+        updateDebugView();
+
+        // 设置一个延时，先查看原始SSGI，再查看降噪后的结果
+        setTimeout(() => {
+            debugSettings.currentView = "denoised";
+            updateDebugView();
+            pane.refresh();
+        }, 2000);
+    });
+
+    // 降噪强度调节（方便测试黑点与降噪的关系）
+    debugFolder.addBinding(ssgiEffect, "denoiseIterations", {
+        min: 0, max: 5, step: 1,
+        label: "降噪迭代次数"
+    }).on("change", updateDebugView);
+
+    // 添加SSGI步数实时调整（可能会影响黑点）
+    debugFolder.addBinding(ssgiEffect, "steps", {
+        min: 4, max: 40, step: 1,
+        label: "SSGI采样步数"
+    }).on("change", () => {
+        // 重置SSGI效果以应用新的采样步数
+        ssgiEffect.reset();
+        updateDebugView();
+    });
+
+    // 添加其他可能影响黑点的参数
+    debugFolder.addBinding(ssgiEffect, "thickness", {
+        min: 0.1, max: 5.0, step: 0.1,
+        label: "厚度"
+    }).on("change", () => {
+        ssgiEffect.reset();
+        updateDebugView();
+    });
+
+    debugFolder.addBinding(ssgiEffect, "resolutionScale", {
+        min: 0.25, max: 1.0, step: 0.05,
+        label: "分辨率缩放"
+    }).on("change", () => {
+        ssgiEffect.reset();
+        updateDebugView();
+    });
+
+    // 添加黑点修复选项
+    const fixSettings = {
+        fixEnabled: false,
+        clampValue: 5.0,
+        minLuminance: 0.01,
+        fixType: "clamp"
+    };
+
+    const fixFolder = pane.addFolder({ title: "黑点修复" });
+
+    fixFolder.addBinding(fixSettings, "fixEnabled", {
+        label: "启用黑点修复"
+    }).on("change", (e) => {
+        // 应用或移除黑点修复
+        applyBlackSpotFix(e.value);
+    });
+
+    fixFolder.addBinding(fixSettings, "fixType", {
+        options: {
+            "限制亮度": "clamp",
+            "最小亮度": "minLuminance",
+            "替换降噪器": "replaceDenoiser"
+        },
+        label: "修复类型"
+    }).on("change", () => {
+        if (fixSettings.fixEnabled) {
+            applyBlackSpotFix(true);
+        }
+    });
+
+    fixFolder.addBinding(fixSettings, "clampValue", {
+        min: 1.0, max: 10.0, step: 0.1,
+        label: "亮度限制值"
+    }).on("change", () => {
+        if (fixSettings.fixEnabled && fixSettings.fixType === "clamp") {
+            applyBlackSpotFix(true);
+        }
+    });
+
+    fixFolder.addBinding(fixSettings, "minLuminance", {
+        min: 0.001, max: 0.1, step: 0.001,
+        label: "最小亮度"
+    }).on("change", () => {
+        if (fixSettings.fixEnabled && fixSettings.fixType === "minLuminance") {
+            applyBlackSpotFix(true);
+        }
+    });
+
+    // 黑点修复逻辑
+    function applyBlackSpotFix(enable) {
+        if (enable) {
+            console.log(`应用黑点修复: ${fixSettings.fixType}`);
+
+            // 根据修复类型应用不同的解决方案
+            switch (fixSettings.fixType) {
+                case "clamp":
+                    // 方案1: 限制SSGI的亮度值，防止过亮的值导致黑点
+                    if (ssgiEffect.ssgiPass && ssgiEffect.ssgiPass.fullscreenMaterial) {
+                        // 添加亮度限制到shader
+                        const material = ssgiEffect.ssgiPass.fullscreenMaterial;
+                        if (!material.defines.CLAMP_INTENSITY) {
+                            material.defines.CLAMP_INTENSITY = "";
+                            material.uniforms.maxIntensity = { value: fixSettings.clampValue };
+
+                            // 修补片段着色器，在输出之前添加亮度限制
+                            const originalFragmentShader = material.fragmentShader;
+                            if (!originalFragmentShader.includes("clamp(gl_FragColor.rgb, 0.0, maxIntensity)")) {
+                                const patchedShader = originalFragmentShader.replace(
+                                    /gl_FragColor\s*=\s*vec4\([^;]+;/g,
+                                    (match) => {
+                                        return match.slice(0, -1) +
+                                            ";\ngl_FragColor.rgb = clamp(gl_FragColor.rgb, 0.0, maxIntensity);";
+                                    }
+                                );
+
+                                material.fragmentShader = patchedShader;
+                                material.needsUpdate = true;
+                                ssgiEffect.reset();
+                            }
+                        } else {
+                            // 更新亮度限制值
+                            material.uniforms.maxIntensity.value = fixSettings.clampValue;
+                        }
+                    }
+                    break;
+
+                case "minLuminance":
+                    // 方案2: 设置最小亮度，防止过暗的值
+                    if (ssgiEffect.ssgiPass && ssgiEffect.ssgiPass.fullscreenMaterial) {
+                        const material = ssgiEffect.ssgiPass.fullscreenMaterial;
+                        if (!material.defines.MIN_LUMINANCE) {
+                            material.defines.MIN_LUMINANCE = "";
+                            material.uniforms.minLuminance = { value: fixSettings.minLuminance };
+
+                            // 修补片段着色器，设置最小亮度
+                            const originalFragmentShader = material.fragmentShader;
+                            if (!originalFragmentShader.includes("max(luminance(gl_FragColor.rgb), minLuminance)")) {
+                                // 添加luminance函数（如果不存在）
+                                let patchedShader = originalFragmentShader;
+                                if (!patchedShader.includes("float luminance(vec3 color)")) {
+                                    patchedShader = "float luminance(vec3 color) { return dot(color, vec3(0.299, 0.587, 0.114)); }\n" + patchedShader;
+                                }
+
+                                // 修补输出
+                                patchedShader = patchedShader.replace(
+                                    /gl_FragColor\s*=\s*vec4\([^;]+;/g,
+                                    (match) => {
+                                        return match.slice(0, -1) +
+                                            ";\nfloat lum = luminance(gl_FragColor.rgb);\nif(lum > 0.0 && lum < minLuminance) { gl_FragColor.rgb *= minLuminance / lum; }";
+                                    }
+                                );
+
+                                material.fragmentShader = patchedShader;
+                                material.needsUpdate = true;
+                                ssgiEffect.reset();
+                            }
+                        } else {
+                            // 更新最小亮度值
+                            material.uniforms.minLuminance.value = fixSettings.minLuminance;
+                        }
+                    }
+                    break;
+
+                case "replaceDenoiser":
+                    // 方案3: 使用更保守的降噪设置
+                    ssgiEffect.depthPhi = 2.0;  // 更保守的深度平滑
+                    ssgiEffect.normalPhi = 50.0; // 更保守的法线平滑
+                    ssgiEffect.roughnessPhi = 1.0; // 更保守的粗糙度平滑
+                    ssgiEffect.denoiseIterations = 3; // 使用更多迭代
+                    ssgiEffect.reset();
+                    break;
+            }
+
+            // 应用更改后刷新视图
+            updateDebugView();
+        } else {
+            console.log("禁用黑点修复");
+
+            // 移除所有修复
+            if (ssgiEffect.ssgiPass && ssgiEffect.ssgiPass.fullscreenMaterial) {
+                const material = ssgiEffect.ssgiPass.fullscreenMaterial;
+
+                // 移除亮度限制定义
+                delete material.defines.CLAMP_INTENSITY;
+                delete material.defines.MIN_LUMINANCE;
+
+                // 重置降噪参数
+                ssgiEffect.depthPhi = 0.5;
+                ssgiEffect.normalPhi = 5.0;
+                ssgiEffect.roughnessPhi = 0.5;
+                ssgiEffect.denoiseIterations = 2;
+
+                material.needsUpdate = true;
+                ssgiEffect.reset();
+                updateDebugView();
+            }
+        }
+    }
+
     // 使用标准按钮API创建比较按钮
     let compareMode = false;
 
