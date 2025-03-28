@@ -16,17 +16,18 @@ import Denoiser from "../denoise/Denoiser.js"
 import { GBufferDebugPass } from "../gbuffer/debug/GBufferDebugPass.js"
 import { getVisibleChildren } from "../gbuffer/utils/GBufferUtils.js"
 import { isChildMaterialRenderable } from "../utils/SceneUtils.js"
-import { defaultSSGIOptions } from "./SSGIOptions"
+import { defaultSSGIOptions } from "./SSGIOptions.js"
 import ssgi_compose from "./shader/ssgi_compose.frag"
 import { createGlobalDisableIblRadianceUniform, getMaxMipLevel } from "./utils/Utils.js"
 
 const { render } = RenderPass.prototype
 
 const globalIblRadianceDisabledUniform = createGlobalDisableIblRadianceUniform()
-
+console.log('Log-- ', 0.02, '0.01ssgi');
 export class SSGIEffect extends Effect {
 	selection = new Selection()
 	isUsingRenderPass = true
+	id = '123'
 
 	constructor(composer, scene, camera, options) {
 		options = { ...defaultSSGIOptions, ...options }
@@ -46,7 +47,7 @@ export class SSGIEffect extends Effect {
 		if (scene.fog) defines.set("USE_FOG", "")
 		if (scene.fog?.isFogExp2) defines.set("FOG_EXP2", "")
 
-		super("SSGIEffect", fragmentShader, {
+		super("SSGIEffect1", fragmentShader, {
 			type: "FinalSSGIMaterial",
 			uniforms: new Map([
 				["inputTexture", new Uniform(null)],

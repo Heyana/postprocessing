@@ -1,7 +1,7 @@
 /* eslint-disable camelcase */
 import { NearestFilter, NoColorSpace, RepeatWrapping, TextureLoader, Vector2, DataTexture, RGBAFormat } from "three"
-import blue_noise from "../utils/shader/blue_noise.glsl"
-
+import blue_noise from "./shader/blue_noise.glsl"
+import { blueNoiseBase64 } from "./TextureAssets"
 const blueNoiseSize = 128
 const highestSignedInt = 0x7fffffff
 
@@ -40,10 +40,11 @@ const blueNoiseTexturePromise = new Promise((resolve) => {
 	blueNoiseTexture = createBlueNoiseTexture();
 
 	// 使用与ssr-effect.js相同的路径格式
-	const texturePath = document.baseURI + "img/textures/noise/blue_noise_rgba.png";
+	// const texturePath = document.baseURI + "img/textures/noise/blue_noise_rgba.png";
+
 
 	// 尝试加载外部纹理
-	new TextureLoader().load(texturePath,
+	new TextureLoader().load(blueNoiseBase64,
 		// 成功加载
 		(texture) => {
 			console.log("成功加载蓝噪声纹理");

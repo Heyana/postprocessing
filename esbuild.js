@@ -8,7 +8,7 @@ const pkg = require("./package");
 
 const minify = process.argv.includes("-m");
 const plugins = [glsl({ minify })];
-const external = ["three", "spatial-controls", "tweakpane"];
+const external = ["three", "spatial-controls", "run-scene-core", "tweakpane"];
 
 const date = new Date();
 const banner = `/**
@@ -64,7 +64,7 @@ await esbuild.build({
 	minify
 });
 
-if(process.argv.includes("-w")) {
+if (process.argv.includes("-w")) {
 
 	const ctxWorkers = await esbuild.context(workers);
 	const ctxDemo = await esbuild.context(demo);

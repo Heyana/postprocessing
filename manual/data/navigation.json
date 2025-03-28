@@ -1,0 +1,24 @@
+{
+  "effects": [
+    {
+      "title": "Overview",
+      "path": "/effects"
+    },
+    {
+      "title": "Bloom",
+      "path": "/effects/bloom"
+    },
+    {
+      "title": "Depth of Field",
+      "path": "/effects/depth-of-field"
+    },
+    {
+      "title": "SSGI",
+      "path": "/effects/ssgi"
+    },
+    {
+      "title": "Custom SSGI (No Artifacts)",
+      "path": "/effects/custom-ssgi"
+    }
+  ]
+}

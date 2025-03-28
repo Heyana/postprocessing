@@ -33,11 +33,11 @@ export * from "./SepiaEffect.js";
 export * from "./SharedOutlineEffect.js";
 export * from "./SMAAEffect.js";
 export * from "./SSAOEffect.js";
-export * from "./SSGIEffect.js";
 export * from "./TextureEffect.js";
 export * from "./TiltShiftEffect.js";
 export * from "./ToneMappingEffect.js";
 export * from "./VignetteEffect.js";
-
+export * from "./CustomSSGIEffect.js";
+export * from "./VolumetricFogEffect.js";
 /** @deprecated Renamed to LUT3DEffect. */
 export { LUT3DEffect as LUTEffect } from "./LUT3DEffect.js";

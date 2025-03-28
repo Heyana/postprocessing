@@ -133,6 +133,12 @@ export class PoissonDenoisePass extends Pass {
 	}
 
 	render(renderer) {
+		this.fullscreenMaterial.uniforms["inputTexture"].value = this.textures[0];
+		this.fullscreenMaterial.uniforms["inputTexture2"].value = this.textures[1];
+		renderer.setRenderTarget(this.renderTargetB);
+		renderer.render(this.scene, this.camera);
+		return;
+
 		for (let i = 0; i < 2 * this.iterations; i++) {
 			const horizontal = i % 2 === 0
 			const inputRenderTarget = horizontal ? this.renderTargetB : this.renderTargetA

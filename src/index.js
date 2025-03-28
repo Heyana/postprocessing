@@ -1,5 +1,4 @@
 /** @ignore */
-import { PerspectiveCamera } from "three";
 export { version } from "../package.json";
 export * from "./core";
 export * from "./loaders";
@@ -10,6 +9,7 @@ export * from "./textures";
 export * from "./utils";
 export * from "./enums";
 
+export * from './libs'
 // 特别导出性能日志工具，方便使用
 export {
     enableLogs,
@@ -33,5 +33,3 @@ export * from "./effects/SSREffect.js";
 export { SharpenEffect } from "./effects/SharpenEffect.js";
 export { AdaptiveSharpenEffect } from "./effects/AdaptiveSharpenEffect.js";
 export { DenoiseEffect } from "./effects/DenoiseEffect.js";
-export { VolumetricFogEffect } from "./effects/VolumetricFogEffect.js";
-export { SSGIEffect } from "./effects/SSGIEffect.js";

@@ -36,7 +36,7 @@ export function createLights() {
 	backLight.position.copy(mainLight.position).negate();
 
 	const lights = new Group();
-	lights.add(ambientLight, mainLight, backLight);
+	lights.add(mainLight, backLight, ambientLight);
 
 	return lights;
 
@@ -85,7 +85,7 @@ export function createActors() {
 		)
 	);
 
-	for(const mesh of meshes.children) {
+	for (const mesh of meshes.children) {
 
 		mesh.receiveShadow = true;
 		mesh.castShadow = true;
