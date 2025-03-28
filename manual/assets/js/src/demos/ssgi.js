@@ -207,8 +207,8 @@ window.addEventListener("load", () => load().then((assets) => {
     composer.addPass(renderPass);
 
     // 添加VelocityDepthNormalPass通道 - 这是SSGI效果所必需的
-    const velocityDepthNormalPass = new VelocityDepthNormalPass(scene, camera);
-    composer.addPass(velocityDepthNormalPass);
+    // const velocityDepthNormalPass = new VelocityDepthNormalPass(scene, camera);
+    // composer.addPass(velocityDepthNormalPass);
 
     // 设置渲染器色调映射
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -231,6 +231,7 @@ window.addEventListener("load", () => load().then((assets) => {
         denoiseKernel: 3,
         denoiseDiffuse: 20,
         denoiseSpecular: 20,
+        denoiseAlgorithm: "poisson", // 默认使用泊松降噪，可选 "gaussian-bilateral"
 
         // 模式和混合
         mode: "ssgi",
@@ -246,7 +247,7 @@ window.addEventListener("load", () => load().then((assets) => {
         enableJitter: true,
 
         // 速度通道
-        velocityDepthNormalPass: velocityDepthNormalPass,
+        // velocityDepthNormalPass: velocityDepthNormalPass,
 
         // 尺寸
         width: container.clientWidth,
@@ -370,6 +371,29 @@ window.addEventListener("load", () => load().then((assets) => {
 
     // 降噪设置
     const denoiseFolder = pane.addFolder({ title: "降噪设置" });
+
+    // 添加降噪算法选择
+    const denoiseAlgorithmSettings = {
+        algorithm: "poisson"  // 默认使用泊松降噪
+    };
+
+    denoiseFolder.addBinding(denoiseAlgorithmSettings, "algorithm", {
+        options: {
+            "泊松滤波器": "poisson",
+            "高斯双边滤波器": "gaussian-bilateral"
+        },
+        label: "降噪算法"
+    }).on("change", (e) => {
+        // 更新SSGI效果的降噪算法
+        ssgiEffect.denoiseAlgorithm = e.value;
+
+        // 需要重新创建效果的降噪部分
+        ssgiEffect.reset();
+
+        // 输出日志
+        console.log("切换到降噪算法:", e.value);
+    });
+
     denoiseFolder.addBinding(ssgiEffect, "denoiseIterations", { min: 0, max: 5, step: 1 });
     denoiseFolder.addBinding(ssgiEffect, "depthPhi", { min: 0.1, max: 10, step: 0.1 });
     denoiseFolder.addBinding(ssgiEffect, "normalPhi", { min: 0.1, max: 100, step: 0.1 });
@@ -596,12 +620,28 @@ window.addEventListener("load", () => load().then((assets) => {
             "采样步数": ssgiEffect.steps,
             "降噪迭代": ssgiEffect.denoiseIterations,
             "分辨率缩放": ssgiEffect.resolutionScale,
+            "降噪算法": ssgiEffect.denoiseAlgorithm,
             "纹理情况": {
                 "原始SSGI纹理": ssgiEffect.ssgiPass && ssgiEffect.ssgiPass.texture ? "可用" : "不可用",
                 "降噪器纹理": ssgiEffect.denoiser && ssgiEffect.denoiser.texture ? "可用" : "不可用",
                 "denoisePass纹理": ssgiEffect.denoiser && ssgiEffect.denoiser.denoisePass ? "可用" : "不可用"
             }
         });
+
+        // 尝试直接切换到高斯双边降噪
+        if (ssgiEffect.denoiseAlgorithm !== "gaussian-bilateral") {
+            console.log("自动切换到高斯双边降噪尝试解决黑点问题");
+
+            // 更新UI
+            denoiseAlgorithmSettings.algorithm = "gaussian-bilateral";
+
+            // 更新效果
+            ssgiEffect.denoiseAlgorithm = "gaussian-bilateral";
+            ssgiEffect.reset();
+
+            // 刷新UI
+            pane.refresh();
+        }
 
         // 依次切换到不同视图进行比较
         debugSettings.currentView = "ssgi_raw";
@@ -613,6 +653,63 @@ window.addEventListener("load", () => load().then((assets) => {
             updateDebugView();
             pane.refresh();
         }, 2000);
+    });
+
+    // 在debugFolder部分添加一个紧急修复按钮，用于在高斯滤波器出现问题时直接切回泊松降噪
+    debugFolder.addButton({
+        title: "紧急修复 - 切回泊松降噪"
+    }).on("click", () => {
+        console.log("执行紧急修复 - 切回泊松降噪算法");
+
+        // 更新UI选择
+        denoiseAlgorithmSettings.algorithm = "poisson";
+
+        // 直接设置算法
+        ssgiEffect.denoiseAlgorithm = "poisson";
+
+        // 重置效果
+        ssgiEffect.reset();
+
+        // 显式刷新UI
+        pane.refresh();
+
+        // 提示用户已切换回泊松降噪
+        alert("已切换回泊松降噪算法，场景应该可以正常显示");
+    });
+
+    // 添加专门的高斯双边滤波器参数控制（只有当选择该算法时才显示）
+    const gaussianBilateralFolder = denoiseFolder.addFolder({
+        title: "高斯双边滤波器参数",
+        expanded: false,
+        hidden: denoiseAlgorithmSettings.algorithm !== "gaussian-bilateral"
+    });
+
+    // 高斯双边滤波器的特殊参数
+    gaussianBilateralFolder.addBinding(ssgiEffect, "sigmaSpace", {
+        min: 1.0, max: 10.0, step: 0.5,
+        label: "空间标准差"
+    }).on("change", () => {
+        if (ssgiEffect.denoiser && ssgiEffect.denoiser.denoisePass &&
+            ssgiEffect.denoiser.denoisePass.fullscreenMaterial.uniforms.sigmaSpace) {
+            ssgiEffect.denoiser.denoisePass.fullscreenMaterial.uniforms.sigmaSpace.value = ssgiEffect.sigmaSpace;
+            ssgiEffect.reset();
+        }
+    });
+
+    gaussianBilateralFolder.addBinding(ssgiEffect, "sigmaRange", {
+        min: 0.01, max: 1.0, step: 0.01,
+        label: "范围标准差"
+    }).on("change", () => {
+        if (ssgiEffect.denoiser && ssgiEffect.denoiser.denoisePass &&
+            ssgiEffect.denoiser.denoisePass.fullscreenMaterial.uniforms.sigmaRange) {
+            ssgiEffect.denoiser.denoisePass.fullscreenMaterial.uniforms.sigmaRange.value = ssgiEffect.sigmaRange;
+            ssgiEffect.reset();
+        }
+    });
+
+    // 当降噪算法改变时，显示/隐藏高斯双边滤波器参数
+    denoiseFolder.children.find(c => c.label === "降噪算法").on("change", (e) => {
+        gaussianBilateralFolder.hidden = e.value !== "gaussian-bilateral";
     });
 
     // 降噪强度调节（方便测试黑点与降噪的关系）

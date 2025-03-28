@@ -27,22 +27,44 @@ export const defaultSSGIOptions = {
 	mode: "ssgi",
 	distance: 10,
 	thickness: 10,
+	autoThickness: false,
+	maxRoughness: 1,
+	blend: 0.9,
 	denoiseIterations: 1,
 	denoiseKernel: 2,
 	denoiseDiffuse: 10,
 	denoiseSpecular: 10,
-	radius: 3,
-	phi: 0.5,
-	lumaPhi: 5,
 	depthPhi: 2,
 	normalPhi: 50,
-	roughnessPhi: 50,
-	specularPhi: 50,
-	envBlur: 0.5,
-	importanceSampling: true,
-	steps: 20,
-	refineSteps: 5,
+	roughnessPhi: 1,
+	specularPhi: 0.95,
+	diffuseOnly: false,
+	specularOnly: false,
 	resolutionScale: 1,
 	missedRays: false,
+	rendererSize: 0,
+
+	// temporal reproject
+	maxAge: 3,
+	reprojectSpecular: [false, true],
+	temporalResolve: true,
+	neighborhoodClamp: [true, true],
+	neighborhoodClampRadius: 2,
+	neighborhoodClampIntensity: 0.5,
+	blend: 0.8,
+
+	steps: 20,
+	refineSteps: 5,
+	spp: 1,
+	importanceSampling: true,
+	radius: 3,
+	fade: 0,
+	enableJitter: true,
+	enableReflections: true,
+	denoiseAlgorithm: "poisson",
+
+	// 高斯双边滤波器特殊参数
+	sigmaSpace: 3.0, // 空间高斯函数标准差
+	sigmaRange: 0.1, // 范围高斯函数标准差
 	outputTexture: null
 }

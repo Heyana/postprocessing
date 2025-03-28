@@ -23,6 +23,13 @@ export class DenoiserComposePass extends Pass {
 		let diffuseGiTexture
 		let specularGiTexture
 
+		// 保存原始纹理引用，用于更新
+		this.originalTextures = textures;
+		this.options = options;
+
+		// 添加计数器以跟踪更新次数
+		this._updateCount = 0;
+
 		if (options.inputType === "diffuseSpecular") {
 			diffuseGiTexture = textures[0]
 			specularGiTexture = textures[1]
@@ -63,8 +70,7 @@ export class DenoiserComposePass extends Pass {
 					return;
 				}
 
-				// on Android there's a bug where using "vec3 normal = unpackNormal(textureLod(velocityTexture, vUv, 0.).b);" instead of
-				// "vec3 normal = unpackNormal(velocity.b);" causes the normal to be distorted (possibly due to packHalf2x16 function)
+				// 防止天空或者无效像素
 
                 Material mat = getMaterial(gBufferTexture, vUv);
 
@@ -76,8 +82,36 @@ export class DenoiserComposePass extends Pass {
 				vec3 viewPos = getViewPosition(viewZ);
                 vec3 viewDir = normalize(viewPos);
 
-                vec4 diffuseGi = textureLod(diffuseGiTexture, vUv, 0.);
-                vec4 specularGi = textureLod(specularGiTexture, vUv, 0.);
+                // 添加纹理有效性检查
+                vec4 diffuseGi = vec4(0.0);
+                vec4 specularGi = vec4(0.0);
+                
+                // 尝试读取纹理，如果纹理无效则使用默认值
+                bool hasDiffuse = false;
+                bool hasSpecular = false;
+                
+                #if inputType == TYPE_DIFFUSE_SPECULAR || inputType == TYPE_DIFFUSE
+                    diffuseGi = textureLod(diffuseGiTexture, vUv, 0.);
+                    hasDiffuse = true;
+                #endif
+                
+                #if inputType == TYPE_DIFFUSE_SPECULAR || inputType == TYPE_SPECULAR
+                    specularGi = textureLod(specularGiTexture, vUv, 0.);
+                    hasSpecular = true;
+                #endif
+                
+                // 如果纹理读取为NaN或INF，则使用安全的默认值
+                if(hasDiffuse && (any(isnan(diffuseGi.rgb)) || any(isinf(diffuseGi.rgb)))) {
+                    diffuseGi = vec4(0.0, 0.0, 0.0, 1.0);
+                }
+                
+                if(hasSpecular && (any(isnan(specularGi.rgb)) || any(isinf(specularGi.rgb)))) {
+                    specularGi = vec4(0.0, 0.0, 0.0, 1.0);
+                }
+                
+                // 限制输入值范围，防止极端值
+                diffuseGi.rgb = clamp(diffuseGi.rgb, vec3(0.0), vec3(10.0));
+                specularGi.rgb = clamp(specularGi.rgb, vec3(0.0), vec3(10.0));
 
                 vec3 gi = constructGlobalIllumination(diffuseGi.rgb, specularGi.rgb, viewDir, viewNormal, mat.diffuse.rgb, mat.emissive, mat.roughness, mat.metalness);
 
@@ -110,6 +144,30 @@ export class DenoiserComposePass extends Pass {
 		if (camera.isPerspectiveCamera) this.fullscreenMaterial.defines.PERSPECTIVE_CAMERA = ""
 	}
 
+	// 更新纹理引用
+	updateTextures(textures) {
+		if (!textures) return;
+
+		// 更新内部保存的纹理引用
+		this.originalTextures = textures;
+
+		// 根据输入类型重新分配纹理
+		if (this.options.inputType === "diffuseSpecular") {
+			this.fullscreenMaterial.uniforms.diffuseGiTexture.value = textures[0];
+			this.fullscreenMaterial.uniforms.specularGiTexture.value = textures[1];
+		} else if (this.options.inputType === "diffuse") {
+			this.fullscreenMaterial.uniforms.diffuseGiTexture.value = textures[0];
+		} else if (this.options.inputType === "specular") {
+			this.fullscreenMaterial.uniforms.specularGiTexture.value = textures[0];
+		}
+
+		// 递增更新计数并在第一次或过于频繁时记录
+		this._updateCount++;
+		if (this._updateCount === 1 || this._updateCount % 10 === 0) {
+			console.log("DenoiserComposePass: 更新纹理引用 (次数: " + this._updateCount + ")");
+		}
+	}
+
 	get texture() {
 		return this.renderTarget.texture
 	}
@@ -127,6 +185,8 @@ export class DenoiserComposePass extends Pass {
 	}
 
 	render(renderer) {
+		// 不再每帧检查纹理引用，改为依赖Denoiser类手动触发updateTextures方法
+
 		this.fullscreenMaterial.uniforms.cameraNear.value = this._camera.near
 		this.fullscreenMaterial.uniforms.cameraFar.value = this._camera.far
 

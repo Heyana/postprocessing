@@ -23,7 +23,7 @@ import { createGlobalDisableIblRadianceUniform, getMaxMipLevel } from "./utils/U
 const { render } = RenderPass.prototype
 
 const globalIblRadianceDisabledUniform = createGlobalDisableIblRadianceUniform()
-console.log('Log-- ', 0.02, '0.01ssgi');
+console.log('Log-- ', 0.04, '0.01ssgi');
 export class SSGIEffect extends Effect {
 	selection = new Selection()
 	isUsingRenderPass = true
@@ -177,6 +177,66 @@ export class SSGIEffect extends Effect {
 							if (this.denoiser.denoisePass) this.denoiser.denoisePass.iterations = value
 							break
 
+						case "denoiseAlgorithm":
+							// 切换降噪算法需要重新创建denoiser
+							if (this.denoiser) {
+								try {
+									console.log("切换降噪算法到:", value);
+
+									// 备份旧算法，以便出错时回退
+									const oldAlgorithm = options.denoiseAlgorithm;
+
+									// 根据不同算法添加特定参数
+									if (value === "gaussian-bilateral") {
+										// 为高斯双边滤波器设置安全的默认值
+										options.sigmaSpace = options.sigmaSpace || 2.0;
+										options.sigmaRange = options.sigmaRange || 0.05;
+
+										// 限制迭代次数，防止过度模糊和性能问题
+										options.denoiseIterations = Math.min(options.denoiseIterations || 2, 1);
+
+										console.log("配置高斯双边滤波器参数:", {
+											sigmaSpace: options.sigmaSpace,
+											sigmaRange: options.sigmaRange,
+											iterations: options.denoiseIterations
+										});
+									}
+
+									// 在修改前先保存当前尺寸
+									const currentWidth = this.lastSize.width;
+									const currentHeight = this.lastSize.height;
+									const currentResolutionScale = options.resolutionScale;
+
+									// 直接设置denoiser的算法，它会处理重建
+									this.denoiser.denoiseAlgorithm = value;
+
+									// 更新输出纹理引用
+									this.outputTexture = this.denoiser.texture;
+
+									// 确保大小设置正确
+									this.setSize(currentWidth, currentHeight);
+
+									// 重置效果
+									this.reset();
+
+									console.log("降噪算法切换成功");
+								} catch (err) {
+									console.error("切换降噪算法失败:", err);
+									// 恢复到默认的泊松滤波
+									options.denoiseAlgorithm = "poisson";
+
+									// 尝试强制重置为泊松降噪
+									try {
+										this.denoiser.denoiseAlgorithm = "poisson";
+										this.reset();
+										alert("切换降噪算法失败，已回退到泊松降噪");
+									} catch (error) {
+										console.error("回退到泊松降噪也失败:", error);
+									}
+								}
+							}
+							break;
+
 						case "radius":
 						case "phi":
 						case "lumaPhi":
@@ -184,8 +244,19 @@ export class SSGIEffect extends Effect {
 						case "normalPhi":
 						case "roughnessPhi":
 						case "specularPhi":
+						case "sigmaSpace":  // 添加高斯双边滤波器参数
+						case "sigmaRange":  // 添加高斯双边滤波器参数
 							if (this.denoiser.denoisePass?.fullscreenMaterial.uniforms[key]) {
-								this.denoiser.denoisePass.fullscreenMaterial.uniforms[key].value = value
+								// 确保参数在安全范围内
+								if (key === "sigmaSpace") {
+									this.denoiser.denoisePass.fullscreenMaterial.uniforms[key].value =
+										Math.max(1, Math.min(5, value));
+								} else if (key === "sigmaRange") {
+									this.denoiser.denoisePass.fullscreenMaterial.uniforms[key].value =
+										Math.max(0.01, Math.min(0.2, value));
+								} else {
+									this.denoiser.denoisePass.fullscreenMaterial.uniforms[key].value = value;
+								}
 								this.reset()
 							}
 							break
@@ -377,22 +448,22 @@ export class SSGIEffect extends Effect {
 
 		const hideMeshes = []
 
-		if (!this.isUsingRenderPass) {
-			const children = []
+		// if (!this.isUsingRenderPass) {
+		// 	const children = []
 
-			for (const c of getVisibleChildren(this._scene)) {
-				if (c.isScene) return
+		// 	for (const c of getVisibleChildren(this._scene)) {
+		// 		if (c.isScene) return
 
-				c.visible = !isChildMaterialRenderable(c)
+		// 		c.visible = !isChildMaterialRenderable(c)
 
-				c.visible ? hideMeshes.push(c) : children.push(c)
-			}
+		// 		c.visible ? hideMeshes.push(c) : children.push(c)
+		// 	}
 
-			this.renderPass.render(renderer, this.sceneRenderTarget)
+		// 	// this.renderPass.render(renderer, this.sceneRenderTarget)
 
-			for (const c of children) c.visible = true
-			for (const c of hideMeshes) c.visible = false
-		}
+		// 	for (const c of children) c.visible = true
+		// 	for (const c of hideMeshes) c.visible = false
+		// }
 
 		this.ssgiPass.fullscreenMaterial.uniforms.directLightTexture.value = sceneBuffer.texture
 
