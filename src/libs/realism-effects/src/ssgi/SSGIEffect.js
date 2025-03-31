@@ -23,7 +23,7 @@ import { createGlobalDisableIblRadianceUniform, getMaxMipLevel } from "./utils/U
 const { render } = RenderPass.prototype
 
 const globalIblRadianceDisabledUniform = createGlobalDisableIblRadianceUniform()
-console.log('Log-- ', 0.04, '0.01ssgi');
+console.log('Log-- ', 0.06, '0.01ssgi');
 export class SSGIEffect extends Effect {
 	selection = new Selection()
 	isUsingRenderPass = true
@@ -490,21 +490,19 @@ export class SSGIEffect extends Effect {
 
 		globalIblRadianceDisabledUniform.value = true
 
-		cancelAnimationFrame(this.rAF2)
-		cancelAnimationFrame(this.rAF)
 		cancelAnimationFrame(this.usingRenderPassRAF)
+		this.isUsingRenderPass = false
 
-		this.rAF = requestAnimationFrame(() => {
-			this.rAF2 = requestAnimationFrame(() => {
-				globalIblRadianceDisabledUniform.value = false
-			})
-		})
-		this.usingRenderPassRAF = requestAnimationFrame(() => {
-			const wasUsingRenderPass = this.isUsingRenderPass
-			this.isUsingRenderPass = false
+		// this.rAF = requestAnimationFrame(() => {
+		// 	this.rAF2 = requestAnimationFrame(() => {
+		// 		globalIblRadianceDisabledUniform.value = false
+		// 	})
+		// })
+		// this.usingRenderPassRAF = requestAnimationFrame(() => {
+		// 	this.isUsingRenderPass = false
 
-			if (wasUsingRenderPass != this.isUsingRenderPass) this.updateUsingRenderPass()
-		})
+		// 	// if (wasUsingRenderPass != this.isUsingRenderPass) this.updateUsingRenderPass()
+		// })
 	}
 }
 

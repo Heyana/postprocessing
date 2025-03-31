@@ -317,9 +317,9 @@ export default class Denoiser {
 		if (this.isOwnVelocityDepthNormalPass) this.velocityDepthNormalPass.render(renderer)
 		this.temporalReprojectPass.render(renderer)
 
-		if (this.options.inputType !== "diffuseSpecular") {
-			this.denoiserComposePass?.setSceneTexture(inputBuffer.texture)
-		}
+		// if (this.options.inputType !== "diffuseSpecular") {
+		// 	this.denoiserComposePass?.setSceneTexture(inputBuffer.texture)
+		// }
 
 		// 执行降噪
 		this.denoisePass?.render(renderer)
