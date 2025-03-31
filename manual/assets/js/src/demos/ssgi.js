@@ -231,7 +231,12 @@ window.addEventListener("load", () => load().then((assets) => {
         denoiseKernel: 3,
         denoiseDiffuse: 20,
         denoiseSpecular: 20,
-        denoiseAlgorithm: "poisson", // 默认使用泊松降噪，可选 "gaussian-bilateral"
+        denoiseAlgorithm: "gaussian-bilateral", // 默认使用高斯双边滤波器
+
+        // 高斯双边滤波器参数
+        sigmaSpace: 2.0,
+        sigmaRange: 0.05,
+        radius: 3,
 
         // 模式和混合
         mode: "ssgi",
@@ -374,7 +379,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
     // 添加降噪算法选择
     const denoiseAlgorithmSettings = {
-        algorithm: "poisson"  // 默认使用泊松降噪
+        algorithm: "gaussian-bilateral"  // 改为默认使用高斯双边降噪
     };
 
     denoiseFolder.addBinding(denoiseAlgorithmSettings, "algorithm", {
@@ -392,9 +397,15 @@ window.addEventListener("load", () => load().then((assets) => {
 
         // 输出日志
         console.log("切换到降噪算法:", e.value);
+
+        // 更新UI显示 - 在切换算法时显示/隐藏相关控件
+        gaussianBilateralFolder.hidden = e.value !== "gaussian-bilateral";
+
+        // 刷新UI
+        pane.refresh();
     });
 
-    denoiseFolder.addBinding(ssgiEffect, "denoiseIterations", { min: 0, max: 5, step: 1 });
+    denoiseFolder.addBinding(ssgiEffect, "denoiseIterations", { min: 1, max: 3, step: 1 });
     denoiseFolder.addBinding(ssgiEffect, "depthPhi", { min: 0.1, max: 10, step: 0.1 });
     denoiseFolder.addBinding(ssgiEffect, "normalPhi", { min: 0.1, max: 100, step: 0.1 });
     denoiseFolder.addBinding(ssgiEffect, "roughnessPhi", { min: 0.1, max: 10, step: 0.1 });
@@ -677,39 +688,67 @@ window.addEventListener("load", () => load().then((assets) => {
         alert("已切换回泊松降噪算法，场景应该可以正常显示");
     });
 
-    // 添加专门的高斯双边滤波器参数控制（只有当选择该算法时才显示）
-    const gaussianBilateralFolder = denoiseFolder.addFolder({
+    // 添加专门的高斯双边滤波器参数控制
+    const gaussianBilateralFolder = pane.addFolder({
         title: "高斯双边滤波器参数",
-        expanded: false,
+        expanded: true,  // 默认展开
         hidden: denoiseAlgorithmSettings.algorithm !== "gaussian-bilateral"
     });
 
     // 高斯双边滤波器的特殊参数
     gaussianBilateralFolder.addBinding(ssgiEffect, "sigmaSpace", {
-        min: 1.0, max: 10.0, step: 0.5,
+        min: 0.5, max: 5.0, step: 0.1,
         label: "空间标准差"
-    }).on("change", () => {
-        if (ssgiEffect.denoiser && ssgiEffect.denoiser.denoisePass &&
-            ssgiEffect.denoiser.denoisePass.fullscreenMaterial.uniforms.sigmaSpace) {
-            ssgiEffect.denoiser.denoisePass.fullscreenMaterial.uniforms.sigmaSpace.value = ssgiEffect.sigmaSpace;
-            ssgiEffect.reset();
-        }
     });
 
     gaussianBilateralFolder.addBinding(ssgiEffect, "sigmaRange", {
-        min: 0.01, max: 1.0, step: 0.01,
+        min: 0.01, max: 0.2, step: 0.01,
         label: "范围标准差"
-    }).on("change", () => {
-        if (ssgiEffect.denoiser && ssgiEffect.denoiser.denoisePass &&
-            ssgiEffect.denoiser.denoisePass.fullscreenMaterial.uniforms.sigmaRange) {
-            ssgiEffect.denoiser.denoisePass.fullscreenMaterial.uniforms.sigmaRange.value = ssgiEffect.sigmaRange;
-            ssgiEffect.reset();
-        }
     });
 
-    // 当降噪算法改变时，显示/隐藏高斯双边滤波器参数
-    denoiseFolder.children.find(c => c.label === "降噪算法").on("change", (e) => {
-        gaussianBilateralFolder.hidden = e.value !== "gaussian-bilateral";
+    gaussianBilateralFolder.addBinding(ssgiEffect, "radius", {
+        min: 1, max: 5, step: 0.5,
+        label: "采样半径"
+    });
+
+    // 将迭代控件移到高斯双边滤波器文件夹中
+    gaussianBilateralFolder.addBinding(ssgiEffect, "denoiseIterations", {
+        min: 1, max: 3, step: 1,
+        label: "迭代次数"
+    });
+
+    // 高斯双边滤波器的预设按钮
+    gaussianBilateralFolder.addButton({
+        title: "轻度降噪 (保留细节)"
+    }).on("click", () => {
+        ssgiEffect.sigmaSpace = 1.0;
+        ssgiEffect.sigmaRange = 0.03;
+        ssgiEffect.radius = 2;
+        ssgiEffect.denoiseIterations = 1;
+        ssgiEffect.reset();
+        pane.refresh();
+    });
+
+    gaussianBilateralFolder.addButton({
+        title: "中度降噪 (平衡)"
+    }).on("click", () => {
+        ssgiEffect.sigmaSpace = 2.0;
+        ssgiEffect.sigmaRange = 0.05;
+        ssgiEffect.radius = 3;
+        ssgiEffect.denoiseIterations = 2;
+        ssgiEffect.reset();
+        pane.refresh();
+    });
+
+    gaussianBilateralFolder.addButton({
+        title: "强力降噪 (消除噪点)"
+    }).on("click", () => {
+        ssgiEffect.sigmaSpace = 3.0;
+        ssgiEffect.sigmaRange = 0.1;
+        ssgiEffect.radius = 4;
+        ssgiEffect.denoiseIterations = 3;
+        ssgiEffect.reset();
+        pane.refresh();
     });
 
     // 降噪强度调节（方便测试黑点与降噪的关系）

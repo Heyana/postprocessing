@@ -44,89 +44,209 @@ struct InputTexel {
   bool isSpecular;
 };
 
-// 极简直通版本 - 基本上只是复制输入
+// 定义高斯核 - 计算像素间空间距离的权重
+float gaussianWeight(float distanceSquared, float sigma) {
+  return exp(-distanceSquared / (2.0 * sigma * sigma));
+}
+
+// 计算两个颜色的平方距离
+float colorDistanceSquared(vec3 a, vec3 b) {
+  vec3 diff = a - b;
+  return dot(diff, diff);
+}
+
+// 进行真正的高斯双边滤波
 void main() {
-  // 获取深度，只用于基本深度测试
-  float depth = textureLod(depthTexture, vUv, 0.0).r;
+  // 获取深度和法线信息
+  depth = textureLod(depthTexture, vUv, 0.0).r;
   
   // 天空不处理
   if (depth == 1.0) {
     discard;
     return;
   }
+
+  // 获取法线信息
+  #ifdef GBUFFER_TEXTURE
+    mat = getMaterial(gBufferTexture, vUv);
+    normal = mat.normal;
+  #else
+    vec3 normalTexel = textureLod(normalTexture, vUv, 0.0).xyz;
+    normal = unpackNormal(normalTexel.b);
+  #endif
   
   // 读取原始输入纹理 (通道1)
   vec4 origColor = textureLod(inputTexture, vUv, 0.0);
   
-  // 极其简单的3x3方框滤波
+  // 高斯双边滤波
   vec2 texelSize = 1.0 / resolution;
-  vec3 result = origColor.rgb;
-  float weight = 1.0;
-  float totalWeight = 1.0;
+  vec3 result = vec3(0.0);
+  float totalWeight = 0.0;
   
-  // 只在周围采样4个点，轻微模糊
-  vec2 offsets[4];
-  offsets[0] = vec2(texelSize.x, 0.0);
-  offsets[1] = vec2(-texelSize.x, 0.0);
-  offsets[2] = vec2(0.0, texelSize.y);
-  offsets[3] = vec2(0.0, -texelSize.y);
+  // 使用较大的采样半径（但不会太大，减少漏光）
+  int kernelRadius = int(radius);
   
-  for (int i = 0; i < 4; i++) {
-    vec2 uv = vUv + offsets[i];
-    
-    // 确保在纹理边界内
-    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-      continue;
-    }
-    
-    // 读取相邻像素，并添加到结果中
-    vec4 neighborColor = textureLod(inputTexture, uv, 0.0);
-    float neighborDepth = textureLod(depthTexture, uv, 0.0).r;
-    
-    // 简单的深度测试，保持边界锐利
-    if (abs(depth - neighborDepth) < 0.1) {
-      result += neighborColor.rgb;
-      totalWeight += 1.0;
+  // 限制最大半径为5，防止过度模糊
+  kernelRadius = min(kernelRadius, 5);
+  
+  // 防止数值过小导致的无效滤波
+  float effectiveSigmaSpace = max(sigmaSpace, 0.5);
+  float effectiveSigmaRange = max(sigmaRange, 0.01);
+  
+  for (int x = -kernelRadius; x <= kernelRadius; x++) {
+    for (int y = -kernelRadius; y <= kernelRadius; y++) {
+      vec2 offset = vec2(float(x), float(y));
+      vec2 uv = vUv + offset * texelSize;
+      
+      // 确保在纹理边界内
+      if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+        continue;
+      }
+      
+      // 读取相邻像素
+      vec4 neighborColor = textureLod(inputTexture, uv, 0.0);
+      float neighborDepth = textureLod(depthTexture, uv, 0.0).r;
+      
+      // 获取邻居法线
+      vec3 neighborNormal;
+      #ifdef GBUFFER_TEXTURE
+        Material neighborMat = getMaterial(gBufferTexture, uv);
+        neighborNormal = neighborMat.normal;
+      #else
+        vec3 neighborNormalTexel = textureLod(normalTexture, uv, 0.0).xyz;
+        neighborNormal = unpackNormal(neighborNormalTexel.b);
+      #endif
+      
+      // 1. 空间权重（高斯）
+      float distSquared = dot(offset, offset);
+      float spatialWeight = gaussianWeight(distSquared, effectiveSigmaSpace);
+      
+      // 2. 范围权重（颜色差异）
+      float colorDist = colorDistanceSquared(origColor.rgb, neighborColor.rgb);
+      float rangeWeight = gaussianWeight(colorDist, effectiveSigmaRange);
+      
+      // 3. 深度权重
+      float depthDiff = abs(depth - neighborDepth);
+      float depthWeight = depthDiff < 0.1 ? 1.0 : 0.0; // 硬截断，防止跨边界模糊
+      
+      // 4. 法线权重
+      float normalDiff = 1.0 - max(0.0, dot(normal, neighborNormal));
+      float normalWeight = normalDiff < 0.3 ? 1.0 : 0.0; // 硬截断，保持边缘
+      
+      // 合并所有权重
+      float weight = spatialWeight * rangeWeight * depthWeight * normalWeight;
+      
+      // 丢弃过小的权重
+      if (weight < 0.001) continue;
+      
+      result += neighborColor.rgb * weight;
+      totalWeight += weight;
     }
   }
   
-  // 正确的混合
+  // 归一化
   if (totalWeight > 0.0) {
     result /= totalWeight;
+  } else {
+    // 如果没有有效的样本（可能是孤立的边缘点），保留原始颜色
+    result = origColor.rgb;
+  }
+  
+  // 锐化处理 - 提高边缘细节
+  vec3 sharpened = origColor.rgb + (origColor.rgb - result) * 0.3;
+  
+  // 混合锐化和模糊结果 - 在平面区域使用模糊，边缘使用锐化
+  float edgeFactor = length(fwidth(normal)) * 10.0; // 检测边缘
+  vec3 finalColor = mix(result, sharpened, clamp(edgeFactor, 0.0, 0.5));
+  
+  // 对结果进行HDR权重调整，防止过亮区域产生噪点
+  float lum = luminance(finalColor);
+  if (lum > 1.0) {
+    finalColor *= 1.0 / (1.0 + lum * 0.5);
   }
   
   // 输出结果，保留原始alpha
-  gOutput0 = vec4(result, origColor.a);
+  gOutput0 = vec4(finalColor, origColor.a);
   
-  // 处理第二个通道（如果有）
+  // 处理第二个通道（如果有）- 通常是镜面反射
   #if textureCount == 2
   // 读取原始输入纹理 (通道2)
   vec4 origColor2 = textureLod(inputTexture2, vUv, 0.0);
-  vec3 result2 = origColor2.rgb;
-  totalWeight = 1.0;
+  vec3 result2 = vec3(0.0);
+  totalWeight = 0.0;
   
-  for (int i = 0; i < 4; i++) {
-    vec2 uv = vUv + offsets[i];
-    
-    // 确保在纹理边界内
-    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-      continue;
-    }
-    
-    // 读取相邻像素，并添加到结果中
-    vec4 neighborColor = textureLod(inputTexture2, uv, 0.0);
-    float neighborDepth = textureLod(depthTexture, uv, 0.0).r;
-    
-    if (abs(depth - neighborDepth) < 0.1) {
-      result2 += neighborColor.rgb;
-      totalWeight += 1.0;
+  for (int x = -kernelRadius; x <= kernelRadius; x++) {
+    for (int y = -kernelRadius; y <= kernelRadius; y++) {
+      vec2 offset = vec2(float(x), float(y));
+      vec2 uv = vUv + offset * texelSize;
+      
+      // 确保在纹理边界内
+      if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+        continue;
+      }
+      
+      // 读取相邻像素
+      vec4 neighborColor = textureLod(inputTexture2, uv, 0.0);
+      float neighborDepth = textureLod(depthTexture, uv, 0.0).r;
+      
+      // 获取邻居法线
+      vec3 neighborNormal;
+      #ifdef GBUFFER_TEXTURE
+        Material neighborMat = getMaterial(gBufferTexture, uv);
+        neighborNormal = neighborMat.normal;
+      #else
+        vec3 neighborNormalTexel = textureLod(normalTexture, uv, 0.0).xyz;
+        neighborNormal = unpackNormal(neighborNormalTexel.b);
+      #endif
+      
+      // 1. 空间权重（高斯）
+      float distSquared = dot(offset, offset);
+      float spatialWeight = gaussianWeight(distSquared, effectiveSigmaSpace);
+      
+      // 2. 范围权重（颜色差异）- 对镜面反射使用更严格的范围权重
+      float colorDist = colorDistanceSquared(origColor2.rgb, neighborColor.rgb);
+      float rangeWeight = gaussianWeight(colorDist, effectiveSigmaRange * 0.5); // 更严格的范围
+      
+      // 3. 深度权重
+      float depthDiff = abs(depth - neighborDepth);
+      float depthWeight = depthDiff < 0.05 ? 1.0 : 0.0; // 更严格的深度限制
+      
+      // 4. 法线权重
+      float normalDiff = 1.0 - max(0.0, dot(normal, neighborNormal));
+      float normalWeight = normalDiff < 0.2 ? 1.0 : 0.0; // 更严格的法线限制
+      
+      // 合并所有权重
+      float weight = spatialWeight * rangeWeight * depthWeight * normalWeight;
+      
+      // 丢弃过小的权重
+      if (weight < 0.001) continue;
+      
+      result2 += neighborColor.rgb * weight;
+      totalWeight += weight;
     }
   }
   
+  // 归一化
   if (totalWeight > 0.0) {
     result2 /= totalWeight;
+  } else {
+    // 如果没有有效的样本（可能是孤立的边缘点），保留原始颜色
+    result2 = origColor2.rgb;
   }
   
-  gOutput1 = vec4(result2, origColor2.a);
+  // 镜面反射通常需要保留锐利的边缘，所以使用更强的锐化
+  vec3 sharpened2 = origColor2.rgb + (origColor2.rgb - result2) * 0.5;
+  
+  // 混合锐化和模糊结果 - 在平面区域使用模糊，边缘使用锐化
+  float edgeFactor2 = length(fwidth(normal)) * 15.0; // 检测边缘，镜面反射需要更敏感
+  vec3 finalColor2 = mix(result2, sharpened2, clamp(edgeFactor2, 0.0, 0.7));
+  
+  // 对结果进行HDR权重调整，防止过亮区域产生噪点
+  float lum2 = luminance(finalColor2);
+  if (lum2 > 1.0) {
+    finalColor2 *= 1.0 / (1.0 + lum2 * 0.7); // 镜面反射需要更强的调整
+  }
+  
+  gOutput1 = vec4(finalColor2, origColor2.a);
   #endif
 } 

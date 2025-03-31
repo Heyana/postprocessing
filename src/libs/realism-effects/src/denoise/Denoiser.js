@@ -12,7 +12,9 @@ const defaultDenosierOptions = {
 	denoiseAlgorithm: "poisson", // 可以是 "poisson" 或 "gaussian-bilateral"
 	// 为高斯双边滤波器提供默认参数
 	sigmaSpace: 2.0,
-	sigmaRange: 0.05
+	sigmaRange: 0.05,
+	// 允许双边滤波进行更多迭代
+	denoiseIterations: 2
 }
 
 // a spatio-temporal denoiser
@@ -66,9 +68,9 @@ export default class Denoiser {
 					// 确保高斯双边滤波器参数存在且有合理的值
 					sigmaSpace: options.sigmaSpace ?? 2.0,
 					sigmaRange: options.sigmaRange ?? 0.05,
-					radius: options.radius ?? 4.0,
-					// 为高斯滤波器提供更保守的初始设置
-					iterations: Math.min(options.denoiseIterations ?? 1, 2)
+					radius: options.radius ?? 3.0,
+					// 允许多次迭代，但限制最大值
+					iterations: Math.min(options.denoiseIterations ?? 2, 3)
 				};
 
 				// 使用高斯-双边滤波器
@@ -162,9 +164,9 @@ export default class Denoiser {
 					// 确保高斯双边滤波器参数存在且有合理的值
 					sigmaSpace: this.options.sigmaSpace ?? 2.0,
 					sigmaRange: this.options.sigmaRange ?? 0.05,
-					radius: this.options.radius ?? 4.0,
-					// 为高斯滤波器提供更保守的初始设置
-					iterations: Math.min(this.options.denoiseIterations ?? 1, 2)
+					radius: this.options.radius ?? 3.0,
+					// 允许更多迭代
+					iterations: Math.min(this.options.denoiseIterations ?? 2, 3)
 				};
 
 				this.denoisePass = new GaussianBilateralDenoisePass(
@@ -323,32 +325,6 @@ export default class Denoiser {
 
 		// 执行降噪
 		this.denoisePass?.render(renderer)
-
-		// 仅在纹理需要更新时更新DenoiserComposePass的纹理
-		// if (this._texturesNeedUpdate && this.denoiserComposePass && this.denoisePass) {
-		// 	try {
-		// 		const newTextures = this.denoisePass.texture;
-
-		// 		// 检查纹理是否发生变化
-		// 		const hasChanged = this.hasTexturesChanged(newTextures);
-
-		// 		if (hasChanged) {
-		// 			// 更新当前纹理引用
-		// 			this._currentTextures = newTextures;
-
-		// 			// 如果存在updateTextures方法，使用它
-		// 			if (typeof this.denoiserComposePass.updateTextures === 'function') {
-		// 				this.denoiserComposePass.updateTextures(newTextures);
-		// 				console.log("手动更新纹理：纹理引用发生变化");
-		// 			}
-		// 		}
-
-		// 		this._texturesNeedUpdate = false;
-		// 	} catch (error) {
-		// 		// 错误已处理，继续执行
-		// 		this._texturesNeedUpdate = false;
-		// 	}
-		// }
 
 		// 执行最终合成
 		this.denoiserComposePass?.render(renderer)
