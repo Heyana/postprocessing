@@ -5,7 +5,6 @@ uniform highp sampler2D depthTexture;
 uniform mat4 projectionViewMatrix;
 uniform int frame;
 
-uniform sampler2D blueNoiseTexture;
 uniform vec2 blueNoiseRepeat;
 uniform vec2 resolution;
 

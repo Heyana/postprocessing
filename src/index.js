@@ -27,7 +27,7 @@ export {
 } from "./passes/ThreeCompatPass.js";
 
 // 在效果导出部分添加SSREffect
-export * from "./effects/SSREffect.js";
+// export * from "./effects/SSREffect.js";
 
 // 查找导出部分，添加以下两行：
 export { SharpenEffect } from "./effects/SharpenEffect.js";

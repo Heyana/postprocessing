@@ -11,9 +11,10 @@ import {
 	Vector2,
 	WebGLRenderTarget
 } from "three"
-import blueNoiseImage from "../utils/blue_noise_rgba.png"
+
 import vertexShader from "../utils/shader/basic.vert"
 import { useBlueNoise } from "../utils/BlueNoiseUtils"
+import { blueNoiseBase64 } from "../utils/TextureAssets"
 
 // a general AO pass that can be used for any AO algorithm
 class AOPass extends Pass {
@@ -61,7 +62,7 @@ class AOPass extends Pass {
 
 		useBlueNoise(this.fullscreenMaterial)
 
-		new TextureLoader().load(blueNoiseImage, blueNoiseTexture => {
+		new TextureLoader().load(blueNoiseBase64, blueNoiseTexture => {
 			blueNoiseTexture.minFilter = NearestFilter
 			blueNoiseTexture.magFilter = NearestFilter
 			blueNoiseTexture.wrapS = RepeatWrapping

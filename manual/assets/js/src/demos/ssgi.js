@@ -26,11 +26,11 @@ import {
     OverrideMaterialManager,
     EffectComposer,
     EffectPass,
+    SSREffect,
     RenderPass
 } from "postprocessing";
 
 // 导入 VelocityDepthNormalPass - 使用项目内的路径
-import { VelocityDepthNormalPass } from "postprocessing";
 
 import { Pane } from "tweakpane";
 import { ControlMode, SpatialControls } from "spatial-controls";

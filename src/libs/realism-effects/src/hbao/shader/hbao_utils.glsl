@@ -1,4 +1,3 @@
-#include <sampleBlueNoise>
 
 uniform sampler2D normalTexture;
 uniform float cameraNear;

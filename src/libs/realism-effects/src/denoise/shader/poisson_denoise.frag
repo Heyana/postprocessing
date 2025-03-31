@@ -55,14 +55,12 @@ float getBasicNeighborWeight(inout vec2 neighborUv) {
   vec3 neighborNormal = neighborMat.normal;
   float neighborDepth = textureLod(depthTexture, neighborUv, 0.0).r;
 #else
-  vec3 neighborDepthVelocityTexel = textureLod(normalTexture, neighborUv, 0.).xyz;
+  vec4 neighborDepthVelocityTexel = textureLod(normalTexture, neighborUv, 0.);
   vec3 neighborNormal = unpackNormal(neighborDepthVelocityTexel.b);
   float neighborDepth = neighborDepthVelocityTexel.a;
 #endif
-
   if (neighborDepth == 1.0)
     return 0.;
-
   float normalDiff = 1. - max(dot(normal, neighborNormal), 0.);
   float depthDiff = 10000. * abs(depth - neighborDepth);
 
