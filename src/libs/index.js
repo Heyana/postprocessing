@@ -14,6 +14,7 @@ export {
 
 export {
     SSAOEffect as RealismSSAOEffect
-} from "./realism-effects/src/ao/SSAOEffect"
+} from "./realism-new/src/ao/SSAOEffect"
 
 export * as  RealismNew from './realism-new/index'
+export { SSAOEffect as RSSAOEffect } from './realism-new/src/ao/SSAOEffect'

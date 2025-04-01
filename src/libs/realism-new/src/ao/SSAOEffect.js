@@ -1,6 +1,6 @@
-import { AOEffect } from "./AOEffect"
-import { SSAOPass } from "./SSAOPass"
+import { SSAOPass } from "../../index"
 import { Vector3 } from "run-scene-core"
+import { AOEffect } from "./AOEffect"
 function getPointsOnSphere(n) {
     const points = [];
     const inc = Math.PI * (3 - Math.sqrt(5));
@@ -71,5 +71,10 @@ export class SSAOEffect extends AOEffect {
             });
         }
         this.spp = options["spp"];
+    }
+
+    update(renderer, input, out) {
+        super.update(renderer, input, out)
+        return
     }
 }
