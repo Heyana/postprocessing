@@ -41,6 +41,8 @@ export class DepthOfFieldEffect extends Effect {
 	 * @param {Number} [options.resolutionY=Resolution.AUTO_SIZE] - The vertical resolution.
 	 * @param {Number} [options.width=Resolution.AUTO_SIZE] - Deprecated. Use resolutionX instead.
 	 * @param {Number} [options.height=Resolution.AUTO_SIZE] - Deprecated. Use resolutionY instead.
+	 * @param {Boolean} [options.useWorldSpaceAutoFocus=false] - Whether to use world space distance for auto focus instead of normalized depth.
+	 * @param {Boolean} [options.invertFocusDistance=false] - Whether to invert the focus distance calculation.
 	 */
 
 	constructor(camera, {
@@ -55,7 +57,9 @@ export class DepthOfFieldEffect extends Effect {
 		width = Resolution.AUTO_SIZE,
 		height = Resolution.AUTO_SIZE,
 		resolutionX = width,
-		resolutionY = height
+		resolutionY = height,
+		useWorldSpaceAutoFocus = false,
+		invertFocusDistance = false
 	} = {}) {
 
 		super("DepthOfFieldEffect", fragmentShader, {
@@ -158,13 +162,13 @@ export class DepthOfFieldEffect extends Effect {
 		cocMaterial.focusDistance = focusDistance;
 		cocMaterial.focusRange = focusRange;
 
-		if(worldFocusDistance !== undefined) {
+		if (worldFocusDistance !== undefined) {
 
 			cocMaterial.worldFocusDistance = worldFocusDistance;
 
 		}
 
-		if(worldFocusRange !== undefined) {
+		if (worldFocusRange !== undefined) {
 
 			cocMaterial.worldFocusRange = worldFocusRange;
 
@@ -240,6 +244,26 @@ export class DepthOfFieldEffect extends Effect {
 		this.target = null;
 
 		/**
+		 * Whether to use world space distance for auto focus instead of normalized depth.
+		 * When true, camera.position.distanceTo(target) is used to set worldFocusDistance.
+		 * When false, calculateFocusDistance converts to normalized depth to set focusDistance.
+		 * 
+		 * @type {Boolean}
+		 */
+
+		this._useWorldSpaceAutoFocus = useWorldSpaceAutoFocus;
+
+		/**
+		 * Whether to invert the focus distance calculation. When true, 
+		 * the focusDistance value will be inverted (1-d) so that 0 means far 
+		 * and 1 means near, which helps when you want to focus on near objects.
+		 * 
+		 * @type {Boolean}
+		 */
+
+		this._invertFocusDistance = invertFocusDistance;
+
+		/**
 		 * The render resolution.
 		 *
 		 * @type {Resolution}
@@ -286,7 +310,7 @@ export class DepthOfFieldEffect extends Effect {
 
 	set maskFunction(value) {
 
-		if(this.maskFunction !== value) {
+		if (this.maskFunction !== value) {
 
 			this.defines.set("MASK_FUNCTION", value.toFixed(0));
 			this.maskPass.fullscreenMaterial.maskFunction = value;
@@ -465,6 +489,42 @@ export class DepthOfFieldEffect extends Effect {
 	}
 
 	/**
+	 * Whether to use world space distance for auto focus.
+	 *
+	 * @type {Boolean}
+	 */
+
+	get useWorldSpaceAutoFocus() {
+
+		return this._useWorldSpaceAutoFocus;
+
+	}
+
+	set useWorldSpaceAutoFocus(value) {
+
+		this._useWorldSpaceAutoFocus = value;
+
+	}
+
+	/**
+	 * Whether to invert the focus distance calculation.
+	 *
+	 * @type {Boolean}
+	 */
+
+	get invertFocusDistance() {
+
+		return this._invertFocusDistance;
+
+	}
+
+	set invertFocusDistance(value) {
+
+		this._invertFocusDistance = value;
+
+	}
+
+	/**
 	 * Updates this effect.
 	 *
 	 * @param {WebGLRenderer} renderer - The renderer.
@@ -480,11 +540,42 @@ export class DepthOfFieldEffect extends Effect {
 		const renderTargetMasked = this.renderTargetMasked;
 
 		// Auto focus.
-		if(this.target !== null) {
+		if (this.target !== null) {
+			if (this.useWorldSpaceAutoFocus) {
+				// 直接使用世界空间距离设置worldFocusDistance
+				const distance = this.camera.position.distanceTo(this.target);
 
-			const distance = this.calculateFocusDistance(this.target);
-			this.cocMaterial.focusDistance = distance;
+				// 考虑far和near的影响，确保焦距在合理范围内
+				// 防止在极端远近平面设置下焦距异常
+				const camera = this.camera;
+				const farNearRatio = camera.far / camera.near;
 
+				// 记录原始世界焦距和范围
+				const originalDistance = this.cocMaterial.worldFocusDistance;
+				const originalRange = this.cocMaterial.worldFocusRange;
+
+				// 设置新的世界焦距
+				this.cocMaterial.worldFocusDistance = distance;
+
+
+
+				console.log(`使用世界焦距: ${distance.toFixed(2)}, far/near比例: ${farNearRatio.toFixed(0)}`);
+			} else {
+				// 原有的标准化深度值方法
+				let distance = this.calculateFocusDistance(this.target);
+				console.log('Log-- ', distance, 'distance');
+
+				// 如果启用了反转焦距，将值从d变为1-d
+				// 这样0表示远处，1表示近处，适合那些想对焦在近处的场景
+				if (this._invertFocusDistance) {
+					distance = 1.0 - distance;
+					console.log(`使用反转的标准化深度: ${distance.toFixed(4)}`);
+				} else {
+					console.log(`使用标准化深度: ${distance.toFixed(4)}`);
+				}
+
+				this.cocMaterial.focusDistance = distance;
+			}
 		}
 
 		// Render the CoC and create a blurred version for soft near field blending.
@@ -558,20 +649,20 @@ export class DepthOfFieldEffect extends Effect {
 		// The blur pass operates on the CoC buffer.
 		this.blurPass.initialize(renderer, alpha, UnsignedByteType);
 
-		if(renderer.capabilities.logarithmicDepthBuffer) {
+		if (renderer.capabilities.logarithmicDepthBuffer) {
 
 			this.cocPass.fullscreenMaterial.defines.LOG_DEPTH = "1";
 
 		}
 
-		if(frameBufferType !== undefined) {
+		if (frameBufferType !== undefined) {
 
 			this.renderTarget.texture.type = frameBufferType;
 			this.renderTargetNear.texture.type = frameBufferType;
 			this.renderTargetFar.texture.type = frameBufferType;
 			this.renderTargetMasked.texture.type = frameBufferType;
 
-			if(renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
+			if (renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
 
 				this.renderTarget.texture.colorSpace = SRGBColorSpace;
 				this.renderTargetNear.texture.colorSpace = SRGBColorSpace;

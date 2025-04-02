@@ -564,7 +564,6 @@ export class EffectPass extends Pass {
 	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass) {
 
 		timeLog("EffectPass.render");
-		console.log('Log-- ', this.scene, this.effects, 'this.effects');
 
 
 
@@ -586,7 +585,6 @@ export class EffectPass extends Pass {
 			material.time += deltaTime * this.timeScale;
 
 			timeLog("EffectPass.finalRender");
-			console.log('Log-- ', this.scene, 'this.scene');
 			renderer.setRenderTarget(this.renderToScreen ? null : outputBuffer);
 			renderer.render(this.scene, this.camera);
 			timeEndLog("EffectPass.finalRender");
