@@ -1,4 +1,4 @@
-import { Uniform } from "three";
+import { Color, Uniform } from "three";
 import { VignetteTechnique } from "../enums/VignetteTechnique.js";
 import { Effect } from "./Effect.js";
 
@@ -19,6 +19,7 @@ export class VignetteEffect extends Effect {
 	 * @param {Boolean} [options.eskil=false] - Deprecated. Use technique instead.
 	 * @param {Number} [options.offset=0.5] - The Vignette offset.
 	 * @param {Number} [options.darkness=0.5] - The Vignette darkness.
+	 * @param {Color|String|Number} [options.color=0x000000] - The Vignette color.
 	 */
 
 	constructor({
@@ -26,7 +27,8 @@ export class VignetteEffect extends Effect {
 		eskil = false,
 		technique = eskil ? VignetteTechnique.ESKIL : VignetteTechnique.DEFAULT,
 		offset = 0.5,
-		darkness = 0.5
+		darkness = 0.5,
+		color = 0x000000
 	} = {}) {
 
 		super("VignetteEffect", fragmentShader, {
@@ -36,7 +38,8 @@ export class VignetteEffect extends Effect {
 			]),
 			uniforms: new Map([
 				["offset", new Uniform(offset)],
-				["darkness", new Uniform(darkness)]
+				["darkness", new Uniform(darkness)],
+				["color", new Uniform(new Color(color))]
 			])
 		});
 
@@ -56,7 +59,7 @@ export class VignetteEffect extends Effect {
 
 	set technique(value) {
 
-		if(this.technique !== value) {
+		if (this.technique !== value) {
 
 			this.defines.set("VIGNETTE_TECHNIQUE", value.toFixed(0));
 			this.setChanged();
@@ -202,6 +205,48 @@ export class VignetteEffect extends Effect {
 	setDarkness(value) {
 
 		this.darkness = value;
+
+	}
+
+	/**
+	 * The Vignette color.
+	 *
+	 * @type {Color}
+	 */
+
+	get color() {
+
+		return this.uniforms.get("color").value;
+
+	}
+
+	set color(value) {
+
+		this.uniforms.get("color").value.set(value);
+
+	}
+
+	/**
+	 * Returns the Vignette color.
+	 *
+	 * @return {Color} The color.
+	 */
+
+	getColor() {
+
+		return this.color;
+
+	}
+
+	/**
+	 * Sets the Vignette color.
+	 *
+	 * @param {Color|String|Number} value - The color.
+	 */
+
+	setColor(value) {
+
+		this.color.set(value);
 
 	}
 

@@ -5,7 +5,8 @@ import {
 	PerspectiveCamera,
 	Scene,
 	SRGBColorSpace,
-	WebGLRenderer
+	WebGLRenderer,
+	Color
 } from "three";
 
 import {
@@ -96,7 +97,8 @@ window.addEventListener("load", () => load().then((assets) => {
 	const effect = new VignetteEffect({
 		technique: VignetteTechnique.DEFAULT,
 		offset: 0.0,
-		darkness: 1.0
+		darkness: 1.0,
+		color: new Color(0x000000)
 	});
 
 	const effectPass = new EffectPass(camera, effect);
@@ -110,10 +112,19 @@ window.addEventListener("load", () => load().then((assets) => {
 	const pane = new Pane({ container: container.querySelector(".tp") });
 	pane.addBinding(fpsMeter, "fps", { readonly: true, label: "FPS" });
 
-	const folder = pane.addFolder({ title: "Settings" });
+	const folder = pane.addFolder({ title: "设置" });
 	folder.addBinding(effect, "technique", { options: VignetteTechnique });
 	folder.addBinding(effect, "offset", { min: 0, max: 1, step: 1e-3 });
 	folder.addBinding(effect, "darkness", { min: 0, max: 1, step: 1e-3 });
+
+	// 添加颜色控制
+	const colorParams = { color: { r: 0, g: 0, b: 0 } };
+	folder.addBinding(colorParams, "color", {
+		color: { type: "float" }
+	}).on("change", (e) => {
+		effect.color.setRGB(e.value.r, e.value.g, e.value.b);
+	});
+
 	folder.addBinding(effectPass, "dithering");
 	folder.addBinding(effect.blendMode.opacity, "value", { label: "opacity", min: 0, max: 1, step: 0.01 });
 	folder.addBinding(effect.blendMode, "blendFunction", { options: BlendFunction });

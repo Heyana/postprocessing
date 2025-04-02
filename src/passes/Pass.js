@@ -8,7 +8,7 @@ import {
 	Scene,
 	Texture,
 	WebGLRenderTarget
-} from "three";
+} from "run-scene-core";
 
 const fullscreenGeometry = /* @__PURE__ */ (() => {
 

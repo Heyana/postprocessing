@@ -177,7 +177,8 @@ export class VelocityDepthNormalPass extends Pass {
 
 		if (this._camera.view) this._camera.view.enabled = false
 		this._camera.updateProjectionMatrix()
-
+		const originalAutoUpdate = renderer.shadowMap.autoUpdate;
+		renderer.shadowMap.autoUpdate = false;
 		// in case a RenderPass is not being used, so we need to update the camera's world matrix manually
 		this._camera.updateMatrixWorld()
 
@@ -199,5 +200,6 @@ export class VelocityDepthNormalPass extends Pass {
 		if (this._camera.view) this._camera.view.enabled = true
 		this._camera.projectionMatrix.copy(tmpProjectionMatrix)
 		this._camera.projectionMatrixInverse.copy(tmpProjectionMatrixInverse)
+		renderer.shadowMap.autoUpdate = originalAutoUpdate;
 	}
 }

@@ -34,7 +34,7 @@ export function createLights() {
 
 	const backLight = new DirectionalLight(0xffbbaa, 0.1);
 	backLight.position.copy(mainLight.position).negate();
-
+	backLight.intensity = 5
 	const lights = new Group();
 	lights.add(mainLight, backLight, ambientLight);
 

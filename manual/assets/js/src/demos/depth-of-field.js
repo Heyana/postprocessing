@@ -149,8 +149,8 @@ window.addEventListener("load", () => load().then((assets) => {
 	const cocDebugPass = new EffectPass(camera, new TextureEffect({ texture: effect.cocTexture }));
 	effectPass.renderToScreen = true;
 	cocDebugPass.renderToScreen = true;
-	cocDebugPass.enabled = false;
-	cocDebugPass.fullscreenMaterial.encodeOutput = false;
+	cocDebugPass.enabled = true;
+	cocDebugPass.fullscreenMaterial.encodeOutput = true;
 	// END DEBUG
 
 	composer.addPass(new RenderPass(scene, camera));
