@@ -45,6 +45,8 @@ export class DepthOfFieldEffect extends Effect {
 	 * @param {Boolean} [options.invertFocusDistance=false] - Whether to invert the focus distance calculation.
 	 */
 
+	version =
+		"0.01"
 	constructor(camera, {
 		blendFunction,
 		worldFocusDistance,

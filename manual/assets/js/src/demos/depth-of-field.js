@@ -65,10 +65,10 @@ window.addEventListener("load", () => load().then((assets) => {
 	// Renderer
 
 	const renderer = new WebGLRenderer({
-		powerPreference: "high-performance",
-		antialias: false,
-		stencil: false,
-		depth: false
+		// powerPreference: "high-performance",
+		// antialias: false,
+		// stencil: false,
+		// depth: false
 	});
 
 	renderer.debug.checkShaderErrors = (window.location.hostname === "localhost");
@@ -79,6 +79,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	const camera = new PerspectiveCamera(70, window.innerWidth / window.innerHeight, 10, 30000);
 	camera.position.set(0, 0, 1000);
+	console.log('Log-- ', camera, 'camera');
 
 	// 使用OrbitControls替代SpatialControls
 	const controls = new OrbitControls(camera, renderer.domElement);
@@ -91,7 +92,8 @@ window.addEventListener("load", () => load().then((assets) => {
 	// Scene, Lights, Objects
 
 	const scene = new Scene();
-	scene.fog = new FogExp2(0x373134, 0.0006); // 降低雾效强度适应大场景
+	console.log('Log-- ', scene, 'scene');
+	// scene.fog = new FogExp2(0x373134, 0.0006); // 降低雾效强度适应大场景
 	scene.background = assets.get("sky");
 	scene.add(Domain.createLights());
 	scene.add(Domain.createEnvironment(scene.background));
@@ -125,7 +127,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	// Post Processing
 
 	const composer = new EffectComposer(renderer, {
-		multisampling: Math.min(4, renderer.capabilities.maxSamples)
+		multisampling: 8
 	});
 
 	const effect = new DepthOfFieldEffect(camera, {

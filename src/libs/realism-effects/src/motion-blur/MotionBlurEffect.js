@@ -4,8 +4,8 @@ import { Effect } from "postprocessing"
 import { NoColorSpace, NearestFilter, RepeatWrapping, TextureLoader, Uniform, Vector2 } from "three"
 import motion_blur from "./shader/motion_blur.frag"
 
-import blueNoiseImage from "../utils/blue_noise_rgba.png"
 import { setupBlueNoise } from "../utils/BlueNoiseUtils"
+import { blueNoiseBase64 } from "../utils/TextureAssets"
 
 // https://www.nvidia.com/docs/io/8230/gdc2003_openglshadertricks.pdf
 // http://john-chapman-graphics.blogspot.com/2013/01/per-object-motion-blur.html
@@ -73,7 +73,7 @@ export class MotionBlurEffect extends Effect {
 	initialize(renderer, ...args) {
 		super.initialize(renderer, ...args)
 
-		new TextureLoader().load(blueNoiseImage, blueNoiseTexture => {
+		new TextureLoader().load(blueNoiseBase64, blueNoiseTexture => {
 			blueNoiseTexture.minFilter = NearestFilter
 			blueNoiseTexture.magFilter = NearestFilter
 			blueNoiseTexture.wrapS = RepeatWrapping
