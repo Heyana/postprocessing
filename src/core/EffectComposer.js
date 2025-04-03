@@ -292,6 +292,8 @@ export class EffectComposer {
 
 	createDepthTexture() {
 
+		console.log('Log-- ', this.scene, 'this.mainScene');
+		console.log('Log-- ', 890, '890');
 		const depthTexture = this.depthTexture = new DepthTexture();
 
 		// Hack: Make sure the input buffer uses the depth texture.
@@ -610,17 +612,18 @@ export class EffectComposer {
 		const renderPasses = this.passes[0]
 		if (renderPasses.isRenderPass) {
 			renderPasses.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass);
-			if (this.depthTexture !== null) {
+			// if (this.depthTexture !== null) {
 
-				// 如果有深度通道，先渲染它
-				if (depthPass !== null) {
-					depthPass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest);
-				}
-			}
+			// 	// 如果有深度通道，先渲染它
+			// 	if (depthPass !== null) {
+			// 		depthPass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest);
+			// 	}
+			// }
 		}
 		for (const pass of this.passes) {
 
 			if (pass.enabled && !pass.isRenderPass) {
+
 
 				// 传递深度通道作为额外参数
 				pass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass);
@@ -657,7 +660,6 @@ export class EffectComposer {
 					stencilTest = false;
 
 				}
-
 
 			}
 

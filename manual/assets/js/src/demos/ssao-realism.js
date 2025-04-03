@@ -353,32 +353,8 @@ window.addEventListener("load", () => load().then((assets) => {
 		effectPass: composer.passes[composer.passes.length - 1]
 	});
 
-	// 初始化用于演示hideSelection功能的对象引用
-	const hideSelectionObjects = {
-		// 存储可能要排除的对象引用
-		torus: null,
-		cubes: [],
-		platform: null,
-		riggedModel: riggedSimple.scene
-	};
 
-	// 找到场景中的特定对象供hideSelection功能使用
-	scene.traverse(object => {
-		if (object.isMesh) {
-			// 查找特征明显的对象
-			if (object.geometry instanceof TorusKnotGeometry) {
-				hideSelectionObjects.torus = object;
-			} else if (object.geometry instanceof BoxGeometry &&
-				object.position.y > -1 &&
-				object.position.z === -2) {
-				hideSelectionObjects.cubes.push(object);
-			} else if (object.geometry instanceof BoxGeometry &&
-				object.position.y === -1.5 &&
-				object.scale.y < 1) {
-				hideSelectionObjects.platform = object;
-			}
-		}
-	});
+
 
 	// UI控制面板
 	const fpsMeter = new FPSMeter();
@@ -726,205 +702,30 @@ window.addEventListener("load", () => load().then((assets) => {
 		compareButton.title = compareMode ? "开启SSAO" : "关闭SSAO（比较）";
 	});
 
-	// 添加hideSelection功能控制
-	const hideSelectionFolder = pane.addFolder({ title: "对象选择性AO" });
 
-	// 添加说明
-	hideSelectionFolder.addBinding({
-		info: "以下选项允许您控制哪些对象不参与AO计算"
-	}, "info", {
-		readonly: true,
-		label: "功能说明",
-		view: "text"
-	});
 
-	// 创建对象选择控制
-	hideSelectionFolder.addBinding({ hideTorus: false }, "hideTorus", { label: "排除纠结环" })
-		.on("change", (e) => {
-			if (hideSelectionObjects.torus) {
-				if (e.value) {
-					// 使用新的API排除对象
-					ssaoEffect.excludeFromAO(hideSelectionObjects.torus);
-					console.log("排除纠结环 - 排除后的对象数:", Array.from(ssaoEffect.hideSelection).length);
-				} else {
-					// 使用新的API恢复对象
-					ssaoEffect.includeInAO(hideSelectionObjects.torus);
-					console.log("恢复纠结环 - 排除后的对象数:", Array.from(ssaoEffect.hideSelection).length);
-				}
-			}
-		});
-
-	hideSelectionFolder.addBinding({ hideCubes: false }, "hideCubes", { label: "排除立方体" })
-		.on("change", (e) => {
-			if (hideSelectionObjects.cubes.length > 0) {
-				if (e.value) {
-					// 使用新的API排除多个对象
-					hideSelectionObjects.cubes.forEach(cube => ssaoEffect.excludeFromAO(cube));
-				} else {
-					// 使用新的API恢复多个对象
-					hideSelectionObjects.cubes.forEach(cube => ssaoEffect.includeInAO(cube));
-				}
-			}
-		});
-
-	hideSelectionFolder.addBinding({ hidePlatform: false }, "hidePlatform", { label: "排除地台" })
-		.on("change", (e) => {
-			if (hideSelectionObjects.platform) {
-				if (e.value) {
-					// 使用新的API排除对象
-					ssaoEffect.excludeFromAO(hideSelectionObjects.platform);
-				} else {
-					// 使用新的API恢复对象
-					ssaoEffect.includeInAO(hideSelectionObjects.platform);
-				}
-			}
-		});
-
-	hideSelectionFolder.addBinding({ hideRiggedModel: false }, "hideRiggedModel", { label: "排除人物模型" })
-		.on("change", (e) => {
-			if (hideSelectionObjects.riggedModel) {
-				if (e.value) {
-					// 使用新的API排除整个模型（包含所有子网格）
-					ssaoEffect.excludeFromAO(hideSelectionObjects.riggedModel);
-				} else {
-					// 使用新的API恢复整个模型
-					ssaoEffect.includeInAO(hideSelectionObjects.riggedModel);
-				}
-			}
-		});
 
 	// 给用户一些视觉反馈，显示当前排除的对象数量
 	const exclusionStats = {
 		count: "0个对象被排除"
 	};
 
-	hideSelectionFolder.addBinding(exclusionStats, "count", {
-		readonly: true,
-		label: "排除状态"
-	});
 
-	// 创建更新统计信息的函数
-	function updateExclusionStats() {
-		// 原来使用 ssaoEffect.hideSelection.size 获取数量
-		// 但我们应该直接计算被排除的对象
-		let count = 0;
 
-		// 检查各个对象是否被排除
-		if (hideSelectionObjects.torus && ssaoEffect.hideSelection.has(hideSelectionObjects.torus)) {
-			count++;
-		}
 
-		if (hideSelectionObjects.platform && ssaoEffect.hideSelection.has(hideSelectionObjects.platform)) {
-			count++;
-		}
 
-		if (hideSelectionObjects.riggedModel && ssaoEffect.hideSelection.has(hideSelectionObjects.riggedModel)) {
-			count++;
-		}
 
-		// 计算被排除的立方体数量
-		if (hideSelectionObjects.cubes.length > 0) {
-			hideSelectionObjects.cubes.forEach(cube => {
-				if (ssaoEffect.hideSelection.has(cube)) {
-					count++;
-				}
-			});
-		}
 
-		// 更新统计信息
-		exclusionStats.count = `${count}个对象被排除`;
-		pane.refresh();
-	}
 
-	// 为所有控件添加更新统计信息的调用
-	hideSelectionFolder.children.forEach(control => {
-		if (control.on && control.label !== "排除状态" && control.label !== "功能说明") {
-			const originalOnChange = control.on.bind(control);
-			control.on = (eventName, callback) => {
-				return originalOnChange(eventName, (...args) => {
-					callback(...args);
-					if (eventName === "change") {
-						setTimeout(updateExclusionStats, 0);
-					}
-				});
-			};
-		}
-	});
 
-	// 初始更新一次
-	updateExclusionStats();
-
-	hideSelectionFolder.addButton({ title: "重置选择" })
-		.on("click", () => {
-			// 使用新的API清空所有选择
-			ssaoEffect.clearAOExclusions();
-			console.log("重置所有选择 - 排除后的对象数:", Array.from(ssaoEffect.hideSelection).length);
-
-			// 调试：检查所有对象是否正确返回默认层
-			scene.traverse(object => {
-				if (object.isMesh) {
-					console.log(`对象 ${object.name || "未命名"} 的层设置:`, object.layers.mask);
-				}
-			});
-
-			// 刷新UI
-			updateExclusionStats();
-			pane.refresh();
-		});
 
 	// 添加测试功能，用于开发人员测试AO对象排除功能
 	const devFolder = pane.addFolder({ title: "开发者测试", expanded: false });
 	devFolder.hidden = true; // 默认隐藏，仅用于开发测试
 
-	// 显示内部排除列表状态
-	devFolder.addButton({ title: "打印当前排除对象" })
-		.on("click", () => {
-			console.log("当前排除列表中的对象数:", ssaoEffect.hideSelection.size);
-			const excludedObjects = Array.from(ssaoEffect.hideSelection);
-			console.log("排除的对象:", excludedObjects.map(obj => obj.name || "未命名对象"));
 
-			// 检查特定对象的排除状态
-			if (hideSelectionObjects.torus) {
-				console.log("纠结环排除状态:", ssaoEffect.hideSelection.has(hideSelectionObjects.torus));
-			}
-			if (hideSelectionObjects.platform) {
-				console.log("地台排除状态:", ssaoEffect.hideSelection.has(hideSelectionObjects.platform));
-			}
-			if (hideSelectionObjects.cubes.length > 0) {
-				hideSelectionObjects.cubes.forEach((cube, i) => {
-					console.log(`立方体 ${i} 排除状态:`, ssaoEffect.hideSelection.has(cube));
-				});
-			}
-		});
 
-	// 强制清理并设置一个对象测试
-	devFolder.addButton({ title: "强制测试单个对象排除" })
-		.on("click", () => {
-			// 清除现有排除
-			ssaoEffect.clearAOExclusions();
 
-			// 确保至少排除一个对象进行测试
-			if (hideSelectionObjects.torus) {
-				console.log("强制排除纠结环进行测试");
-				ssaoEffect.excludeFromAO(hideSelectionObjects.torus);
-			} else if (hideSelectionObjects.cubes.length > 0) {
-				console.log("强制排除第一个立方体进行测试");
-				ssaoEffect.excludeFromAO(hideSelectionObjects.cubes[0]);
-			} else if (scene.children.length > 0) {
-				// 尝试找到一个可见的网格对象
-				let foundMesh = false;
-				scene.traverse(object => {
-					if (!foundMesh && object.isMesh) {
-						console.log("强制排除找到的网格:", object.name || "未命名网格");
-						ssaoEffect.excludeFromAO(object);
-						foundMesh = true;
-					}
-				});
-			}
-
-			// 更新UI以反映变化
-			updateExclusionStats();
-		});
 
 	// 测试排除特定类型的对象
 	devFolder.addButton({ title: "排除所有圆柱体" })
@@ -953,37 +754,6 @@ window.addEventListener("load", () => load().then((assets) => {
 	let animatedExclusionsEnabled = false;
 	let animatedExclusionsInterval = null;
 
-	devFolder.addBinding({ enableAnimatedExclusions: false }, "enableAnimatedExclusions",
-		{ label: "启用动态排除" })
-		.on("change", (e) => {
-			animatedExclusionsEnabled = e.value;
-
-			if (animatedExclusionsEnabled) {
-				// 启动动态排除
-				let index = 0;
-				animatedExclusionsInterval = setInterval(() => {
-					// 清除之前的所有排除
-					ssaoEffect.clearAOExclusions();
-
-					// 根据索引排除不同对象
-					if (hideSelectionObjects.cubes.length > 0) {
-						const cubeToExclude = hideSelectionObjects.cubes[index % hideSelectionObjects.cubes.length];
-						ssaoEffect.excludeFromAO(cubeToExclude);
-						console.log("动态排除立方体:", index % hideSelectionObjects.cubes.length);
-					}
-
-					index++;
-				}, 1000); // 每秒切换一次
-			} else {
-				// 停止动态排除
-				if (animatedExclusionsInterval) {
-					clearInterval(animatedExclusionsInterval);
-					animatedExclusionsInterval = null;
-					// 清除所有排除
-					ssaoEffect.clearAOExclusions();
-				}
-			}
-		});
 
 	// 添加快捷键支持
 	window.addEventListener("keydown", (event) => {

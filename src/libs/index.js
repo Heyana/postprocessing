@@ -25,3 +25,5 @@ export { LensDistortionEffect } from './realism-effects/src/lens-distortion/Lens
 
 export { TRAAEffect } from './realism-effects/src/traa/TRAAEffect'
 export { SharpnessEffect } from './realism-effects/src/sharpness/SharpnessEffect'
+
+export { AOPass as RAOPass } from './realism-effects/src/ao/AOPass'

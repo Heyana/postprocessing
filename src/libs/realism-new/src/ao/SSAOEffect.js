@@ -74,7 +74,7 @@ export class SSAOEffect extends AOEffect {
     }
 
     update(renderer, input, out) {
-        super.update(renderer, input, out)
+        // super.update(renderer, input, out)
         return
     }
 }

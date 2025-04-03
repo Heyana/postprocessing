@@ -37,8 +37,6 @@ export class AOEffect extends Effect {
         }; // set up depth texture
         this.options = options
         this.scene = scene
-        // 添加hideSelection功能
-        this.hideSelection = new Selection();
 
         // 为AO创建特定的层系统 - 使用31作为AO专用层
         this.aoLayerMask = new Layers();
@@ -102,6 +100,7 @@ export class AOEffect extends Effect {
                             break;
 
                         case "color":
+                            console.log('Log-- ', value, 'value');
                             this.uniforms.get("color").value.copy(new Color(value));
                             break;
                         // denoiser
@@ -154,21 +153,14 @@ export class AOEffect extends Effect {
     }
 
     update(renderer, input, out) {
+        return
         var _this$normalPass2;
 
         this.options?.renderBefore?.(this.scene)
 
-        // 处理hideSelection，临时将选中对象移出渲染层
-        const hiddenObjects = Array.from(this.hideSelection);
-        const tempDisabledLayers = new Map();
 
-        console.log("AOEffect: 准备处理", hiddenObjects.length, "个被排除的对象");
 
-        // 在进行AO计算前，保存并修改对象的层设置
-        for (const object of hiddenObjects) {
-            // 递归处理对象及其子对象
-            this._processObjectAndChildren(object, tempDisabledLayers);
-        }
+
 
         // check if TRAA is being used so we can animate the noise
         const hasTRAA = this.composer.passes.some(pass => {
@@ -196,81 +188,13 @@ export class AOEffect extends Effect {
         this.aoPass.render(renderer);
         this.poissionDenoisePass.render(renderer);
 
-        // 渲染完成后恢复原始层设置
-        for (const object of hiddenObjects) {
-            // 递归恢复对象及其子对象
-            this._restoreObjectAndChildren(object, tempDisabledLayers);
-        }
+
     }
 
-    // 新增：递归处理对象及其子对象的层设置
-    _processObjectAndChildren(object, tempDisabledLayers) {
-        if (!object) return;
 
-        // 处理当前对象
-        if (object.isMesh || object.isGroup || object.isObject3D) {
-            // 保存当前层状态
-            tempDisabledLayers.set(object, object.layers.mask);
 
-            // 完全从渲染中移除 - 对于AO计算也会被忽略
-            // 使用位运算移到第1层并关闭第0层
-            object.layers.set(1);
-            object.layers.disable(0);
 
-            console.log(`AOEffect: 排除对象 ${object.name || "未命名"}, 原层: ${tempDisabledLayers.get(object)}, 新层: ${object.layers.mask}`);
-        }
 
-        // 递归处理子对象
-        if (object.children && object.children.length > 0) {
-            for (const child of object.children) {
-                this._processObjectAndChildren(child, tempDisabledLayers);
-            }
-        }
-    }
 
-    // 新增：递归恢复对象及其子对象的层设置
-    _restoreObjectAndChildren(object, tempDisabledLayers) {
-        if (!object) return;
 
-        // 恢复当前对象
-        if (object.isMesh || object.isGroup || object.isObject3D) {
-            const originalMask = tempDisabledLayers.get(object);
-            if (originalMask !== undefined) {
-                object.layers.mask = originalMask;
-                console.log(`AOEffect: 恢复对象 ${object.name || "未命名"} 到原层: ${originalMask}`);
-            }
-        }
-
-        // 递归恢复子对象
-        if (object.children && object.children.length > 0) {
-            for (const child of object.children) {
-                this._restoreObjectAndChildren(child, tempDisabledLayers);
-            }
-        }
-    }
-
-    // 添加新方法，用于控制对象是否参与AO计算
-    excludeFromAO(object) {
-        if (!object) {
-            console.warn("AOEffect: 尝试排除null或undefined对象");
-            return;
-        }
-
-        console.log(`AOEffect: 添加对象 ${object.name || "未命名"} 到排除列表`);
-        this.hideSelection.add(object);
-    }
-
-    // 将对象恢复到AO计算中
-    includeInAO(object) {
-        if (!object) return;
-
-        console.log(`AOEffect: 从排除列表中移除对象 ${object.name || "未命名"}`);
-        this.hideSelection.delete(object);
-    }
-
-    // 清除所有排除项
-    clearAOExclusions() {
-        console.log("AOEffect: 清除所有排除项, 原排除数量:", this.hideSelection.size);
-        this.hideSelection.clear();
-    }
 }
