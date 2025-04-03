@@ -705,54 +705,6 @@ window.addEventListener("load", () => load().then((assets) => {
 
 
 
-	// 给用户一些视觉反馈，显示当前排除的对象数量
-	const exclusionStats = {
-		count: "0个对象被排除"
-	};
-
-
-
-
-
-
-
-
-
-
-	// 添加测试功能，用于开发人员测试AO对象排除功能
-	const devFolder = pane.addFolder({ title: "开发者测试", expanded: false });
-	devFolder.hidden = true; // 默认隐藏，仅用于开发测试
-
-
-
-
-
-	// 测试排除特定类型的对象
-	devFolder.addButton({ title: "排除所有圆柱体" })
-		.on("click", () => {
-			scene.traverse(object => {
-				if (object.isMesh && object.geometry instanceof CylinderGeometry) {
-					ssaoEffect.excludeFromAO(object);
-					console.log("排除圆柱体:", object.name || "未命名圆柱体");
-				}
-			});
-		});
-
-	// 测试按名称排除
-	devFolder.addButton({ title: "根据名称排除" })
-		.on("click", () => {
-			// 示例：排除名为"123"的对象
-			scene.traverse(object => {
-				if (object.name === "123") {
-					ssaoEffect.excludeFromAO(object);
-					console.log("根据名称排除:", object.name);
-				}
-			});
-		});
-
-	// 程序化测试 - 在运行时动态切换对象排除
-	let animatedExclusionsEnabled = false;
-	let animatedExclusionsInterval = null;
 
 
 	// 添加快捷键支持

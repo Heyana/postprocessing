@@ -38,12 +38,6 @@ export class AOEffect extends Effect {
         this.options = options
         this.scene = scene
 
-        // 为AO创建特定的层系统 - 使用31作为AO专用层
-        this.aoLayerMask = new Layers();
-        this.aoLayerMask.enableAll(); // 默认所有层都参与AO
-
-        // 存储对象的原始层信息
-        this.originalLayers = new Map();
 
         console.log('Log-- ', composer.depthTexture, 'composer.depthTexture');
 
@@ -190,11 +184,4 @@ export class AOEffect extends Effect {
 
 
     }
-
-
-
-
-
-
-
 }
