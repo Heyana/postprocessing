@@ -394,6 +394,7 @@ export class EffectComposer {
 	 * @param {Scene} scene - The scene.
 	 */
 
+	scene = null
 	setMainScene(scene) {
 
 		for (const pass of this.passes) {
@@ -401,7 +402,7 @@ export class EffectComposer {
 			pass.mainScene = scene;
 
 		}
-
+		this.scene = scene
 	}
 
 	/**
@@ -580,6 +581,7 @@ export class EffectComposer {
 	 * @param {Number} [deltaTime] - The time since the last frame in seconds.
 	 */
 
+	oldMap = {}
 	render(deltaTime) {
 
 		timeLog("EffectComposer.render");
@@ -619,6 +621,22 @@ export class EffectComposer {
 			// 		depthPass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest);
 			// 	}
 			// }
+
+			console.log('Log-- ', this.oldMap, 'this.oldMap');
+			this.scene?.traverse(object => {
+				if (object.material) {
+					if (!this.oldMap[object.uuid]) {
+						this.oldMap[object.uuid] = object.material.emissive.clone()
+					}
+
+					object.material.emissive.set(
+						1.0,
+						1.0,
+						1.0
+					);
+				}
+			});
+
 		}
 		for (const pass of this.passes) {
 
@@ -664,6 +682,15 @@ export class EffectComposer {
 			}
 
 		}
+
+		this.scene?.traverse(object => {
+			if (object.material) {
+				const saved = this.oldMap[object.uuid]
+				console.log('Log-- ', saved, 'saved');
+				object.material.emissive.set(saved.r, saved.g, saved.b)
+			}
+		});
+
 		timeEndLog("EffectComposer.render");
 	}
 

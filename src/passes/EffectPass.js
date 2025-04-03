@@ -572,7 +572,7 @@ export class EffectPass extends Pass {
 
 			timeLog(`EffectPass.${effect.name}.update`);
 
-			// effect.update(renderer, inputBuffer, deltaTime, depthPass);
+			effect.update(renderer, inputBuffer, deltaTime, depthPass);
 			timeEndLog(`EffectPass.${effect.name}.update`);
 		}
 

@@ -10,11 +10,13 @@ import {
 	Mesh,
 	MeshStandardMaterial,
 	PerspectiveCamera,
+	Raycaster,
 	Scene,
 	SphereGeometry,
 	SRGBColorSpace,
 	TextureLoader,
 	TorusKnotGeometry,
+	Vector2,
 	VSMShadowMap,
 	WebGLRenderer
 } from "three";
@@ -24,10 +26,11 @@ import {
 	EffectPass,
 	RealismNew,
 	RenderPass,
-	RealismSSAOEffect, RSSAOEffect
+	RealismSSAOEffect,
+	RSSAOEffect,
+	Selection
 } from "postprocessing";
 import * as THREE from "three";
-
 
 import { ControlMode, SpatialControls } from "spatial-controls";
 import { Pane } from "tweakpane";
@@ -142,8 +145,6 @@ function load() {
 	});
 }
 
-
-
 // 创建更适合展示AO效果的场景对象
 function createAOTestObjects() {
 	const group = new Group();
@@ -224,6 +225,39 @@ function createAOTestObjects() {
 	return group;
 }
 
+// 获取Selection中的对象数量
+function getSelectionCount(selection) {
+	if (!selection) return 0;
+
+	// 检查各种可能的访问方式
+	if (Array.isArray(selection.items)) {
+		return selection.items.length;
+	}
+
+	if (Array.isArray(selection.objects)) {
+		return selection.objects.length;
+	}
+
+	if (typeof selection.getItems === 'function') {
+		return selection.getItems().length;
+	}
+
+	if (typeof selection.getSelection === 'function') {
+		return selection.getSelection().length;
+	}
+
+	if (typeof selection.size === 'number') {
+		return selection.size;
+	}
+
+	// 如果Selection是一个可迭代对象
+	if (typeof selection[Symbol.iterator] === 'function') {
+		return Array.from(selection).length;
+	}
+
+	return 0;
+}
+
 window.addEventListener("load", () => load().then((assets) => {
 	// 渲染器
 	const renderer = new WebGLRenderer({
@@ -299,6 +333,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	// 后处理
 	const multisampling = Math.min(4, renderer.capabilities.maxSamples);
 	const composer = new EffectComposer(renderer, { multisampling });
+	composer.setMainScene(scene)
 
 	console.log('Log-- ', composer, 'composer');
 	// 添加基本渲染通道
@@ -337,7 +372,21 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		// 尺寸参数
 		width: container.clientWidth,
-		height: container.clientHeight
+		height: container.clientHeight,
+
+		// 忽略列表设置
+		ignoreSelection: new Selection(),
+		highlightValue: 0.8
+	});
+
+	// 打印Selection对象的结构，帮助调试
+	console.log('Selection API 结构:', {
+		selection: ssaoEffect.ignoreSelection,
+		properties: Object.keys(ssaoEffect.ignoreSelection),
+		methods: Object.getOwnPropertyNames(Object.getPrototypeOf(ssaoEffect.ignoreSelection)),
+		hasItems: !!ssaoEffect.ignoreSelection.items,
+		hasObjects: !!ssaoEffect.ignoreSelection.objects,
+		hasGetItems: typeof ssaoEffect.ignoreSelection.getItems === 'function'
 	});
 
 	// 添加SSAO效果到合成器
@@ -352,9 +401,6 @@ window.addEventListener("load", () => load().then((assets) => {
 		prototype: Object.getPrototypeOf(ssaoEffect) ? Object.keys(Object.getPrototypeOf(ssaoEffect)) : [],
 		effectPass: composer.passes[composer.passes.length - 1]
 	});
-
-
-
 
 	// UI控制面板
 	const fpsMeter = new FPSMeter();
@@ -702,10 +748,81 @@ window.addEventListener("load", () => load().then((assets) => {
 		compareButton.title = compareMode ? "开启SSAO" : "关闭SSAO（比较）";
 	});
 
+	// 添加忽略模型相关功能的UI
+	const ignoreFolder = pane.addFolder({
+		title: "模型忽略设置",
+		expanded: true // 默认展开此面板
+	});
 
+	// 添加说明文字
+	const instructionElem = document.createElement('div');
+	instructionElem.className = 'instruction-text';
+	instructionElem.textContent = '点击模型将其添加到AO忽略列表';
+	instructionElem.style.cssText = 'background: rgba(0,0,0,0.1); padding: 8px; border-radius: 4px; margin: 8px 0; text-align: center; font-size: 12px;';
+	// 获取ignoreFolder的DOM元素并添加说明
+	setTimeout(() => {
+		const folderElem = ignoreFolder.element;
+		if (folderElem) {
+			folderElem.prepend(instructionElem);
+		}
+	}, 100); // 短暂延时确保DOM已更新
 
+	// 显示当前忽略模型数量
+	const ignoreState = {
+		ignoredCount: 0,
+		highlightValue: 0.8,
+		brightnessThreshold: 0.7 // 添加亮度阈值控制
+	};
 
+	// 显示忽略的模型数量
+	ignoreFolder.addBinding(ignoreState, "ignoredCount", {
+		label: "已忽略模型数量",
+		readonly: true
+	});
 
+	// 控制高亮强度
+	ignoreFolder.addBinding(ignoreState, "highlightValue", {
+		min: 0.5, max: 2.0, step: 0.1,
+		label: "高亮强度"
+	}).on("change", (e) => {
+		try {
+			// 更新SSAO效果中的高亮值
+			ssaoEffect.highlightValue = e.value;
+		} catch (error) {
+			console.error('设置高亮值时出错:', error);
+		}
+	});
+
+	// 添加亮度阈值控制
+	ignoreFolder.addBinding(ignoreState, "brightnessThreshold", {
+		min: 0.1, max: 1.0, step: 0.05,
+		label: "亮度阈值"
+	}).on("change", (e) => {
+		try {
+			// 更新着色器中的亮度阈值
+			if (ssaoEffect.brightnessThreshold !== undefined) {
+				ssaoEffect.brightnessThreshold = e.value;
+			}
+		} catch (error) {
+			console.error('设置亮度阈值时出错:', error);
+		}
+	});
+
+	// 添加清空忽略列表的按钮
+	ignoreFolder.addButton({
+		title: "清空忽略列表"
+	}).on("click", () => {
+		try {
+			// 清空Selection
+			ssaoEffect.ignoreSelection.clear();
+
+			// 更新忽略计数
+			ignoreState.ignoredCount = getSelectionCount(ssaoEffect.ignoreSelection);
+			pane.refresh();
+		} catch (error) {
+			console.error('清空Selection时出错:', error);
+		}
+	});
 
 	// 添加快捷键支持
 	window.addEventListener("keydown", (event) => {
@@ -728,6 +845,50 @@ window.addEventListener("load", () => load().then((assets) => {
 	window.addEventListener("resize", onResize);
 	onResize();
 
+	// 添加鼠标射线和忽略列表
+	const raycaster = new Raycaster();
+	const mouse = new Vector2();
+
+	// 添加点击事件处理
+	renderer.domElement.addEventListener('click', (event) => {
+		// 计算鼠标位置的归一化设备坐标 (-1 到 +1)
+		const rect = renderer.domElement.getBoundingClientRect();
+		mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+		mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+		// 设置射线从相机发出经过鼠标位置
+		raycaster.setFromCamera(mouse, camera);
+
+		// 计算物体和射线的焦点
+		const intersects = raycaster.intersectObjects(scene.children, true);
+
+		if (intersects.length > 0) {
+			const object = intersects[0].object;
+			if (object.isMesh) {
+				console.log('点击了模型:', object.name || '未命名模型');
+
+				try {
+					// 检查对象是否在Selection中
+					if (ssaoEffect.ignoreSelection.has(object)) {
+						console.log('从忽略列表中移除模型');
+						// 从Selection中移除对象
+						ssaoEffect.ignoreSelection.delete(object);
+					} else {
+						console.log('添加模型到忽略列表');
+						// 添加对象到Selection
+						ssaoEffect.ignoreSelection.add(object);
+					}
+
+					// 更新忽略计数
+					ignoreState.ignoredCount = getSelectionCount(ssaoEffect.ignoreSelection);
+					pane.refresh();
+				} catch (error) {
+					console.error('处理Selection时出错:', error);
+				}
+			}
+		}
+	});
+
 	// 渲染循环
 	let t0 = 0;
 
@@ -739,6 +900,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		controls.update(timestamp);
 		animationMixer.update(deltaTime * 1e-3);
 		composer.render();
+
 		requestAnimationFrame(render);
 	});
 }));
