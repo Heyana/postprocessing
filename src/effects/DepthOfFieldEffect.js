@@ -553,28 +553,25 @@ export class DepthOfFieldEffect extends Effect {
 				const farNearRatio = camera.far / camera.near;
 
 				// 记录原始世界焦距和范围
-				const originalDistance = this.cocMaterial.worldFocusDistance;
-				const originalRange = this.cocMaterial.worldFocusRange;
 
 				// 设置新的世界焦距
 				this.cocMaterial.worldFocusDistance = distance;
 
 
 
-				console.log(`使用世界焦距: ${distance.toFixed(2)}, far/near比例: ${farNearRatio.toFixed(0)}`);
+				// console.log(`使用世界焦距: ${distance.toFixed(2)}, far/near比例: ${farNearRatio.toFixed(0)}`);
 			} else {
 				// 原有的标准化深度值方法
 				let distance = this.calculateFocusDistance(this.target);
-				console.log('Log-- ', distance, 'distance');
 
 				// 如果启用了反转焦距，将值从d变为1-d
 				// 这样0表示远处，1表示近处，适合那些想对焦在近处的场景
-				if (this._invertFocusDistance) {
-					distance = 1.0 - distance;
-					console.log(`使用反转的标准化深度: ${distance.toFixed(4)}`);
-				} else {
-					console.log(`使用标准化深度: ${distance.toFixed(4)}`);
-				}
+				// if (this._invertFocusDistance) {
+				// 	distance = 1.0 - distance;
+				// 	console.log(`使用反转的标准化深度: ${distance.toFixed(4)}`);
+				// } else {
+				// 	console.log(`使用标准化深度: ${distance.toFixed(4)}`);
+				// }
 
 				this.cocMaterial.focusDistance = distance;
 			}

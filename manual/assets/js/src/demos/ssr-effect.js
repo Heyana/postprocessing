@@ -305,7 +305,7 @@ window.addEventListener("load", () => load().then((assets) => {
         console.log("正在尝试创建SSREffect...");
 
         // 创建SSREffect时添加更多的调试信息
-        ssrEffect = new SSREffect(scene, camera, {
+        ssrEffect = new SSREffect(composer, scene, camera, {
             thickness: 0.05,             // 增加厚度，使反射更明显
             maxDistance: 0.5,            // 增加反射距离
             opacity: 1.0,                // 最大不透明度

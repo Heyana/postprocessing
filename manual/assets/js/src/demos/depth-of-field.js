@@ -149,8 +149,8 @@ window.addEventListener("load", () => load().then((assets) => {
 	const cocDebugPass = new EffectPass(camera, new TextureEffect({ texture: effect.cocTexture }));
 	effectPass.renderToScreen = true;
 	cocDebugPass.renderToScreen = true;
-	cocDebugPass.enabled = true;
-	cocDebugPass.fullscreenMaterial.encodeOutput = true;
+	cocDebugPass.enabled = false;
+	cocDebugPass.fullscreenMaterial.encodeOutput = false;
 	// END DEBUG
 
 	composer.addPass(new RenderPass(scene, camera));
@@ -170,6 +170,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	folder.addBinding(effect.blurPass, "kernelSize", { options: KernelSize });
 	folder.addBinding(cocMaterial, "worldFocusDistance", { min: 0, max: 10000, step: 100 });
 	folder.addBinding(cocMaterial, "worldFocusRange", { min: 0, max: 5000, step: 100 });
+	folder.addBinding(cocMaterial, "focalLength", { min: 0, max: 1, step: 0.01 });
 	folder.addBinding(effect, "bokehScale", { min: 0, max: 10, step: 0.1 });
 	folder.addBinding(effect.blendMode.opacity, "value", { label: "opacity", min: 0, max: 1, step: 0.01 });
 	folder.addBinding(effect.blendMode, "blendFunction", { options: BlendFunction });
