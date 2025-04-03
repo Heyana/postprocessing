@@ -73,8 +73,4 @@ export class SSAOEffect extends AOEffect {
         this.spp = options["spp"];
     }
 
-    update(renderer, input, out) {
-        // super.update(renderer, input, out)
-        return
-    }
 }

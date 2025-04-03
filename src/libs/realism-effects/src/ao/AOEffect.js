@@ -1,5 +1,5 @@
 import { Effect, NormalPass } from "postprocessing"
-import { Color, Uniform } from "three"
+import { Color, Uniform, WebGLRenderTarget, RGBAFormat, FloatType, NearestFilter } from "three"
 import { PoissonDenoisePass } from "../denoise/pass/PoissonDenoisePass"
 // eslint-disable-next-line camelcase
 import ao_compose from "./shader/ao_compose.frag"
@@ -17,6 +17,8 @@ const defaultAOOptions = {
 	useNormalPass: false,
 	velocityDepthNormalPass: null,
 	normalTexture: null,
+	useExcludeMask: false,
+	excludedObjects: [],
 	...PoissonDenoisePass.DefaultOptions
 }
 
@@ -30,13 +32,19 @@ class AOEffect extends Effect {
 				["inputTexture", new Uniform(null)],
 				["depthTexture", new Uniform(null)],
 				["power", new Uniform(0)],
-				["color", new Uniform(new Color("black"))]
+				["color", new Uniform(new Color("black"))],
+				["excludeMaskTexture", new Uniform(null)]
 			])
 		})
 
 		this.composer = composer
 		this.aoPass = aoPass
+		this.scene = scene
+		this.camera = camera
 		options = { ...defaultAOOptions, ...options }
+
+		// 创建排除标识渲染目标
+		this.excludeMaskTarget = null
 
 		// set up depth texture
 		if (!composer.depthTexture) composer.createDepthTexture()
@@ -59,6 +67,94 @@ class AOEffect extends Effect {
 		})
 
 		this.makeOptionsReactive(options)
+
+		// 初始化排除标识相关设置
+		if (options.useExcludeMask) {
+			this.initExcludeMask()
+		}
+	}
+
+	initExcludeMask() {
+		// 启用排除标识功能
+		this.defines = this.defines || new Map();
+		this.defines.set("USE_EXCLUDE_MASK", "1");
+
+		// 创建用于渲染排除对象的渲染目标
+		const width = this.lastSize.width || 512
+		const height = this.lastSize.height || 512
+		this.excludeMaskTarget = new WebGLRenderTarget(width, height, {
+			format: RGBAFormat,
+			type: FloatType,
+			minFilter: NearestFilter,
+			magFilter: NearestFilter
+		})
+
+		// 设置排除标识纹理
+		this.uniforms.get("excludeMaskTexture").value = this.excludeMaskTarget.texture
+	}
+
+	// 设置要排除的对象
+	setExcludedObjects(objects) {
+		this.excludedObjects = Array.isArray(objects) ? objects : [objects]
+
+		// 如果没有初始化过排除功能，则初始化
+		if (this.useExcludeMask && !this.excludeMaskTarget) {
+			this.initExcludeMask()
+		}
+	}
+
+	// 渲染排除标识到纹理
+	renderExcludeMask(renderer) {
+		if (!this.excludeMaskTarget || !this.useExcludeMask || !this.excludedObjects.length) return
+
+		// 保存当前渲染状态
+		const currentRenderTarget = renderer.getRenderTarget()
+		const currentAutoClear = renderer.autoClear
+
+		// 准备渲染排除标识
+		renderer.setRenderTarget(this.excludeMaskTarget)
+		renderer.autoClear = true
+		renderer.clear()
+
+		// 临时存储对象的可见性状态
+		const visibilityStates = new Map()
+
+		// 隐藏所有对象
+		this.scene.traverse(object => {
+			if (object.isMesh) {
+				visibilityStates.set(object, object.visible)
+				object.visible = false
+			}
+		})
+
+		// 仅显示需要排除的对象
+		for (const object of this.excludedObjects) {
+			if (object) {
+				object.visible = true
+				// 如果是组，则显示其中所有对象
+				if (object.isGroup) {
+					object.traverse(child => {
+						if (child.isMesh) {
+							child.visible = true
+						}
+					})
+				}
+			}
+		}
+
+		// 渲染排除对象到标识纹理
+		renderer.render(this.scene, this.camera)
+
+		// 恢复对象可见性
+		this.scene.traverse(object => {
+			if (object.isMesh && visibilityStates.has(object)) {
+				object.visible = visibilityStates.get(object)
+			}
+		})
+
+		// 恢复渲染状态
+		renderer.setRenderTarget(currentRenderTarget)
+		renderer.autoClear = currentAutoClear
 	}
 
 	makeOptionsReactive(options) {
@@ -93,6 +189,21 @@ class AOEffect extends Effect {
 
 						case "color":
 							this.uniforms.get("color").value.copy(new Color(value))
+							break
+
+						case "useExcludeMask":
+							if (value) {
+								this.defines = this.defines || new Map();
+								this.defines.set("USE_EXCLUDE_MASK", "1");
+								if (!this.excludeMaskTarget) {
+									this.initExcludeMask()
+								}
+							} else {
+								if (this.defines) {
+									this.defines.delete("USE_EXCLUDE_MASK");
+								}
+							}
+							this.setSize(this.lastSize.width, this.lastSize.height)
 							break
 
 						// denoiser
@@ -138,6 +249,11 @@ class AOEffect extends Effect {
 
 		this.PoissonDenoisePass.setSize(width, height)
 
+		// 调整排除标识渲染目标大小
+		if (this.excludeMaskTarget) {
+			this.excludeMaskTarget.setSize(width, height)
+		}
+
 		this.lastSize = {
 			width,
 			height,
@@ -154,6 +270,11 @@ class AOEffect extends Effect {
 	}
 
 	update(renderer) {
+		// 如果启用了排除标识功能，先渲染排除标识
+		if (this.useExcludeMask && this.excludeMaskTarget) {
+			this.renderExcludeMask(renderer)
+		}
+
 		// check if TRAA is being used so we can animate the noise
 		const hasTRAA = this.composer.passes.some(pass => {
 			return pass.enabled && !pass.skipRendering && pass.effects?.some(effect => effect instanceof TRAAEffect)

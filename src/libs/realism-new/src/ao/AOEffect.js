@@ -1,6 +1,7 @@
 import { Effect, Selection, NormalPass } from "postprocessing"
 import { Color, Uniform, Layers } from "three"
-import { ao_compose, TRAAEffect, PoissionDenoisePass } from '../../index'
+import { TRAAEffect, PoissionDenoisePass } from '../../index'
+import ao_compose from './shader/ao_compose.frag'
 const defaultAOOptions = {
     resolutionScale: 1,
     spp: 8,
@@ -147,7 +148,6 @@ export class AOEffect extends Effect {
     }
 
     update(renderer, input, out) {
-        return
         var _this$normalPass2;
 
         this.options?.renderBefore?.(this.scene)
