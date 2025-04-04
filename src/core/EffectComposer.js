@@ -614,17 +614,17 @@ export class EffectComposer {
 		const renderPasses = this.passes[0]
 		if (renderPasses.isRenderPass) {
 			renderPasses.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass);
-			if (this.depthTexture !== null) {
+			// if (this.depthTexture !== null) {
 
-				// 如果有深度通道，先渲染它
-				if (depthPass !== null) {
-					depthPass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest);
-				}
-			}
+			// 	// 如果有深度通道，先渲染它
+			// 	if (depthPass !== null) {
+			// 		depthPass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest);
+			// 	}
+			// }
 
-			this.scene?.traverse(object => {
-				object.visible = false;
-			});
+			// this.scene?.traverse(object => {
+			// 	object.visible = false;
+			// });
 
 		}
 		for (const pass of this.passes) {
@@ -672,9 +672,9 @@ export class EffectComposer {
 
 		}
 
-		this.scene.traverse(object => {
-			object.visible = true;
-		});
+		// this.scene.traverse(object => {
+		// 	object.visible = true;
+		// });
 
 		timeEndLog("EffectComposer.render");
 	}

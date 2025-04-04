@@ -3,14 +3,9 @@ uniform highp sampler2D depthTexture;
 uniform float power;
 uniform vec3 color;
 uniform float brightnessThreshold; // 亮度阈值，超过此值将减少AO效果
-uniform bool enableEffect; // 控制是否启用AO效果
 
 void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
   // 如果效果被禁用，直接返回输入颜色
-  if (!enableEffect) {
-    outputColor = inputColor;
-    return;
-  }
 
   // AO效果处理
   float unpackedDepth = textureLod(depthTexture, uv, 0.).r;
