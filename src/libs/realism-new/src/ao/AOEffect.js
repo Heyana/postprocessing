@@ -465,7 +465,6 @@ export class AOEffect extends Effect {
         // 恢复原始渲染目标
         renderer.setRenderTarget(currentRenderTarget);
 
-        this.setUpdateEffectPass({ renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass });
 
         // 注意：前面已经调用过restoreScene()，这里不需要再次调用
     }
