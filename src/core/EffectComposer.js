@@ -610,37 +610,25 @@ export class EffectComposer {
 
 		// 如果没有找到现有的深度通道但有通道需要深度信息，则使用已创建的共享深度纹理
 
-		this.scene.traverse(object => {
-			if (object.name === 'ignore' && object.material) {
-				// object.material.emissive.set(0, 0, 0)
-				// object.material.color.set(0.5, 0.5, 0.5)
-				object.visible = true
-			}
-		});
+		// this.scene.traverse(object => {
+		// 	if (object.name === 'ignore' && object.material) {
+		// 		// 不要修改材质的颜色，只控制可见性
+		// 		object.visible = true
+		// 	}
+		// });
 		const renderPasses = this.passes[0]
 		if (renderPasses.isRenderPass) {
 			renderPasses.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass);
-			// if (this.depthTexture !== null) {
-
-			// 	// 如果有深度通道，先渲染它
-			// 	if (depthPass !== null) {
-			// 		depthPass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest);
-			// 	}
-			// }
-
-			// this.scene?.traverse(object => {
-			// 	object.visible = false;
-			// });
-
-
-			this.scene.traverse(object => {
-				if (object.name === 'ignore' && object.material) {
-					object.material.emissive.set(1, 1, 1)
-					object.material.color.set(1, 1, 1)
-					object.visible = false
-				}
-			});
 		}
+
+		// 在所有后期处理之前恢复对象的正确可见性状态
+		// this.scene.traverse(object => {
+		// 	if (object.name === 'ignore' && object.material) {
+		// 		// 只控制可见性，不要修改材质属性，这可能会干扰AO效果
+		// 		object.visible = false
+		// 	}
+		// });
+
 		for (const pass of this.passes) {
 
 			if (pass.enabled && !pass.isRenderPass) {

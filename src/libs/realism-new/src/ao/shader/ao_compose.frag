@@ -53,7 +53,7 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
 
   // 计算输入颜色的亮度 (使用感知亮度公式)
   // 在调试模式下使用场景颜色，正常模式下使用输入颜色
-  vec3 colorForBrightness = debugMode > 0 ? sceneColor.rgb : inputColor.rgb;
+  vec3 colorForBrightness = sceneColor.rgb; // 始终使用sceneColor计算亮度
   float perceptualBrightness = dot(colorForBrightness, vec3(0.299, 0.587, 0.114));
   
   // 根据亮度调整AO效果强度，亮度越高AO影响越小
@@ -80,6 +80,8 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
 
   // 正常模式: 应用AO效果
   vec3 aoColor = mix(color, vec3(1.0), ao);
+  
+  // 混合策略: 使用inputColor作为基础颜色，但应用根据sceneColor计算的AO强度
   aoColor *= inputColor.rgb;
 
   // 输出最终颜色，确保alpha值正确

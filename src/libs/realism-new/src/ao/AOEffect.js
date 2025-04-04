@@ -397,17 +397,18 @@ export class AOEffect extends Effect {
     }
 
     update(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass) {
-
+        // 准备场景 - 设置高亮对象等
         this.prepareScene();
 
         // 执行渲染前回调
         this.options?.renderBefore?.(this.scene);
 
-
         // 打印Selection内容进行调试
         const selectionItems = this.getSelectionItems();
-        console.log(`AOEffect过滤: 忽略对象数量=${selectionItems.length}`,
-            selectionItems.length > 0 ? selectionItems[0].name || selectionItems[0].uuid : "无对象");
+        if (selectionItems.length > 0) {
+            console.log(`AOEffect过滤: 忽略对象数量=${selectionItems.length}`,
+                selectionItems[0].name || selectionItems[0].uuid);
+        }
 
         // 检查是否使用TRAA动画噪声
         const hasTRAA = this.composer.passes.some(pass => {
@@ -425,7 +426,6 @@ export class AOEffect extends Effect {
             delete this.aoPass.fullscreenMaterial.defines.animatedNoise;
         }
 
-
         // 强制清理所有渲染目标
         this.clearAllRenderTargets(renderer);
 
@@ -435,40 +435,39 @@ export class AOEffect extends Effect {
         // 步骤1: 渲染场景到专用深度缓冲区（所有模型，包括高亮标记的）
         this.renderPass.render(renderer, this.renderTargetAO, this.renderTargetAO, deltaTime, true);
 
+        // 重要: 立即恢复场景状态，避免对象变白问题
+        this.restoreScene();
+
         // 从渲染目标中获取深度纹理和颜色纹理
         const filteredDepthTexture = this.renderTargetAO.depthTexture;
 
-        // 设置原始场景纹理 - 可用于调试模式
-        // 确保在所有模式下都设置inputBuffer，这样着色器可以在调试模式下使用它
+        // 设置原始场景纹理 - 必须在所有模式下都设置
+        // 我们使用renderTargetAO的颜色纹理，这是原始场景的渲染结果
         this.uniforms.get("inputBuffer").value = this.renderTargetAO.texture;
 
-        if (this.uniforms.get("debugMode").value > 0) {
-            console.log("调试模式启用，使用原始场景渲染结果作为着色器输入");
+        const debugMode = this.uniforms.get("debugMode").value;
+        if (debugMode > 0) {
+            console.log(`当前调试模式: ${debugMode} (1=亮度, 2=AO强度, 3=AO值)`);
         }
 
         // 步骤2: 使用过滤后的深度缓冲区渲染AO效果
         this.aoPass.fullscreenMaterial.uniforms.depthTexture.value = filteredDepthTexture;
 
-
         // 渲染AO效果
         this.aoPass.render(renderer);
 
-        // 确保降噪通道的渲染目标被清理
+        // 对AO结果进行降噪
         this.poissionDenoisePass.render(renderer);
 
         // 步骤3: 设置最终AO纹理
         this.uniforms.get("inputTexture").value = this.poissionDenoisePass.texture;
 
-        // 我们已经在前面设置了inputBuffer，不需要在这里重复
-        // this.uniforms.get("inputBuffer").value = inputBuffer.texture || inputBuffer;
-
         // 恢复原始渲染目标
         renderer.setRenderTarget(currentRenderTarget);
 
-        // this.setUpdateEffectPass({ renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass })
+        this.setUpdateEffectPass({ renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass });
 
-        // 现在是安全的时机恢复场景原始状态
-        this.restoreScene();
+        // 注意：前面已经调用过restoreScene()，这里不需要再次调用
     }
 
     // 清理所有渲染目标
@@ -476,35 +475,27 @@ export class AOEffect extends Effect {
         // 保存当前渲染目标
         const currentRenderTarget = renderer.getRenderTarget();
 
-        // 清理AO专用渲染目标
-        if (this.renderTargetAO) {
-            renderer.setRenderTarget(this.renderTargetAO);
-            renderer.clear(true, true, true);
-        }
+        try {
+            // 清理所有已定义的渲染目标
+            const targets = [
+                this.renderTargetAO,
+                this.aoPass?.renderTarget,
+                this.poissionDenoisePass?.renderTarget
+            ];
 
-        // 清理AO通道渲染目标
-        if (this.aoPass && this.aoPass.renderTarget) {
-            renderer.setRenderTarget(this.aoPass.renderTarget);
-            renderer.clear(true, true, true);
-        }
-
-        // 清理降噪通道渲染目标
-        if (this.poissionDenoisePass && this.poissionDenoisePass.renderTarget) {
-            renderer.setRenderTarget(this.poissionDenoisePass.renderTarget);
-            renderer.clear(true, true, true);
-        } else if (this.poissionDenoisePass) {
-            console.warn("PoissionDenoisePass的renderTarget未定义，无法清理");
-
-            // 尝试创建renderTarget，如果可能的话
-            if (typeof this.poissionDenoisePass.setSize === 'function' &&
-                this.lastSize && this.lastSize.width && this.lastSize.height) {
-                console.info("尝试重新创建PoissionDenoisePass的renderTarget");
-                this.poissionDenoisePass.setSize(this.lastSize.width, this.lastSize.height);
+            // 遍历所有渲染目标并清理
+            for (const target of targets) {
+                if (target) {
+                    renderer.setRenderTarget(target);
+                    renderer.clear(true, true, true);
+                }
             }
+        } catch (error) {
+            console.error("清理渲染目标时出错:", error);
+        } finally {
+            // 确保无论如何都恢复原来的渲染目标
+            renderer.setRenderTarget(currentRenderTarget);
         }
-
-        // 恢复原来的渲染目标
-        renderer.setRenderTarget(currentRenderTarget);
     }
 
     // 存储原始发光值的方法
