@@ -376,7 +376,10 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		// 忽略列表设置
 		ignoreSelection: new Selection(),
-		highlightValue: 0.8
+		highlightValue: 0.8,
+
+		// 渲染控制
+		closeAutoUpdate: false // 默认情况下不关闭自动更新
 	});
 
 	// 打印Selection对象的结构，帮助调试
@@ -463,6 +466,18 @@ window.addEventListener("load", () => load().then((assets) => {
 				}
 			});
 		});
+
+	// 添加渲染控制选项
+	folder.addBinding({ closeAutoUpdate: ssaoEffect.closeAutoUpdate }, "closeAutoUpdate", {
+		label: "仅在Update中渲染"
+	}).on("change", (e) => {
+		try {
+			// 更新closeAutoUpdate值
+			ssaoEffect.closeAutoUpdate = e.value;
+		} catch (error) {
+			console.error('设置closeAutoUpdate时出错:', error);
+		}
+	});
 
 	// 创建自定义对象来控制混合强度
 	const blendSettings = {

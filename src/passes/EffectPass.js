@@ -394,6 +394,7 @@ export class EffectPass extends Pass {
 		for (const effect of this.effects) {
 
 			effect.removeEventListener("change", this.listener);
+			effect.removeEventListener("updateEffectPass", this.listener);
 
 		}
 
@@ -402,7 +403,7 @@ export class EffectPass extends Pass {
 		for (const effect of this.effects) {
 
 			effect.addEventListener("change", this.listener);
-
+			effect.addEventListener("updateEffectPass", this.listener);
 		}
 
 	}
@@ -415,6 +416,7 @@ export class EffectPass extends Pass {
 
 	updateMaterial() {
 
+		console.log('Log-- ', 123, '123');
 		const data = new EffectShaderData();
 		let id = 0;
 
@@ -561,23 +563,9 @@ export class EffectPass extends Pass {
 	 * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
 	 */
 
-	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass) {
+	afterRender(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass) {
 
-		timeLog("EffectPass.render");
-
-
-
-
-		for (const effect of this.effects) {
-
-			timeLog(`EffectPass.${effect.name}.update`);
-
-			effect.update(renderer, inputBuffer, deltaTime, depthPass);
-			timeEndLog(`EffectPass.${effect.name}.update`);
-		}
-
-
-
+		console.log('Log-- ', renderer, inputBuffer, 'renderer,inputBuffer');
 		if (!this.skipRendering || this.renderToScreen) {
 
 			const material = this.fullscreenMaterial;
@@ -590,6 +578,26 @@ export class EffectPass extends Pass {
 			renderer.render(this.scene, this.camera);
 			timeEndLog("EffectPass.finalRender");
 		}
+
+	}
+
+	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass) {
+
+		// this.mainScene.traverse(object => {
+		// 	object.visible = false;
+		// });
+		timeLog("EffectPass.render");
+
+
+		for (const effect of this.effects) {
+
+			timeLog(`EffectPass.${effect.name}.update`);
+
+			effect.update(renderer, inputBuffer, deltaTime, depthPass);
+			timeEndLog(`EffectPass.${effect.name}.update`);
+		}
+		// this.afterRender(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass);
+
 
 		timeEndLog("EffectPass.render");
 	}
@@ -654,6 +662,7 @@ export class EffectPass extends Pass {
 		for (const effect of this.effects) {
 
 			effect.removeEventListener("change", this.listener);
+			effect.removeEventListener("updateEffectPass", this.listener);
 			effect.dispose();
 
 		}
@@ -672,6 +681,15 @@ export class EffectPass extends Pass {
 
 			case "change":
 				this.recompile();
+				break;
+
+			case "updateEffectPass":
+				// this.updateEffectPass(event.map);
+				const {
+					renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass
+				} = event.map;
+				console.log('Log-- ', event, 'event');
+				this.afterRender(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass)
 				break;
 
 		}

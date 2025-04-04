@@ -218,7 +218,7 @@ export class Effect extends EventDispatcher {
 	 * @type {Scene}
 	 */
 
-	set mainScene(value) {}
+	set mainScene(value) { }
 
 	/**
 	 * Sets the main camera.
@@ -226,7 +226,7 @@ export class Effect extends EventDispatcher {
 	 * @type {Camera}
 	 */
 
-	set mainCamera(value) {}
+	set mainCamera(value) { }
 
 	/**
 	 * Returns the name of this effect.
@@ -403,6 +403,12 @@ export class Effect extends EventDispatcher {
 
 	}
 
+	setUpdateEffectPass(map) {
+
+		this.dispatchEvent({ type: "updateEffectPass", map });
+
+	}
+
 	/**
 	 * Sets the depth texture.
 	 *
@@ -413,7 +419,7 @@ export class Effect extends EventDispatcher {
 	 * @param {DepthPackingStrategies} [depthPacking=BasicDepthPacking] - The depth packing.
 	 */
 
-	setDepthTexture(depthTexture, depthPacking = BasicDepthPacking) {}
+	setDepthTexture(depthTexture, depthPacking = BasicDepthPacking) { }
 
 	/**
 	 * Updates this effect by performing supporting operations.
@@ -428,7 +434,7 @@ export class Effect extends EventDispatcher {
 	 * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
 	 */
 
-	update(renderer, inputBuffer, deltaTime) {}
+	update(renderer, inputBuffer, deltaTime) { }
 
 	/**
 	 * Updates the size of this effect.
@@ -440,7 +446,7 @@ export class Effect extends EventDispatcher {
 	 * @param {Number} height - The height.
 	 */
 
-	setSize(width, height) {}
+	setSize(width, height) { }
 
 	/**
 	 * Performs initialization tasks.
@@ -453,7 +459,7 @@ export class Effect extends EventDispatcher {
 	 * @example if(!alpha && frameBufferType === UnsignedByteType) { this.myRenderTarget.texture.format = RGBFormat; }
 	 */
 
-	initialize(renderer, alpha, frameBufferType) {}
+	initialize(renderer, alpha, frameBufferType) { }
 
 	/**
 	 * Performs a shallow search for properties that define a dispose method and deletes them.
@@ -463,7 +469,7 @@ export class Effect extends EventDispatcher {
 
 	dispose() {
 
-		for(const key of Object.keys(this)) {
+		for (const key of Object.keys(this)) {
 
 			const property = this[key];
 			const isDisposable = (
@@ -473,7 +479,7 @@ export class Effect extends EventDispatcher {
 				property instanceof Pass
 			);
 
-			if(isDisposable) {
+			if (isDisposable) {
 
 				this[key].dispose();
 
