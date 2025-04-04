@@ -466,8 +466,6 @@ window.addEventListener("load", () => load().then((assets) => {
 			});
 		});
 
-
-
 	// 创建自定义对象来控制混合强度
 	const blendSettings = {
 		strength: 0.85 // 默认值略微降低
@@ -834,6 +832,94 @@ window.addEventListener("load", () => load().then((assets) => {
 		if (event.key === "d" && event.altKey) {
 			devFolder.hidden = !devFolder.hidden;
 			pane.refresh();
+		}
+	});
+
+	// 添加调试渲染面板
+	const debugFolder = pane.addFolder({
+		title: "调试渲染模式",
+		expanded: false
+	});
+
+	// 创建调试模式配置
+	const debugSettings = {
+		mode: "normal"
+	};
+
+	// 添加调试模式选择器
+	debugFolder.addBinding(debugSettings, "mode", {
+		options: {
+			"正常模式": "normal",
+			"深度纹理": "depth",
+			"全场景深度": "full-depth",
+			"AO纹理": "ao",
+			"选择指示": "selection"
+		},
+		label: "调试模式"
+	}).on("change", (e) => {
+		// 更新SSAO效果的调试模式
+		if (ssaoEffect && typeof ssaoEffect.debugMode !== 'undefined') {
+			ssaoEffect.debugMode = e.value;
+			console.log(`切换到调试模式: ${e.value}`);
+		} else {
+			console.warn('SSAO效果不支持调试模式');
+		}
+	});
+
+	// 添加一个调试按钮，手动触发重新渲染
+	debugFolder.addButton({
+		title: "强制更新"
+	}).on("click", () => {
+		if (ssaoEffect && typeof ssaoEffect.forceUpdate === 'function') {
+			ssaoEffect.forceUpdate();
+			console.log('手动触发AO效果更新');
+		}
+	});
+
+	// 添加打印场景信息的按钮
+	debugFolder.addButton({
+		title: "打印调试信息"
+	}).on("click", () => {
+		// 获取场景中物体的信息
+		const meshCount = {
+			total: 0,
+			inAoLayer: 0,
+			ignored: 0
+		};
+
+		scene.traverse(object => {
+			if (object.isMesh) {
+				meshCount.total++;
+
+				if (ssaoEffect && ssaoEffect._aoLayer !== undefined) {
+					if (object.layers.isEnabled(ssaoEffect._aoLayer)) {
+						meshCount.inAoLayer++;
+					}
+				}
+			}
+		});
+
+		// 获取被忽略的物体数量
+		if (ssaoEffect && ssaoEffect.ignoreSelection) {
+			meshCount.ignored = getSelectionCount(ssaoEffect.ignoreSelection);
+		}
+
+		// 在控制台打印信息
+		console.log('场景调试信息:', {
+			'场景中的网格总数': meshCount.total,
+			'AO图层中的网格数': meshCount.inAoLayer,
+			'被忽略的网格数': meshCount.ignored,
+			'AO图层ID': ssaoEffect ? ssaoEffect._aoLayer : 'unknown'
+		});
+
+		// 打印SSAO效果的配置
+		if (ssaoEffect) {
+			console.log('SSAO效果配置:', {
+				分辨率缩放: ssaoEffect.resolutionScale,
+				AO距离: ssaoEffect.aoDistance,
+				样本数: ssaoEffect.spp,
+				降噪迭代: ssaoEffect.iterations
+			});
 		}
 	});
 

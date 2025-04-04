@@ -3445,5 +3445,7 @@ class SSAOEffect extends AOEffect {
 export { HBAOEffect, MotionBlurEffect, PoissionDenoisePass, SSAOEffect, SSDGIEffect, SSGIEffect, SSREffect, SVGF, TRAAEffect, TemporalReprojectPass, VelocityDepthNormalPass, VelocityPass, SSAOPass, AOEffect, ao_compose };
 
 export {
-  defaultAOOptions
+  defaultAOOptions,
+  sampleBlueNoise,
+  generateDenoiseSamples, generatePoissonDiskConstant
 }
