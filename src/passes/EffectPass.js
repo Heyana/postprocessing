@@ -596,7 +596,7 @@ export class EffectPass extends Pass {
 			effect.update(renderer, inputBuffer, deltaTime, depthPass);
 			timeEndLog(`EffectPass.${effect.name}.update`);
 		}
-		this.afterRender(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass);
+		// this.afterRender(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass);
 
 
 		timeEndLog("EffectPass.render");

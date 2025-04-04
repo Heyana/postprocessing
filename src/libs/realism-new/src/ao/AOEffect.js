@@ -2,9 +2,8 @@ import { Effect, Selection, NormalPass, RenderPass, ClearPass } from "postproces
 import { Color, Uniform, Layers, WebGLRenderTarget, LinearFilter, HalfFloatType, NoBlending, DepthTexture } from "three"
 import { TRAAEffect } from '../../index'
 import ao_compose from './shader/ao_compose.frag'
-import passthrough from './shader/passthrough.frag'
-
 import { PoissionDenoisePass } from '../pass/PoissionDenoisePass'
+
 const defaultAOOptions = {
     resolutionScale: 1,
     spp: 8,
@@ -15,6 +14,7 @@ const defaultAOOptions = {
     thickness: 0.075,
     color: new Color("black"),
     brightnessThreshold: 0.7,
+    debugMode: 0,
     ignoreSelection: null,
     highlightValue: 0.8,
     closeAutoUpdate: false,
@@ -39,10 +39,12 @@ export class AOEffect extends Effect {
             type: "FinalAOMaterial",
             uniforms: new Map([
                 ["inputTexture", new Uniform(null)],
+                ["inputBuffer", new Uniform(null)],
                 ["depthTexture", new Uniform(null)],
                 ["power", new Uniform(0)],
                 ["color", new Uniform(new Color("black"))],
-                ["brightnessThreshold", new Uniform(0.7)]
+                ["brightnessThreshold", new Uniform(0.7)],
+                ["debugMode", new Uniform(0)]
             ])
         });
 
@@ -60,17 +62,11 @@ export class AOEffect extends Effect {
         this.scene = scene;
         this.camera = camera;
 
-        // 添加调试模式支持
-        this._debugMode = "normal"; // normal, depth, ao, selection
-
-        // 初始化Selection对象并分配专用图层
+        // 初始化Selection对象
         this._ignoreSelection = options.ignoreSelection || new Selection();
-        this._aoLayer = options.aoLayer || 20; // 为AO计算使用专用图层
 
-        // 为Selection指定图层
-        if (this._ignoreSelection.layer === undefined) {
-            this._ignoreSelection.layer = this._aoLayer;
-        }
+        // 存储原始材质状态的映射
+        this.originalMaterials = new Map();
 
         // 创建专用于AO的渲染目标
         this.createRenderTargets();
@@ -120,18 +116,6 @@ export class AOEffect extends Effect {
                     console.error("初始化PoissionDenoisePass渲染目标失败:", error);
                 }
             }
-
-            // 为降噪通道添加对全场景深度的支持
-            if (this.poissionDenoisePass.fullscreenMaterial && this.poissionDenoisePass.fullscreenMaterial.uniforms) {
-                // 预先添加全场景深度纹理的uniform，后续会更新它的值
-                this.poissionDenoisePass.fullscreenMaterial.uniforms.fullSceneDepthTexture = { value: null };
-
-                // 添加相关的定义标记
-                if (!("USE_FULL_SCENE_DEPTH" in this.poissionDenoisePass.fullscreenMaterial.defines)) {
-                    this.poissionDenoisePass.fullscreenMaterial.defines.USE_FULL_SCENE_DEPTH = "";
-                    this.poissionDenoisePass.fullscreenMaterial.needsUpdate = true;
-                }
-            }
         } else {
             console.error("降噪通道(PoissionDenoisePass)创建失败");
         }
@@ -141,53 +125,11 @@ export class AOEffect extends Effect {
 
         // 初始化选择对象图层
         this.initializeSelectionLayer();
-
-        // 创建全场景深度渲染目标 - 用于确保忽略的对象仍然有深度信息
-        this.createFullSceneDepthTarget();
     }
 
-    // 添加调试模式的getter和setter
-    get debugMode() {
-        return this._debugMode;
-    }
-
-    set debugMode(value) {
-        if (["normal", "depth", "ao", "selection", "full-depth"].includes(value)) {
-            this._debugMode = value;
-            console.log(`切换到AO调试模式: ${value}`);
-        } else {
-            console.warn(`无效的调试模式: ${value}，有效值为: normal, depth, ao, selection, full-depth`);
-        }
-    }
-
-    // 创建全场景深度渲染目标
-    createFullSceneDepthTarget() {
-        // 创建一个专门用于渲染全场景深度的渲染目标
-        this.renderTargetFullScene = new WebGLRenderTarget(1, 1, {
-            minFilter: LinearFilter,
-            magFilter: LinearFilter,
-            type: HalfFloatType,
-            depthBuffer: true,
-            depthTexture: new DepthTexture()
-        });
-        this.renderTargetFullScene.texture.name = "AO.FullScene";
-        this.renderTargetFullScene.depthTexture.name = "AO.FullScene.Depth";
-
-        // 创建一个用于全场景渲染的渲染通道
-        this.fullSceneRenderPass = new RenderPass(this.scene, this.camera);
-        this.fullSceneRenderPass.clear = true;
-    }
-
-    // 初始化Selection图层，确保正确的图层分配
+    // 初始化Selection对象，移除图层依赖
     initializeSelectionLayer() {
         if (!this._ignoreSelection) return;
-
-        // 确保Selection有正确的图层
-        if (typeof this._ignoreSelection.setLayer === 'function') {
-            this._ignoreSelection.setLayer(this._aoLayer);
-        } else {
-            this._ignoreSelection.layer = this._aoLayer;
-        }
 
         // 确保Selection有正确的方法
         if (!this._ignoreSelection.add && typeof this._ignoreSelection.add !== 'function') {
@@ -196,7 +138,7 @@ export class AOEffect extends Effect {
 
         // 打印一些调试信息
         const itemCount = this.getSelectionItems().length;
-        console.log(`AO图层初始化: 图层=${this._aoLayer}, 选择项数量=${itemCount}`);
+        console.log(`AO初始化: 忽略对象数量=${itemCount}`);
 
         // 如果选择为空，打印警告
         if (itemCount === 0) {
@@ -259,6 +201,10 @@ export class AOEffect extends Effect {
                             this.uniforms.get("brightnessThreshold").value = value;
                             break;
 
+                        case "debugMode":
+                            this.uniforms.get("debugMode").value = value;
+                            break;
+
                         // 处理closeAutoUpdate变化
                         case "closeAutoUpdate":
                             // 不再需要处理enableEffect
@@ -267,15 +213,6 @@ export class AOEffect extends Effect {
                         case "ignoreSelection":
                             // 更新Selection对象，但使用私有变量避免递归
                             this._ignoreSelection = value || new Selection();
-                            // 确保selection使用正确的图层
-                            this._ignoreSelection.layer = this._aoLayer;
-                            break;
-
-                        case "aoLayer":
-                            this._aoLayer = value;
-                            if (this._ignoreSelection) {
-                                this._ignoreSelection.layer = value;
-                            }
                             break;
 
                         case "highlightValue":
@@ -346,11 +283,6 @@ export class AOEffect extends Effect {
             this.renderTargetAO.setSize(width * this.resolutionScale, height * this.resolutionScale);
         }
 
-        // 更新全场景渲染目标尺寸
-        if (this.renderTargetFullScene) {
-            this.renderTargetFullScene.setSize(width, height);
-        }
-
         // 保存新尺寸
         this.lastSize = {
             width,
@@ -391,84 +323,91 @@ export class AOEffect extends Effect {
 
     // 准备场景，设置对象图层
     prepareScene() {
-        // 记录包含的和排除的对象数量，用于调试
-        let includedCount = 0;
-        let excludedCount = 0;
+        // 存储原始材质和发光值
+        this.originalMaterials = new Map();
 
-        // 保存当前图层状态
-        this.scene.traverse(object => {
-            if (object.isMesh) {
-                // 保存原始图层
-                this.originalLayers.set(object.uuid, object.layers.mask);
-
-                // 默认所有对象都参与AO计算
-                object.layers.enable(this._aoLayer);
-                includedCount++;
-            }
-        });
-
-        // 从AO图层中排除ignoreSelection中的对象
-        if (this._ignoreSelection) {
-            const selectionItems = this.getSelectionItems();
-
-            selectionItems.forEach(object => {
-                if (object && object.isMesh) {
-                    // 注意这里将对象从AO图层中移除
-                    if (object.layers.isEnabled(this._aoLayer)) {
-                        object.layers.disable(this._aoLayer);
-                        excludedCount++;
-                    }
-                }
-            });
+        // 创建用于标记忽略对象的高亮材质（如果还未创建）
+        if (!this.ignoreMaterial) {
+            this.ignoreMaterial = {
+                originalMaterialEnabled: true,
+                emissive: new Color(1000, 1000, 1000) // 超亮颜色，便于在着色器中识别
+            };
         }
 
-        console.log(`预处理场景: 纳入AO计算=${includedCount}个对象, 排除=${excludedCount}个对象`);
+        // 获取要忽略的对象列表
+        const selectionItems = this.getSelectionItems();
+        console.log(`准备场景: 忽略对象数量=${selectionItems.length}`);
+
+        // 为忽略列表中的对象应用特殊材质或标记
+        selectionItems.forEach(object => {
+            if (object && object.isMesh) {
+                // 保存原始材质
+                this.originalMaterials.set(object.uuid, {
+                    material: object.material,
+                    emissive: object.material.emissive ? object.material.emissive.clone() : null
+                });
+
+                // 设置超高亮度，但保持原始材质外观
+                if (Array.isArray(object.material)) {
+                    // 处理多材质对象
+                    object.material.forEach(mat => {
+                        if (mat.emissive) {
+                            // 临时保存原始发光值并设置极高亮度
+                            mat._originalEmissive = mat.emissive.clone();
+                            // 使用更高的值确保在所有情况下都被识别
+                            mat.emissive.set(2000, 2000, 2000);
+                        }
+                    });
+                } else if (object.material.emissive) {
+                    // 单材质对象
+                    object.material._originalEmissive = object.material.emissive.clone();
+                    // 使用更高的值确保在所有情况下都被识别
+                    object.material.emissive.set(2000, 2000, 2000);
+                }
+            }
+        });
     }
 
     // 恢复场景原始状态
     restoreScene() {
-        let restoredCount = 0;
-
-        this.scene.traverse(object => {
-            if (object.isMesh && this.originalLayers.has(object.uuid)) {
-                // 恢复原始图层设置
-                object.layers.mask = this.originalLayers.get(object.uuid);
-                restoredCount++;
+        // 恢复原始材质
+        if (this.originalMaterials) {
+            for (const [uuid, data] of this.originalMaterials.entries()) {
+                const object = this.scene.getObjectByProperty('uuid', uuid);
+                if (object) {
+                    // 恢复发光值
+                    if (Array.isArray(object.material)) {
+                        // 处理多材质对象
+                        object.material.forEach(mat => {
+                            if (mat._originalEmissive) {
+                                mat.emissive.copy(mat._originalEmissive);
+                                delete mat._originalEmissive;
+                            }
+                        });
+                    } else if (object.material._originalEmissive) {
+                        // 单材质对象
+                        object.material.emissive.copy(object.material._originalEmissive);
+                        delete object.material._originalEmissive;
+                    }
+                }
             }
-        });
-
-        console.log(`恢复场景: 已恢复${restoredCount}个对象的图层设置`);
-
-        // 清除存储的图层信息
-        this.originalLayers.clear();
+            console.log(`恢复场景: 已恢复${this.originalMaterials.size}个对象的材质`);
+            this.originalMaterials.clear();
+        }
     }
 
     update(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass) {
-        // 保存当前渲染目标和camera状态
-        const currentRenderTarget = renderer.getRenderTarget();
-        const originalCameraLayers = this.camera.layers.mask;
+
+        this.prepareScene();
 
         // 执行渲染前回调
         this.options?.renderBefore?.(this.scene);
 
-        // 强制清理所有渲染目标
-        this.clearAllRenderTargets(renderer);
-
-        // 1. 首先渲染全场景（包括忽略的对象）的深度，用于后续深度比较
-        // 确保我们有完整的深度缓冲区包含所有对象
-        this.camera.layers.set(1); // 使用默认图层1，包含所有对象
-        renderer.setRenderTarget(this.renderTargetFullScene);
-        renderer.clear(true, true, true);
-        this.fullSceneRenderPass.render(renderer, this.renderTargetFullScene, this.renderTargetFullScene, deltaTime, false);
-        const fullSceneDepthTexture = this.renderTargetFullScene.depthTexture;
-
-        // 2. 准备场景，排除被忽略的对象
-        this.prepareScene();
 
         // 打印Selection内容进行调试
         const selectionItems = this.getSelectionItems();
-        console.log(`AOEffect过滤: 图层=${this._aoLayer}, 过滤对象数量=${selectionItems.length}`,
-            selectionItems.length > 0 ? selectionItems[0] : "无对象");
+        console.log(`AOEffect过滤: 忽略对象数量=${selectionItems.length}`,
+            selectionItems.length > 0 ? selectionItems[0].name || selectionItems[0].uuid : "无对象");
 
         // 检查是否使用TRAA动画噪声
         const hasTRAA = this.composer.passes.some(pass => {
@@ -486,115 +425,50 @@ export class AOEffect extends Effect {
             delete this.aoPass.fullscreenMaterial.defines.animatedNoise;
         }
 
-        // 渲染法线通道（如果有）
-        if (this.normalPass) {
-            this.normalPass.render(renderer);
-        }
 
-        // 设置相机只渲染AO图层的对象
-        this.camera.layers.set(this._aoLayer);
+        // 强制清理所有渲染目标
+        this.clearAllRenderTargets(renderer);
 
-        // 3. 渲染筛选后的场景到专用深度缓冲区（只包含参与AO计算的模型）
-        renderer.setRenderTarget(this.renderTargetAO);
-        renderer.clear(true, true, true);
-        this.clearPass.render(renderer, this.renderTargetAO);
-        this.renderPass.render(renderer, this.renderTargetAO, this.renderTargetAO, deltaTime, false);
+        // 保存当前渲染目标以便恢复
+        const currentRenderTarget = renderer.getRenderTarget();
 
-        // 获取筛选后的深度纹理
+        // 步骤1: 渲染场景到专用深度缓冲区（所有模型，包括高亮标记的）
+        this.renderPass.render(renderer, this.renderTargetAO, this.renderTargetAO, deltaTime, true);
+
+        // 从渲染目标中获取深度纹理和颜色纹理
         const filteredDepthTexture = this.renderTargetAO.depthTexture;
 
-        // 恢复相机图层设置
-        this.camera.layers.mask = originalCameraLayers;
+        // 设置原始场景纹理 - 可用于调试模式
+        // 确保在所有模式下都设置inputBuffer，这样着色器可以在调试模式下使用它
+        this.uniforms.get("inputBuffer").value = this.renderTargetAO.texture;
 
-        // 恢复场景原始状态
-        this.restoreScene();
-
-        // 4. 设置着色器uniforms，使用两种深度纹理进行AO计算
-        if (filteredDepthTexture && fullSceneDepthTexture) {
-            console.log("使用过滤深度纹理和全场景深度纹理");
-            // 主要深度纹理用于AO计算
-            this.aoPass.fullscreenMaterial.uniforms.depthTexture.value = filteredDepthTexture;
-
-            // 添加全场景深度纹理用于修正被忽略对象上的AO效果
-            if (!this.aoPass.fullscreenMaterial.uniforms.fullSceneDepthTexture) {
-                this.aoPass.fullscreenMaterial.uniforms.fullSceneDepthTexture = { value: fullSceneDepthTexture };
-
-                // 添加使用全场景深度的标志
-                if (!("USE_FULL_SCENE_DEPTH" in this.aoPass.fullscreenMaterial.defines)) {
-                    this.aoPass.fullscreenMaterial.defines.USE_FULL_SCENE_DEPTH = "";
-                    this.aoPass.fullscreenMaterial.needsUpdate = true;
-                }
-            } else {
-                this.aoPass.fullscreenMaterial.uniforms.fullSceneDepthTexture.value = fullSceneDepthTexture;
-            }
-
-            // 同时为降噪通道设置全场景深度纹理
-            if (this.poissionDenoisePass &&
-                this.poissionDenoisePass.fullscreenMaterial &&
-                this.poissionDenoisePass.fullscreenMaterial.uniforms) {
-
-                // 更新降噪通道的深度纹理 - 使用过滤后的深度纹理
-                this.poissionDenoisePass.fullscreenMaterial.uniforms.depthTexture.value = filteredDepthTexture;
-
-                // 更新全场景深度纹理
-                if (this.poissionDenoisePass.fullscreenMaterial.uniforms.fullSceneDepthTexture) {
-                    this.poissionDenoisePass.fullscreenMaterial.uniforms.fullSceneDepthTexture.value = fullSceneDepthTexture;
-                }
-            }
-        } else {
-            console.warn("未能获取必要的深度纹理，回退到全局深度纹理");
-            this.aoPass.fullscreenMaterial.uniforms.depthTexture.value = this.composer.depthTexture;
+        if (this.uniforms.get("debugMode").value > 0) {
+            console.log("调试模式启用，使用原始场景渲染结果作为着色器输入");
         }
 
-        // 5. 渲染AO效果
-        renderer.setRenderTarget(this.aoPass.renderTarget);
-        renderer.clear(true, true, true);
+        // 步骤2: 使用过滤后的深度缓冲区渲染AO效果
+        this.aoPass.fullscreenMaterial.uniforms.depthTexture.value = filteredDepthTexture;
+
+
+        // 渲染AO效果
         this.aoPass.render(renderer);
 
-        // 6. 应用降噪
+        // 确保降噪通道的渲染目标被清理
         this.poissionDenoisePass.render(renderer);
 
-        // 7. 设置最终纹理
-        // 根据调试模式选择要显示的纹理
-        if (this._debugMode === "normal") {
-            // 正常模式 - 显示完整的AO效果
-            if (this.iterations > 0 && this.poissionDenoisePass && this.poissionDenoisePass.texture) {
-                this.uniforms.get("inputTexture").value = this.poissionDenoisePass.texture;
-            } else {
-                this.uniforms.get("inputTexture").value = this.aoPass.texture;
-            }
-        } else if (this._debugMode === "depth") {
-            // 深度模式 - 显示过滤后的深度纹理
-            this.uniforms.get("inputTexture").value = this.aoPass.texture;
-            if (!("DEBUG_DEPTH" in this.defines)) {
-                this.defines.DEBUG_DEPTH = "";
-                this.needsUpdate = true;
-            }
-        } else if (this._debugMode === "ao") {
-            // AO模式 - 只显示AO通道
-            this.uniforms.get("inputTexture").value = this.aoPass.texture;
-            if (!("DEBUG_AO" in this.defines)) {
-                this.defines.DEBUG_AO = "";
-                this.needsUpdate = true;
-            }
-        } else if (this._debugMode === "selection") {
-            // 选择模式 - 显示哪些对象被选中（忽略的对象）
-            this.uniforms.get("inputTexture").value = this.aoPass.texture;
-            if (!("DEBUG_SELECTION" in this.defines)) {
-                this.defines.DEBUG_SELECTION = "";
-                this.needsUpdate = true;
-            }
-        } else if (this._debugMode === "full-depth") {
-            // 全深度模式 - 显示包含所有对象的深度纹理
-            this.uniforms.get("depthTexture").value = fullSceneDepthTexture;
-            if (!("DEBUG_FULL_DEPTH" in this.defines)) {
-                this.defines.DEBUG_FULL_DEPTH = "";
-                this.needsUpdate = true;
-            }
-        }
+        // 步骤3: 设置最终AO纹理
+        this.uniforms.get("inputTexture").value = this.poissionDenoisePass.texture;
+
+        // 我们已经在前面设置了inputBuffer，不需要在这里重复
+        // this.uniforms.get("inputBuffer").value = inputBuffer.texture || inputBuffer;
 
         // 恢复原始渲染目标
         renderer.setRenderTarget(currentRenderTarget);
+
+        // this.setUpdateEffectPass({ renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass })
+
+        // 现在是安全的时机恢复场景原始状态
+        this.restoreScene();
     }
 
     // 清理所有渲染目标
@@ -627,12 +501,6 @@ export class AOEffect extends Effect {
                 console.info("尝试重新创建PoissionDenoisePass的renderTarget");
                 this.poissionDenoisePass.setSize(this.lastSize.width, this.lastSize.height);
             }
-        }
-
-        // 清理全场景深度渲染目标
-        if (this.renderTargetFullScene) {
-            renderer.setRenderTarget(this.renderTargetFullScene);
-            renderer.clear(true, true, true);
         }
 
         // 恢复原来的渲染目标

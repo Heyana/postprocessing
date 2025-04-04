@@ -160,6 +160,7 @@ function createAOTestObjects() {
 		new BoxGeometry(platformSize, platformHeight, platformSize),
 		new MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.8, metalness: 0.0 })
 	);
+	platform.name = 'ignore'
 	platform.position.y = -1.5;
 	platform.receiveShadow = true;
 	group.add(platform);
@@ -465,6 +466,8 @@ window.addEventListener("load", () => load().then((assets) => {
 				}
 			});
 		});
+
+
 
 	// 创建自定义对象来控制混合强度
 	const blendSettings = {
@@ -810,6 +813,57 @@ window.addEventListener("load", () => load().then((assets) => {
 		}
 	});
 
+	// 添加调试面板
+	const debugFolder = pane.addFolder({
+		title: "调试选项",
+		expanded: false // 默认折叠
+	});
+
+	// 调试模式选择器
+	const debugModes = {
+		debugMode: 0,
+		showInfo: true
+	};
+
+	debugFolder.addBinding(debugModes, "debugMode", {
+		options: {
+			"正常渲染": 0,
+			"亮度可视化": 1,
+			"AO强度可视化": 2,
+			"AO值可视化": 3
+		},
+		label: "调试显示模式"
+	}).on("change", (e) => {
+		try {
+			// 更新SSAO效果中的调试模式
+			if (ssaoEffect.debugMode !== undefined) {
+				ssaoEffect.debugMode = e.value;
+				console.log(`切换到调试模式: ${e.value}`);
+			} else {
+				console.warn('SSAO效果不支持调试模式。请确保使用的是支持debugMode的AOEffect版本。');
+			}
+		} catch (error) {
+			console.error('设置调试模式时出错:', error);
+		}
+	});
+
+	// 添加性能监视选项
+	debugFolder.addBinding(debugModes, "showInfo", {
+		label: "显示调试信息"
+	}).on("change", (e) => {
+		// 更新性能显示
+		const debugInfo = document.getElementById('debug-info');
+		if (debugInfo) {
+			debugInfo.style.display = e.value ? 'block' : 'none';
+		}
+	});
+
+	// 添加调试信息面板
+	const debugInfo = document.createElement('div');
+	debugInfo.id = 'debug-info';
+	debugInfo.style.cssText = 'position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6); color: white; padding: 10px; font-family: monospace; font-size: 12px; border-radius: 4px; pointer-events: none; z-index: 1000;';
+	container.appendChild(debugInfo);
+
 	// 添加清空忽略列表的按钮
 	ignoreFolder.addButton({
 		title: "清空忽略列表"
@@ -830,96 +884,21 @@ window.addEventListener("load", () => load().then((assets) => {
 	window.addEventListener("keydown", (event) => {
 		// Alt+D 显示/隐藏开发者测试面板
 		if (event.key === "d" && event.altKey) {
-			devFolder.hidden = !devFolder.hidden;
+			debugFolder.expanded = !debugFolder.expanded;
 			pane.refresh();
 		}
-	});
 
-	// 添加调试渲染面板
-	const debugFolder = pane.addFolder({
-		title: "调试渲染模式",
-		expanded: false
-	});
-
-	// 创建调试模式配置
-	const debugSettings = {
-		mode: "normal"
-	};
-
-	// 添加调试模式选择器
-	debugFolder.addBinding(debugSettings, "mode", {
-		options: {
-			"正常模式": "normal",
-			"深度纹理": "depth",
-			"全场景深度": "full-depth",
-			"AO纹理": "ao",
-			"选择指示": "selection"
-		},
-		label: "调试模式"
-	}).on("change", (e) => {
-		// 更新SSAO效果的调试模式
-		if (ssaoEffect && typeof ssaoEffect.debugMode !== 'undefined') {
-			ssaoEffect.debugMode = e.value;
-			console.log(`切换到调试模式: ${e.value}`);
-		} else {
-			console.warn('SSAO效果不支持调试模式');
-		}
-	});
-
-	// 添加一个调试按钮，手动触发重新渲染
-	debugFolder.addButton({
-		title: "强制更新"
-	}).on("click", () => {
-		if (ssaoEffect && typeof ssaoEffect.forceUpdate === 'function') {
-			ssaoEffect.forceUpdate();
-			console.log('手动触发AO效果更新');
-		}
-	});
-
-	// 添加打印场景信息的按钮
-	debugFolder.addButton({
-		title: "打印调试信息"
-	}).on("click", () => {
-		// 获取场景中物体的信息
-		const meshCount = {
-			total: 0,
-			inAoLayer: 0,
-			ignored: 0
-		};
-
-		scene.traverse(object => {
-			if (object.isMesh) {
-				meshCount.total++;
-
-				if (ssaoEffect && ssaoEffect._aoLayer !== undefined) {
-					if (object.layers.isEnabled(ssaoEffect._aoLayer)) {
-						meshCount.inAoLayer++;
-					}
+		// 数字键1-4切换调试模式
+		if (event.key >= "1" && event.key <= "4" && event.ctrlKey) {
+			const mode = parseInt(event.key) - 1;
+			if (mode >= 0 && mode <= 3) {
+				debugModes.debugMode = mode;
+				if (ssaoEffect.debugMode !== undefined) {
+					ssaoEffect.debugMode = mode;
+					console.log(`快捷键切换到调试模式: ${mode}`);
+					pane.refresh();
 				}
 			}
-		});
-
-		// 获取被忽略的物体数量
-		if (ssaoEffect && ssaoEffect.ignoreSelection) {
-			meshCount.ignored = getSelectionCount(ssaoEffect.ignoreSelection);
-		}
-
-		// 在控制台打印信息
-		console.log('场景调试信息:', {
-			'场景中的网格总数': meshCount.total,
-			'AO图层中的网格数': meshCount.inAoLayer,
-			'被忽略的网格数': meshCount.ignored,
-			'AO图层ID': ssaoEffect ? ssaoEffect._aoLayer : 'unknown'
-		});
-
-		// 打印SSAO效果的配置
-		if (ssaoEffect) {
-			console.log('SSAO效果配置:', {
-				分辨率缩放: ssaoEffect.resolutionScale,
-				AO距离: ssaoEffect.aoDistance,
-				样本数: ssaoEffect.spp,
-				降噪迭代: ssaoEffect.iterations
-			});
 		}
 	});
 
@@ -990,6 +969,25 @@ window.addEventListener("load", () => load().then((assets) => {
 		controls.update(timestamp);
 		animationMixer.update(deltaTime * 1e-3);
 		composer.render();
+
+		// 更新调试信息面板
+		if (debugModes.showInfo) {
+			const debugInfo = document.getElementById('debug-info');
+			if (debugInfo) {
+				const currentMode = ["正常", "亮度可视化", "AO强度可视化", "AO值可视化"][debugModes.debugMode];
+
+				debugInfo.innerHTML = `
+					<div><b>AO调试信息:</b></div>
+					<div>当前模式: ${currentMode}</div>
+					<div>分辨率比例: ${ssaoEffect.resolutionScale.toFixed(2)}</div>
+					<div>亮度阈值: ${ssaoEffect.brightnessThreshold?.toFixed(2) || "未设置"}</div>
+					<div>每像素采样: ${ssaoEffect.spp}</div>
+					<div>AO强度: ${ssaoEffect.power?.toFixed(2) || "未设置"}</div>
+					<div>模型总数: ${scene.children.reduce((count, child) => count + (child.isMesh ? 1 : 0), 0)}</div>
+					<div>忽略模型数: ${getSelectionCount(ssaoEffect.ignoreSelection)}</div>
+				`;
+			}
+		}
 
 		requestAnimationFrame(render);
 	});

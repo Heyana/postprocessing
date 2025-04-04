@@ -1,4 +1,3 @@
-
 import {
     Pass
 } from 'postprocessing'
@@ -15,12 +14,9 @@ import {
 } from '../../index'
 import { blueNoiseBase64 } from 'src/libs/realism-effects/src/utils/TextureAssets';
 
-var fragmentShader$2 = "#define GLSLIFY 1\nvarying vec2 vUv;uniform sampler2D inputTexture;uniform sampler2D depthTexture;uniform sampler2D normalTexture;uniform mat4 projectionMatrixInverse;uniform mat4 cameraMatrixWorld;uniform float lumaPhi;uniform float depthPhi;uniform float normalPhi;uniform sampler2D blueNoiseTexture;uniform vec2 blueNoiseRepeat;uniform int index;uniform vec2 resolution;\n#include <common>\n#include <sampleBlueNoise>\nvec3 getWorldPos(float depth,vec2 coord){float z=depth*2.0-1.0;vec4 clipSpacePosition=vec4(coord*2.0-1.0,z,1.0);vec4 viewSpacePosition=projectionMatrixInverse*clipSpacePosition;vec4 worldSpacePosition=cameraMatrixWorld*viewSpacePosition;worldSpacePosition.xyz/=worldSpacePosition.w;return worldSpacePosition.xyz;}\n#define luminance(a) dot(vec3(0.2125, 0.7154, 0.0721), a)\nvec3 getNormal(vec2 uv,vec4 texel){\n#ifdef NORMAL_IN_RGB\nreturn texel.rgb;\n#else\nreturn normalize(textureLod(normalTexture,uv,0.).xyz*2.0-1.0);\n#endif\n}float distToPlane(const vec3 worldPos,const vec3 neighborWorldPos,const vec3 worldNormal){vec3 toCurrent=worldPos-neighborWorldPos;float distToPlane=abs(dot(toCurrent,worldNormal));return distToPlane;}void main(){vec4 depthTexel=textureLod(depthTexture,vUv,0.);if(depthTexel.r==1.0||dot(depthTexel.rgb,depthTexel.rgb)==0.){discard;return;}vec4 texel=textureLod(inputTexture,vUv,0.0);vec3 normal=getNormal(vUv,texel);\n#ifdef NORMAL_IN_RGB\nfloat denoised=texel.a;float center=texel.a;\n#else\nvec3 denoised=texel.rgb;float center=texel.rgb;\n#endif\nfloat depth=depthTexel.x;vec3 worldPos=getWorldPos(depth,vUv);float totalWeight=1.0;vec4 blueNoise=sampleBlueNoise(blueNoiseTexture,0,blueNoiseRepeat,resolution);float angle=blueNoise[index];float s=sin(angle),c=cos(angle);mat2 rotationMatrix=mat2(c,-s,s,c);for(int i=0;i<samples;i++){vec2 offset=rotationMatrix*poissonDisk[i];vec2 neighborUv=vUv+offset;vec4 neighborTexel=textureLod(inputTexture,neighborUv,0.0);vec3 neighborNormal=getNormal(neighborUv,neighborTexel);float neighborColor=neighborTexel.a;float sampleDepth=textureLod(depthTexture,neighborUv,0.0).x;vec3 worldPosSample=getWorldPos(sampleDepth,neighborUv);float tangentPlaneDist=abs(dot(worldPos-worldPosSample,normal));float normalDiff=dot(normal,neighborNormal);float normalSimilarity=pow(max(normalDiff,0.),normalPhi);\n#ifdef NORMAL_IN_RGB\nfloat lumaDiff=abs(neighborColor-center);\n#else\nfloat lumaDiff=abs(luminance(neighborColor)-luminance(center));\n#endif\nfloat lumaSimilarity=max(1.0-lumaDiff/lumaPhi,0.0);float depthDiff=1.-distToPlane(worldPos,worldPosSample,normal);float depthSimilarity=max(depthDiff/depthPhi,0.);float w=lumaSimilarity*depthSimilarity*normalSimilarity;denoised+=w*neighborColor;totalWeight+=w;}if(totalWeight>0.)denoised/=totalWeight;\n#ifdef NORMAL_IN_RGB\ngl_FragColor=vec4(normal,denoised);\n#else\ngl_FragColor=vec4(denoised,1.);\n#endif\n}"; // eslint-disable-line
+// 导入从外部文件分离的着色器
+import { vertexShader, fragmentShader } from '../ao/shader/poission';
 
-var vertexShader = "#define GLSLIFY 1\nvarying vec2 vUv;void main(){vUv=position.xy*0.5+0.5;gl_Position=vec4(position.xy,1.0,1.0);}"; // eslint-disable-line
-
-
-const finalFragmentShader$1 = fragmentShader$2.replace("#include <sampleBlueNoise>", sampleBlueNoise);
 const defaultPoissonBlurOptions = {
     iterations: 1,
     radius: 8,
@@ -31,6 +27,7 @@ const defaultPoissonBlurOptions = {
     samples: 16,
     normalTexture: null
 };
+
 export class PoissionDenoisePass extends Pass {
     constructor(camera, inputTexture, depthTexture, options = defaultPoissonBlurOptions) {
         super("PoissionBlurPass");
@@ -41,8 +38,12 @@ export class PoissionDenoisePass extends Pass {
             ...options
         };
         this.inputTexture = inputTexture;
+
+        // 处理着色器中的sampleBlueNoise包含
+        const finalFragmentShader = fragmentShader.replace("#include <sampleBlueNoise>", sampleBlueNoise);
+
         this.fullscreenMaterial = new ShaderMaterial({
-            fragmentShader: finalFragmentShader$1,
+            fragmentShader: finalFragmentShader,
             vertexShader,
             uniforms: {
                 depthTexture: {
@@ -80,6 +81,15 @@ export class PoissionDenoisePass extends Pass {
                 }
             }
         });
+
+        // 检查着色器是否包含亮度阈值定义
+        if (!this.fullscreenMaterial.fragmentShader.includes('IGNORE_BRIGHTNESS_THRESHOLD')) {
+            console.warn('警告: 降噪着色器中未找到亮度阈值定义，忽略高亮物体功能可能无法正常工作');
+        } else {
+            console.log('降噪着色器已包含亮度阈值定义，阈值为:',
+                this.fullscreenMaterial.fragmentShader.match(/IGNORE_BRIGHTNESS_THRESHOLD\s+(\d+\.\d+)/)[1]);
+        }
+
         const renderTargetOptions = {
             type: HalfFloatType,
             depthBuffer: false
@@ -127,15 +137,33 @@ export class PoissionDenoisePass extends Pass {
         this.renderTargetA.setSize(width, height);
         this.renderTargetB.setSize(width, height);
         this.fullscreenMaterial.uniforms.resolution.value.set(width, height);
+
+        // 生成泊松盘采样点
         const poissonDisk = generateDenoiseSamples(this.samples, this.rings, this.radius, new Vector2(1 / width, 1 / height));
         const sampleDefine = `const int samples = ${this.samples};\n`;
         const poissonDiskConstant = generatePoissonDiskConstant(poissonDisk);
-        this.fullscreenMaterial.fragmentShader = sampleDefine + poissonDiskConstant + "\n" + finalFragmentShader$1;
+
+        // 重新处理着色器，确保保留亮度阈值定义
+        let processedFragmentShader = fragmentShader;
+        // 确保替换的是未处理的sampleBlueNoise标记
+        if (processedFragmentShader.includes("#include <sampleBlueNoise>")) {
+            processedFragmentShader = processedFragmentShader.replace("#include <sampleBlueNoise>", sampleBlueNoise);
+        }
+
+        // 添加采样点定义到着色器
+        this.fullscreenMaterial.fragmentShader = sampleDefine + poissonDiskConstant + "\n" + processedFragmentShader;
         this.fullscreenMaterial.needsUpdate = true;
+
+        // 再次检查是否保留了亮度阈值定义
+        if (!this.fullscreenMaterial.fragmentShader.includes('IGNORE_BRIGHTNESS_THRESHOLD')) {
+            console.warn('警告: 在setSize后，降噪着色器中未找到亮度阈值定义');
+        }
     }
+
     get texture() {
         return this.renderTargetB.texture;
     }
+
     render(renderer) {
         this.fullscreenMaterial.uniforms.index.value = 0;
         const noiseTexture = this.fullscreenMaterial.uniforms.blueNoiseTexture.value;
@@ -154,10 +182,11 @@ export class PoissionDenoisePass extends Pass {
             this.fullscreenMaterial.uniforms["inputTexture"].value = i === 0 ? this.inputTexture : inputRenderTarget.texture;
             const renderTarget = horizontal ? this.renderTargetA : this.renderTargetB;
             renderer.setRenderTarget(renderTarget);
+            renderer.clear(true, true, true); // 确保在渲染前清除渲染目标
             renderer.render(this.scene, this.camera);
             this.fullscreenMaterial.uniforms.index.value = (this.fullscreenMaterial.uniforms.index.value + 1) % 4;
         }
     }
-
 }
+
 PoissionDenoisePass.DefaultOptions = defaultPoissonBlurOptions;

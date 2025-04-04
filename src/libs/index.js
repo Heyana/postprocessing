@@ -28,3 +28,4 @@ export { SharpnessEffect } from './realism-effects/src/sharpness/SharpnessEffect
 
 export { AOPass as RAOPass } from './realism-effects/src/ao/AOPass'
 export { PoissonDenoisePass } from './realism-effects/src/denoise/pass/PoissonDenoisePass'
+export { PoissionDenoisePass } from './realism-new/src/pass/PoissionDenoisePass'
