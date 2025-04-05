@@ -361,7 +361,8 @@ class SSRPass extends Pass {
 
 		}
 
-		renderer.render(this.scene, this.camera);
+		// renderer.shadowMap.autoUpdate = false;
+		// renderer.render(this.scene, this.camera);
 		if (this.groundReflector) this.groundReflector.visible = false;
 
 		// render normals

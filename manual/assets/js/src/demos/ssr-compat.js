@@ -388,7 +388,7 @@ window.addEventListener("load", () => load().then((assets) => {
     });
 
     // 确保创建深度纹理，以便所有效果共享
-    composer.createDepthTexture();
+    // composer.createDepthTexture();
 
     // 使用EnhancedThreeCompatPass包装SSRPass
     let compatSSRPass = null;
@@ -436,21 +436,21 @@ window.addEventListener("load", () => load().then((assets) => {
         });
 
         // 设置SSRPass的初始参数
-        ssrPass.thickness = 0.03;         // 增加厚度值，避免穿透问题
-        ssrPass.maxDistance = 0.05;       // 降低最大距离，减少错误采样
-        ssrPass.opacity = 0.8;            // 调整不透明度
+        ssrPass.thickness = 0.035;        // 从0.001增加到0.035
+        ssrPass.maxDistance = 0.08;       // 适当增加
+        ssrPass.opacity = 0.75;           // 略微降低反射强度
         ssrPass.fresnel = true;           // 启用菲涅尔效应
         ssrPass.distanceAttenuation = true; // 启用距离衰减
         ssrPass.bouncing = false;         // 禁用多次反射，简化计算
         ssrPass.infiniteThick = false;    // 禁用无限厚度
-        ssrPass.blur = true;              // 启用模糊
+        ssrPass.blur = true;              // 确保模糊开启
 
         // 调整SSRPass的材质参数，解决白色条纹问题
         if (ssrPass.ssrMaterial) {
             // 调整SSR材质属性
             ssrPass.ssrMaterial.defines.MAX_STEP = Math.sqrt(window.innerWidth * window.innerWidth + window.innerHeight * window.innerHeight);
-            ssrPass.ssrMaterial.uniforms['maxDistance'].value = 0.05;
-            ssrPass.ssrMaterial.uniforms['thickness'].value = 0.03;
+            ssrPass.ssrMaterial.uniforms['maxDistance'].value = 0.08;
+            ssrPass.ssrMaterial.uniforms['thickness'].value = 0.035;
             // 重要：确保SSR材质更新
             ssrPass.ssrMaterial.needsUpdate = true;
 
@@ -476,11 +476,11 @@ window.addEventListener("load", () => load().then((assets) => {
         compatSSRPass.enabled = params.enableSSR;
 
         // 设置深度纹理
-        if (composer.depthTexture) {
-            // 尝试为SSRPass提供composer的深度纹理
-            compatSSRPass.setDepthTexture(composer.depthTexture, BasicDepthPacking);
-            console.log("已为SSRPass设置共享深度纹理");
-        }
+        // if (composer.depthTexture) {
+        //     // 尝试为SSRPass提供composer的深度纹理
+        //     compatSSRPass.setDepthTexture(composer.depthTexture, BasicDepthPacking);
+        //     console.log("已为SSRPass设置共享深度纹理");
+        // }
 
         // 确保SSRPass使用默认输出模式 (混合原始场景和反射)
         ssrPass.output = SSRPass.OUTPUT.Default;
@@ -509,7 +509,7 @@ window.addEventListener("load", () => load().then((assets) => {
         bloomEffect.mipmapBlurPass.dithering = true;
         bloomPass = new EffectPass(camera, bloomEffect);
         bloomPass.enabled = params.enableBloom;
-        composer.addPass(bloomPass);
+        composer.addPass(bloomPass, 1);
 
         // 添加SSRPass（在Bloom之后）
         compatSSRPass.threePass.output = 0; // 确保使用默认输出模式
@@ -526,7 +526,7 @@ window.addEventListener("load", () => load().then((assets) => {
         composer.addPass(brightnessContrastPass);
 
         // 添加一个最终的CopyPass，确保结果正确显示
-        composer.addPass(new CopyPass());
+        // composer.addPass(new CopyPass());
 
         // SSR 控制面板设置
         const folder = pane.addFolder({ title: "SSR设置" });
@@ -626,9 +626,9 @@ window.addEventListener("load", () => load().then((assets) => {
             const ssrPass = compatSSRPass.threePass;
 
             // 重置SSR设置为最佳效果
-            ssrPass.thickness = 0.03;
-            ssrPass.maxDistance = 0.05;
-            ssrPass.opacity = 0.8;
+            ssrPass.thickness = 0.035;
+            ssrPass.maxDistance = 0.08;
+            ssrPass.opacity = 0.75;
             ssrPass.fresnel = true;
             ssrPass.distanceAttenuation = true;
             ssrPass.bouncing = false;
@@ -835,15 +835,15 @@ window.addEventListener("load", () => load().then((assets) => {
                 // 这里修改SSRPass的内部参数以优化曲面反射
                 if (e.value) {
                     // 增强曲面反射质量的参数
-                    ssrPass.thickness = 0.03;  // 保持适中厚度
+                    ssrPass.thickness = 0.035;  // 保持适中厚度
                     // SSRShader有个MAX_STEP限制，影响采样效果
                     // 我们间接优化采样步长
-                    ssrPass.maxDistance = 0.05; // 略微增加最大距离
+                    ssrPass.maxDistance = 0.08; // 略微增加最大距离
                     ssrPass.blur = true;        // 开启模糊以平滑反射
                 } else {
                     // 恢复默认参数
-                    ssrPass.thickness = 0.03;
-                    ssrPass.maxDistance = 0.05;
+                    ssrPass.thickness = 0.035;
+                    ssrPass.maxDistance = 0.08;
                     ssrPass.blur = true;
                 }
 
