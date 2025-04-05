@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+		<link rel="stylesheet" href="styles.css">
+		<script src="assets/js/vendor/three.min.js"></script>
+		<script src="assets/js/vendor/stats.min.js"></script>
+		<script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "./assets/js/vendor/three.js",
+					"three/addons/": "./assets/js/vendor/three/addons/",
+					"postprocessing": "../build/postprocessing.js",
+					"spatial-controls": "./assets/js/vendor/spatial-controls.js"
+				}
+			}
+		</script>
+		<title>选择性屏幕空间反射 (Selective SSR) - 演示</title>
+		<style>
+			#info {
+				position: absolute;
+				top: 10px;
+				width: 100%;
+				color: white;
+				font-family: monospace;
+				text-align: center;
+				z-index: 1000;
+			}
+			
+			a {
+				color: #ff8888;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="info">
+			<a href="https://github.com/pmndrs/postprocessing" target="_blank" rel="noopener">SelectiveSSRPass</a> 选择性屏幕空间反射示例 - 点击球体切换SSR效果
+		</div>
+		<div class="viewport">
+			<div class="tp"></div>
+		</div>
+		<script type="module" src="assets/js/src/demos/selective-ssr.js"></script>
+	</body>
+</html> 

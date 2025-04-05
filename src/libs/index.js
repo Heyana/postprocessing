@@ -31,3 +31,4 @@ export { PoissonDenoisePass } from './realism-effects/src/denoise/pass/PoissonDe
 export { PoissionDenoisePass } from './realism-new/src/pass/PoissionDenoisePass'
 export { SSRPass } from './three/pass/SSRPass'
 export { ReflectorForSSRPass } from './three/objects/ReflectorForSSRPass'
+export { SelectiveSSRPass } from './three/pass/SelectiveSSRPass'
