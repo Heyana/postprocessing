@@ -14,3 +14,5 @@ export { Pane } from "tweakpane";
 
 export { OrbitControls } from "three/addons/controls/OrbitControls.js";
 // export { VelocityDepthNormalPass } from "../../libs/realism-effects/src/temporal-reproject/pass/VelocityDepthNormalPass.js";
+
+export { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
