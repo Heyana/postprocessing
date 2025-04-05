@@ -38,7 +38,8 @@ import {
     MeshPhongMaterial,
     VSMShadowMap,
     WebGLRenderer,
-    NormalBlending
+    NormalBlending,
+    BasicDepthPacking
 } from "run-scene-core";
 
 // 直接获取VENDOR对象中需要的类
@@ -386,6 +387,9 @@ window.addEventListener("load", () => load().then((assets) => {
         multisampling: 8
     });
 
+    // 确保创建深度纹理，以便所有效果共享
+    composer.createDepthTexture();
+
     // 使用EnhancedThreeCompatPass包装SSRPass
     let compatSSRPass = null;
 
@@ -471,6 +475,13 @@ window.addEventListener("load", () => load().then((assets) => {
         compatSSRPass = new EnhancedThreeCompatPass(ssrPass, "SSRCompatPass", "ssr");
         compatSSRPass.enabled = params.enableSSR;
 
+        // 设置深度纹理
+        if (composer.depthTexture) {
+            // 尝试为SSRPass提供composer的深度纹理
+            compatSSRPass.setDepthTexture(composer.depthTexture, BasicDepthPacking);
+            console.log("已为SSRPass设置共享深度纹理");
+        }
+
         // 确保SSRPass使用默认输出模式 (混合原始场景和反射)
         ssrPass.output = SSRPass.OUTPUT.Default;
 
@@ -487,15 +498,7 @@ window.addEventListener("load", () => load().then((assets) => {
         const renderPass = new RenderPass(scene, camera);
         composer.addPass(renderPass);
 
-        // 创建SSRPass并进行配置
-        // 不使用优先级参数，确保按顺序处理
-        compatSSRPass.threePass.output = 0; // 确保使用默认输出模式
-        composer.addPass(compatSSRPass);
-
-        // 添加一个最终的CopyPass，确保结果正确显示
-        composer.addPass(new CopyPass());
-
-        // 添加SelectiveBloom效果
+        // 创建并添加SelectiveBloom效果（在SSR之前）
         bloomEffect = new SelectiveBloomEffect(scene, camera, {
             blendFunction: BlendFunction.SCREEN,
             luminanceThreshold: 0.3,
@@ -506,9 +509,13 @@ window.addEventListener("load", () => load().then((assets) => {
         bloomEffect.mipmapBlurPass.dithering = true;
         bloomPass = new EffectPass(camera, bloomEffect);
         bloomPass.enabled = params.enableBloom;
-        // composer.addPass(bloomPass, 2);
+        composer.addPass(bloomPass);
 
-        // 添加BrightnessContrast效果
+        // 添加SSRPass（在Bloom之后）
+        compatSSRPass.threePass.output = 0; // 确保使用默认输出模式
+        composer.addPass(compatSSRPass);
+
+        // 添加BrightnessContrast效果（在SSR之后）
         brightnessContrastEffect = new BrightnessContrastEffect({
             blendFunction: BlendFunction.NORMAL,
             brightness: 0.05,
@@ -516,7 +523,10 @@ window.addEventListener("load", () => load().then((assets) => {
         });
         brightnessContrastPass = new EffectPass(camera, brightnessContrastEffect);
         brightnessContrastPass.enabled = params.enableBrightnessContrast;
-        // composer.addPass(brightnessContrastPass, 3);
+        composer.addPass(brightnessContrastPass);
+
+        // 添加一个最终的CopyPass，确保结果正确显示
+        composer.addPass(new CopyPass());
 
         // SSR 控制面板设置
         const folder = pane.addFolder({ title: "SSR设置" });

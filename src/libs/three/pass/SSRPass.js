@@ -45,6 +45,10 @@ class SSRPass extends Pass {
 
 		this.tempColor = new Color();
 
+		// 添加外部深度纹理支持
+		this.externalDepthTexture = null;
+		this.useExternalDepth = false;
+
 		this._selects = selects;
 		this.selective = Array.isArray(this._selects);
 		Object.defineProperty(this, 'selects', {
@@ -377,6 +381,14 @@ class SSRPass extends Pass {
 		this.ssrMaterial.uniforms['opacity'].value = this.opacity;
 		this.ssrMaterial.uniforms['maxDistance'].value = this.maxDistance;
 		this.ssrMaterial.uniforms['thickness'].value = this.thickness;
+
+		// 如果使用外部深度纹理，则需要确保更新SSR材质
+		if (this.useExternalDepth && this.externalDepthTexture) {
+			this.ssrMaterial.uniforms['tDepth'].value = this.externalDepthTexture;
+		} else {
+			this.ssrMaterial.uniforms['tDepth'].value = this.beautyRenderTarget.depthTexture;
+		}
+
 		this.renderPass(renderer, this.ssrMaterial, this.ssrRenderTarget);
 
 
@@ -465,6 +477,12 @@ class SSRPass extends Pass {
 
 			case SSRPass.OUTPUT.Depth:
 
+				if (this.useExternalDepth && this.externalDepthTexture) {
+					// 使用外部深度纹理时，确保深度渲染材质使用该纹理
+					this.depthRenderMaterial.uniforms['tDepth'].value = this.externalDepthTexture;
+				} else {
+					this.depthRenderMaterial.uniforms['tDepth'].value = this.beautyRenderTarget.depthTexture;
+				}
 				this.renderPass(renderer, this.depthRenderMaterial, this.renderToScreen ? null : writeBuffer);
 
 				break;
@@ -625,6 +643,44 @@ class SSRPass extends Pass {
 		this.blurMaterial.uniforms['resolution'].value.set(width, height);
 		this.blurMaterial2.uniforms['resolution'].value.set(width, height);
 
+	}
+
+	/**
+	 * 设置外部深度纹理
+	 * @param {DepthTexture} depthTexture - 外部深度纹理
+	 * @param {number} depthPacking - 深度打包格式 (e.g., BasicDepthPacking)
+	 */
+	setDepthTexture(depthTexture, depthPacking) {
+		if (depthTexture) {
+			this.externalDepthTexture = depthTexture;
+			this.useExternalDepth = true;
+
+			// 更新SSR材质的深度纹理
+			if (this.ssrMaterial) {
+				this.ssrMaterial.uniforms['tDepth'].value = depthTexture;
+			}
+
+			// 更新深度渲染材质的深度纹理
+			if (this.depthRenderMaterial) {
+				this.depthRenderMaterial.uniforms['tDepth'].value = depthTexture;
+			}
+
+			console.log("SSRPass: 使用外部深度纹理");
+		} else {
+			this.useExternalDepth = false;
+
+			// 恢复为内部深度纹理
+			if (this.ssrMaterial && this.beautyRenderTarget) {
+				this.ssrMaterial.uniforms['tDepth'].value = this.beautyRenderTarget.depthTexture;
+			}
+
+			// 恢复深度渲染材质的深度纹理
+			if (this.depthRenderMaterial && this.beautyRenderTarget) {
+				this.depthRenderMaterial.uniforms['tDepth'].value = this.beautyRenderTarget.depthTexture;
+			}
+
+			console.log("SSRPass: 恢复使用内部深度纹理");
+		}
 	}
 
 }
