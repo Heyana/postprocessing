@@ -1,11 +1,11 @@
 import {
     RenderPass,
     ThreeCompatPass,
-    CopyPass
+    EffectComposer,
+    CopyPass, SSRPass, ReflectorForSSRPass
 } from "postprocessing";
 import {
     BoxGeometry,
-    EffectComposer,
     Color,
     ConeGeometry,
     CubeTextureLoader,
@@ -20,6 +20,7 @@ import {
     MeshStandardMaterial,
     PerspectiveCamera,
     PlaneGeometry,
+    Raycaster,
     Scene,
     SphereGeometry,
     SpotLight,
@@ -27,14 +28,13 @@ import {
     TextureLoader,
     TorusGeometry,
     TorusKnotGeometry,
+    Vector2,
     MeshPhongMaterial,
     VSMShadowMap,
     WebGLRenderer
-} from "three";
+} from "run-scene-core";
 
 // 直接获取VENDOR对象中需要的类
-const SSRPass = window.VENDOR.SSRPass;
-const ReflectorForSSRPass = window.VENDOR.ReflectorForSSRPass || null;
 
 console.log('Log-- ', ReflectorForSSRPass, 'ReflectorForSSRPass');
 
@@ -138,22 +138,22 @@ function createTestObjects() {
     coneMesh.castShadow = coneMesh.receiveShadow = true;
     objects.add(coneMesh);
 
-    // // 添加一组具有不同金属度和粗糙度的球体
-    // for (let i = 0; i < 5; i++) {
-    //     const sphereGeometry = new SphereGeometry(0.025, 64, 64); // 增加细分提高精度
-    //     // 根据SSRPass工作原理优化材质
-    //     const sphereMaterial = new MeshStandardMaterial({
-    //         color: new Color().setHSL(i / 5, 0.7, 0.5),
-    //         // 降低金属度，增加环境贴图强度以提高亮度
-    //         metalness: 0.7 + (i * 0.05),  // 0.7-0.9的金属度范围
-    //         roughness: 0.1 + (i / 20),    // 保持原有粗糙度变化
-    //         envMapIntensity: 2.0          // 大幅增加环境贴图影响
-    //     });
-    //     const sphereMesh = new Mesh(sphereGeometry, sphereMaterial);
-    //     sphereMesh.position.set(0.1 + i * 0.06, 0.025, 0);
-    //     sphereMesh.castShadow = sphereMesh.receiveShadow = true;
-    //     objects.add(sphereMesh);
-    // }
+    // 添加一组具有不同金属度和粗糙度的球体
+    for (let i = 0; i < 5; i++) {
+        const sphereGeometry = new SphereGeometry(0.025, 64, 64); // 增加细分提高精度
+        // 根据SSRPass工作原理优化材质
+        const sphereMaterial = new MeshStandardMaterial({
+            color: new Color().setHSL(i / 5, 0.7, 0.5),
+            // 降低金属度，增加环境贴图强度以提高亮度
+            metalness: 0.7 + (i * 0.05),  // 0.7-0.9的金属度范围
+            roughness: 0.1 + (i / 20),    // 保持原有粗糙度变化
+            envMapIntensity: 2.0          // 大幅增加环境贴图影响
+        });
+        const sphereMesh = new Mesh(sphereGeometry, sphereMaterial);
+        sphereMesh.position.set(0.1 + i * 0.06, 0.025, 0);
+        sphereMesh.castShadow = sphereMesh.receiveShadow = true;
+        objects.add(sphereMesh);
+    }
 
     // 添加更多测试模型组
     createAdditionalModels(objects);
@@ -286,21 +286,76 @@ window.addEventListener("load", () => load().then((assets) => {
     plane.rotation.x = - Math.PI / 2;
     plane.position.y = - 0.0001;
     // plane.receiveShadow = true;
-    scene.add(plane);
+    // scene.add(plane);
 
     // 创建ground reflector (如果ReflectorForSSRPass可用)
     let groundReflector = null;
     const selects = [];
 
-    console.log('Log-- ', ReflectorForSSRPass, 'ReflectorForSSRPass');
+    // 添加测试对象
+    const testObjects = createTestObjects();
+    scene.add(testObjects);
+
+    // 添加点击交互所需的变量
+    const raycaster = new Raycaster();
+    const mouse = new Vector2();
+    let selectedObjects = new Set(); // 使用Set存储已选择的对象
+
+    // 添加点击事件处理
+    function onMouseClick(event) {
+        // 计算鼠标在归一化设备坐标中的位置
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+        // 设置射线投射器
+        raycaster.setFromCamera(mouse, camera);
+
+        // 检测与场景中物体的交点
+        const intersects = raycaster.intersectObjects(testObjects.children, true);
+
+        if (intersects.length > 0) {
+            const object = intersects[0].object;
+
+            // 切换选中状态
+            if (selectedObjects.has(object)) {
+                // 移除对象
+                selectedObjects.delete(object);
+
+                // 恢复原始材质
+                if (object._originalEmissive) {
+                    object.material.emissive.copy(object._originalEmissive);
+                }
+            } else {
+                // 添加对象
+                selectedObjects.add(object);
+
+                // 保存原始发光颜色并设置高亮
+                if (!object._originalEmissive) {
+                    object._originalEmissive = object.material.emissive.clone();
+                }
+                object.material.emissive.set(0x333333); // 添加微弱发光以指示选中
+            }
+
+            // 更新SSRPass的selects数组
+            if (compatSSRPass && compatSSRPass.threePass) {
+                compatSSRPass.threePass.selects = Array.from(selectedObjects);
+                console.log("选中物体数量:", selectedObjects.size, "SSRPass selective模式:", compatSSRPass.threePass.selective);
+            }
+        }
+    }
+
+    // 添加点击事件监听器
+    renderer.domElement.addEventListener('click', onMouseClick);
+
     if (ReflectorForSSRPass) {
         // 使用更大的反射平面
         const geometry = new PlaneGeometry(2, 2);
         groundReflector = new ReflectorForSSRPass(geometry, {
-            clipBias: 0.0003,          // 保持原值
+            clipBias: 0.0003,
             textureWidth: window.innerWidth,
             textureHeight: window.innerHeight,
-            color: 0xaaaaaa,           // 更亮的反射色
+            color: 0x888888,
             useDepthTexture: true,
         });
         groundReflector.material.depthWrite = false;
@@ -316,19 +371,11 @@ window.addEventListener("load", () => load().then((assets) => {
         params.groundReflector = false;
     }
 
-    // 添加测试对象
-    const testObjects = createTestObjects();
-    scene.add(testObjects);
-
-    // 选择要特别反射的对象，排除半透明物体
-    testObjects.children.forEach((object, index) => {
-        // 检查对象材质，排除半透明物体
-        selects.push(object);
-    });
-
     // 后期处理设置
     const multisampling = Math.min(4, renderer.capabilities.maxSamples);
-    const composer = new EffectComposer(renderer);
+    const composer = new EffectComposer(renderer, {
+        multisampling: 8
+    });
 
     // 使用ThreeCompatPass包装SSRPass
     let compatSSRPass = null;
@@ -352,12 +399,9 @@ window.addEventListener("load", () => load().then((assets) => {
             width: window.innerWidth,
             height: window.innerHeight,
             // encoding: renderer.outputColorSpace,
-            groundReflector: params.groundReflector ? groundReflector : null,
-            selects: []
+            groundReflector: null,
+            selects: [] // 初始为空数组
         });
-        console.log('Log-- ', ssrPass, 'ssrPass');
-        // ssrPass.selective = false
-        console.log('Log-- ', selects, 'selects');
 
         // 设置SSRPass的初始参数
         ssrPass.thickness = 0.018;       // 设置适中厚度值，避免光线穿透问题
@@ -455,17 +499,12 @@ window.addEventListener("load", () => load().then((assets) => {
             .on("change", (e) => {
                 if (e.value) {
                     compatSSRPass.threePass.groundReflector = groundReflector;
-                    // 过滤掉半透明材质的对象
-                    const filteredSelects = testObjects.children.filter(obj => {
-                        // 检查是否是半透明物体
-                        if (obj.material && obj.material.transparent) return false;
-                        if (obj.material && obj.material.transmission > 0) return false;
-                        return true;
-                    });
-                    compatSSRPass.threePass.selects = filteredSelects;
+                    // 使用当前的选择集合
+                    compatSSRPass.threePass.selects = Array.from(selectedObjects);
                 } else {
                     compatSSRPass.threePass.groundReflector = null;
-                    compatSSRPass.threePass.selects = [];
+                    // 保持当前的选择集合
+                    compatSSRPass.threePass.selects = Array.from(selectedObjects);
                 }
             });
 
@@ -661,6 +700,73 @@ window.addEventListener("load", () => load().then((assets) => {
             label: "模糊效果"
         });
 
+        // 添加选择模式控制到GUI
+        folder.addBinding(
+            { showSelectInfo: "点击场景中的物体以选择/取消选择它们进行反射" },
+            "showSelectInfo",
+            { label: "选择提示", readonly: true }
+        );
+
+        // 添加按钮清空选择
+        const clearSelectionBtn = folder.addButton({
+            title: "清空选择列表"
+        });
+
+        clearSelectionBtn.on("click", () => {
+            // 恢复所有物体的原始材质
+            selectedObjects.forEach(obj => {
+                if (obj._originalEmissive) {
+                    obj.material.emissive.copy(obj._originalEmissive);
+                }
+            });
+
+            // 清空选择集合
+            selectedObjects.clear();
+
+            // 更新SSRPass的selects数组
+            if (compatSSRPass && compatSSRPass.threePass) {
+                compatSSRPass.threePass.selects = [];
+                console.log("已清空选择列表，SSRPass selective模式:", compatSSRPass.threePass.selective);
+            }
+        });
+
+        // 添加按钮选择所有物体
+        const selectAllBtn = folder.addButton({
+            title: "选择所有物体"
+        });
+
+        selectAllBtn.on("click", () => {
+            // 选择所有测试对象
+            testObjects.children.forEach(obj => {
+                if (!selectedObjects.has(obj)) {
+                    selectedObjects.add(obj);
+
+                    // 保存原始发光颜色并设置高亮
+                    if (!obj._originalEmissive) {
+                        obj._originalEmissive = obj.material.emissive.clone();
+                    }
+                    obj.material.emissive.set(0x333333); // 添加微弱发光以指示选中
+                }
+            });
+
+            // 更新SSRPass的selects数组
+            if (compatSSRPass && compatSSRPass.threePass) {
+                compatSSRPass.threePass.selects = Array.from(selectedObjects);
+                console.log("已选择所有物体，数量:", selectedObjects.size, "SSRPass selective模式:", compatSSRPass.threePass.selective);
+            }
+        });
+
+        // 添加显示当前选择数量的绑定
+        const selectCountBinding = folder.addBinding(
+            { count: "已选择: 0 个物体" },
+            "count",
+            { label: "选择状态", readonly: true }
+        );
+
+        // 定时更新选择数量显示
+        setInterval(() => {
+            selectCountBinding.controller_.value.element.value = `已选择: ${selectedObjects.size} 个物体`;
+        }, 500);
 
         // 灯光控制
         const lightsFolder = pane.addFolder({ title: "灯光设置" });
@@ -799,11 +905,7 @@ window.addEventListener("load", () => load().then((assets) => {
         }
 
         // 选择渲染方式
-        if (params.enableSSR) {
-            composer.render();
-        } else {
-            renderer.render(scene, camera);
-        }
+        composer.render();
 
         requestAnimationFrame(render);
     });

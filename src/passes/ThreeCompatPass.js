@@ -120,22 +120,16 @@ export class ThreeCompatPass extends Pass {
         const readBuffer = inputBuffer;
         const maskActive = stencilTest || false;
 
-        try {
-            // 检查是否是SSRPass，如果是需要特殊处理
-            if (this.threePass.constructor.name === "SSRPass") {
-                // 确保SSRPass可以访问正确的输入输出缓冲区
-                this.threePass.beautyRenderTarget = inputBuffer;
-                this.threePass.renderToScreen = this.renderToScreen;
-            }
+        // 检查是否是SSRPass，如果是需要特殊处理
+        // 确保SSRPass可以访问正确的输入输出缓冲区
+        this.threePass.beautyRenderTarget = inputBuffer;
+        this.threePass.renderToScreen = this.renderToScreen;
 
-            // 调用Three.js Pass的render方法
-            this.threePass.render(renderer, writeBuffer, readBuffer, deltaTime, maskActive);
-        } catch (error) {
-            console.error("Error in ThreeCompatPass render:", error);
-        } finally {
-            // 恢复原始渲染器状态
-            renderer.setRenderTarget(currentRenderTarget);
-        }
+        // 调用Three.js Pass的render方法
+        this.threePass.render(renderer, writeBuffer, readBuffer, deltaTime, maskActive);
+
+        // 恢复原始渲染器状态
+        renderer.setRenderTarget(currentRenderTarget);
     }
 
     /**
