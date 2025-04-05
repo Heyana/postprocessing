@@ -286,7 +286,7 @@ window.addEventListener("load", () => load().then((assets) => {
     plane.rotation.x = - Math.PI / 2;
     plane.position.y = - 0.0001;
     // plane.receiveShadow = true;
-    // scene.add(plane);
+    scene.add(plane);
 
     // 创建ground reflector (如果ReflectorForSSRPass可用)
     let groundReflector = null;
@@ -426,8 +426,6 @@ window.addEventListener("load", () => load().then((assets) => {
 
         // 添加一个CopyPass作为最终输出
         // 这有助于确保SSRPass的结果能够正确地传递到屏幕
-        const copyPass = new CopyPass();
-        composer.addPass(copyPass);
 
         // SSR 控制面板设置
         const folder = pane.addFolder({ title: "SSR设置" });
