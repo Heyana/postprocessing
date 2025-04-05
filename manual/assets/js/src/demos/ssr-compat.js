@@ -2,7 +2,13 @@ import {
     RenderPass,
     ThreeCompatPass,
     EffectComposer,
-    CopyPass, SSRPass, ReflectorForSSRPass
+    SSRPass, ReflectorForSSRPass,
+    CopyPass,
+    SelectiveBloomEffect,
+    BrightnessContrastEffect,
+    BlendFunction,
+    EffectPass,
+    EnhancedThreeCompatPass
 } from "postprocessing";
 import {
     BoxGeometry,
@@ -31,7 +37,8 @@ import {
     Vector2,
     MeshPhongMaterial,
     VSMShadowMap,
-    WebGLRenderer
+    WebGLRenderer,
+    NormalBlending
 } from "run-scene-core";
 
 // 直接获取VENDOR对象中需要的类
@@ -45,6 +52,8 @@ import { calculateVerticalFoV, FPSMeter } from "../utils";
 // 全局参数设置
 const params = {
     enableSSR: true,
+    enableBloom: true,
+    enableBrightnessContrast: true,
     autoRotate: false,
     otherMeshes: true,
     groundReflector: true,
@@ -377,8 +386,27 @@ window.addEventListener("load", () => load().then((assets) => {
         multisampling: 8
     });
 
-    // 使用ThreeCompatPass包装SSRPass
+    // 使用EnhancedThreeCompatPass包装SSRPass
     let compatSSRPass = null;
+
+    // 添加SelectiveBloom效果
+    let bloomEffect = null;
+    let bloomPass = null;
+
+    // 添加BrightnessContrast效果
+    let brightnessContrastEffect = null;
+    let brightnessContrastPass = null;
+
+    // 存储可选择的对象列表，用于Bloom效果
+    let selectableObjects = new Set();
+
+    // 初始化对象选择状态
+    testObjects.children.forEach(object => {
+        // 默认不选择任何对象用于bloom效果
+        object._selectedForBloom = false;
+        // 保存到可选对象列表
+        selectableObjects.add(object);
+    });
 
     // GUI控制面板设置
     const fpsMeter = new FPSMeter();
@@ -400,32 +428,95 @@ window.addEventListener("load", () => load().then((assets) => {
             height: window.innerHeight,
             // encoding: renderer.outputColorSpace,
             groundReflector: null,
-            selects: [] // 初始为空数组
+            selects: null // 设置为null关闭selective模式，让所有物体都可以反射
         });
 
         // 设置SSRPass的初始参数
-        ssrPass.thickness = 0.018;       // 设置适中厚度值，避免光线穿透问题
-        ssrPass.maxDistance = 0.1;       // 控制反射追踪距离
-        ssrPass.opacity = 0.85;          // 降低反射不透明度，让更多原始光照通过
-        ssrPass.fresnel = true;          // 启用菲涅尔效应
+        ssrPass.thickness = 0.03;         // 增加厚度值，避免穿透问题
+        ssrPass.maxDistance = 0.05;       // 降低最大距离，减少错误采样
+        ssrPass.opacity = 0.8;            // 调整不透明度
+        ssrPass.fresnel = true;           // 启用菲涅尔效应
         ssrPass.distanceAttenuation = true; // 启用距离衰减
-        ssrPass.bouncing = true;         // 启用多次反射
-        ssrPass.infiniteThick = false;   // 禁用无限厚度
-        ssrPass.blur = true;             // 启用模糊
+        ssrPass.bouncing = false;         // 禁用多次反射，简化计算
+        ssrPass.infiniteThick = false;    // 禁用无限厚度
+        ssrPass.blur = true;              // 启用模糊
 
-        // 使用ThreeCompatPass包装SSRPass
-        compatSSRPass = new ThreeCompatPass(ssrPass, "SSRCompatPass");
+        // 调整SSRPass的材质参数，解决白色条纹问题
+        if (ssrPass.ssrMaterial) {
+            // 调整SSR材质属性
+            ssrPass.ssrMaterial.defines.MAX_STEP = Math.sqrt(window.innerWidth * window.innerWidth + window.innerHeight * window.innerHeight);
+            ssrPass.ssrMaterial.uniforms['maxDistance'].value = 0.05;
+            ssrPass.ssrMaterial.uniforms['thickness'].value = 0.03;
+            // 重要：确保SSR材质更新
+            ssrPass.ssrMaterial.needsUpdate = true;
+
+            if (ssrPass.copyMaterial) {
+                // 确保复制材质的混合模式正确
+                ssrPass.copyMaterial.blending = NormalBlending;
+                ssrPass.copyMaterial.needsUpdate = true;
+            }
+
+            // 打印材质状态用于调试
+            console.log("SSR材质配置:", {
+                maxDistance: ssrPass.ssrMaterial.uniforms['maxDistance'].value,
+                thickness: ssrPass.ssrMaterial.uniforms['thickness'].value,
+                MAX_STEP: ssrPass.ssrMaterial.defines.MAX_STEP,
+                FRESNEL: ssrPass.ssrMaterial.defines.FRESNEL,
+                INFINITE_THICK: ssrPass.ssrMaterial.defines.INFINITE_THICK,
+                SELECTIVE: ssrPass.ssrMaterial.defines.SELECTIVE
+            });
+        }
+
+        // 使用EnhancedThreeCompatPass包装SSRPass
+        compatSSRPass = new EnhancedThreeCompatPass(ssrPass, "SSRCompatPass", "ssr");
         compatSSRPass.enabled = params.enableSSR;
+
+        // 确保SSRPass使用默认输出模式 (混合原始场景和反射)
+        ssrPass.output = SSRPass.OUTPUT.Default;
+
+        // 启用调试日志来跟踪问题
+        compatSSRPass.setDebug(true);
+
+        console.log("配置渲染通道：", {
+            bloomPass,
+            compatSSRPass,
+            brightnessContrastPass
+        });
 
         // 首先添加基本渲染Pass
         const renderPass = new RenderPass(scene, camera);
         composer.addPass(renderPass);
 
-        // 然后添加SSR效果
+        // 创建SSRPass并进行配置
+        // 不使用优先级参数，确保按顺序处理
+        compatSSRPass.threePass.output = 0; // 确保使用默认输出模式
         composer.addPass(compatSSRPass);
 
-        // 添加一个CopyPass作为最终输出
-        // 这有助于确保SSRPass的结果能够正确地传递到屏幕
+        // 添加一个最终的CopyPass，确保结果正确显示
+        composer.addPass(new CopyPass());
+
+        // 添加SelectiveBloom效果
+        bloomEffect = new SelectiveBloomEffect(scene, camera, {
+            blendFunction: BlendFunction.SCREEN,
+            luminanceThreshold: 0.3,
+            luminanceSmoothing: 0.2,
+            intensity: 1.5,
+            mipmapBlur: true
+        });
+        bloomEffect.mipmapBlurPass.dithering = true;
+        bloomPass = new EffectPass(camera, bloomEffect);
+        bloomPass.enabled = params.enableBloom;
+        // composer.addPass(bloomPass, 2);
+
+        // 添加BrightnessContrast效果
+        brightnessContrastEffect = new BrightnessContrastEffect({
+            blendFunction: BlendFunction.NORMAL,
+            brightness: 0.05,
+            contrast: 0.1
+        });
+        brightnessContrastPass = new EffectPass(camera, brightnessContrastEffect);
+        brightnessContrastPass.enabled = params.enableBrightnessContrast;
+        // composer.addPass(brightnessContrastPass, 3);
 
         // SSR 控制面板设置
         const folder = pane.addFolder({ title: "SSR设置" });
@@ -435,6 +526,85 @@ window.addEventListener("load", () => load().then((assets) => {
             .on("change", (e) => {
                 compatSSRPass.enabled = e.value;
             });
+
+        folder.addBinding(params, "enableBloom", { label: "启用泛光效果" })
+            .on("change", (e) => {
+                bloomPass.enabled = e.value;
+            });
+
+        folder.addBinding(params, "enableBrightnessContrast", { label: "启用亮度对比度" })
+            .on("change", (e) => {
+                brightnessContrastPass.enabled = e.value;
+            });
+
+        // 添加模型选择列表（用于Bloom效果）
+        const objectsFolder = folder.addFolder({ title: "泛光对象选择" });
+
+        // 为每个模型添加选择开关
+        testObjects.children.forEach((object, index) => {
+            const objectName = object.geometry.type + " " + (index + 1);
+
+            // 为每个对象创建选择控制
+            objectsFolder.addBinding(
+                { ["object" + index]: false },
+                "object" + index,
+                { label: objectName }
+            ).on("change", (e) => {
+                // 更新对象选择状态
+                object._selectedForBloom = e.value;
+
+                // 重新构建选择列表
+                updateBloomSelection();
+            });
+        });
+
+        // 添加全选和全不选按钮
+        const bloomSelectAllBtn = objectsFolder.addButton({
+            title: "全选"
+        });
+
+        bloomSelectAllBtn.on("click", () => {
+            // 选中所有对象
+            testObjects.children.forEach(object => {
+                object._selectedForBloom = true;
+            });
+
+            // 更新控制面板
+            pane.refresh();
+
+            // 更新选择列表
+            updateBloomSelection();
+        });
+
+        const deselectAllBtn = objectsFolder.addButton({
+            title: "全不选"
+        });
+
+        deselectAllBtn.on("click", () => {
+            // 取消选中所有对象
+            testObjects.children.forEach(object => {
+                object._selectedForBloom = false;
+            });
+
+            // 更新控制面板
+            pane.refresh();
+
+            // 更新选择列表
+            updateBloomSelection();
+        });
+
+        // 更新bloom选择列表的函数
+        function updateBloomSelection() {
+            // 清空当前选择
+            bloomEffect.selection.clear();
+
+            // 添加已选择的对象
+            testObjects.children.forEach(object => {
+                if (object._selectedForBloom) {
+                    bloomEffect.selection.add(object);
+                }
+            });
+        }
 
         // 添加重置按钮 - 使用正确的Tweakpane按钮API
         const resetBtn = folder.addButton({
@@ -446,12 +616,12 @@ window.addEventListener("load", () => load().then((assets) => {
             const ssrPass = compatSSRPass.threePass;
 
             // 重置SSR设置为最佳效果
-            ssrPass.thickness = 0.018;
-            ssrPass.maxDistance = 0.1;
-            ssrPass.opacity = 0.85;       // 更新为优化后的值
+            ssrPass.thickness = 0.03;
+            ssrPass.maxDistance = 0.05;
+            ssrPass.opacity = 0.8;
             ssrPass.fresnel = true;
             ssrPass.distanceAttenuation = true;
-            ssrPass.bouncing = true;
+            ssrPass.bouncing = false;
             ssrPass.infiniteThick = false;
             ssrPass.blur = true;
 
@@ -518,6 +688,61 @@ window.addEventListener("load", () => load().then((assets) => {
 
         // SSR参数控制
         const settingsFolder = folder.addFolder({ title: "反射参数" });
+
+        // 添加Bloom效果参数控制
+        const bloomSettingsFolder = folder.addFolder({ title: "泛光参数" });
+
+        bloomSettingsFolder.addBinding(bloomEffect, "intensity", {
+            label: "强度",
+            min: 0,
+            max: 5,
+            step: 0.1
+        });
+
+        bloomSettingsFolder.addBinding(bloomEffect.mipmapBlurPass, "radius", {
+            label: "半径",
+            min: 0,
+            max: 1,
+            step: 0.01
+        });
+
+        bloomSettingsFolder.addBinding(bloomEffect.luminanceMaterial, "threshold", {
+            label: "亮度阈值",
+            min: 0,
+            max: 1,
+            step: 0.01
+        });
+
+        bloomSettingsFolder.addBinding(bloomEffect.luminanceMaterial, "smoothing", {
+            label: "平滑度",
+            min: 0,
+            max: 1,
+            step: 0.01
+        });
+
+        // 添加亮度对比度参数控制
+        const bcSettingsFolder = folder.addFolder({ title: "亮度对比度参数" });
+
+        bcSettingsFolder.addBinding(brightnessContrastEffect, "brightness", {
+            label: "亮度",
+            min: -1,
+            max: 1,
+            step: 0.01
+        });
+
+        bcSettingsFolder.addBinding(brightnessContrastEffect, "contrast", {
+            label: "对比度",
+            min: -1,
+            max: 1,
+            step: 0.01
+        });
+
+        bcSettingsFolder.addBinding(brightnessContrastEffect.blendMode.opacity, "value", {
+            label: "不透明度",
+            min: 0,
+            max: 1,
+            step: 0.01
+        });
 
         // 添加反射质量调整说明
         settingsFolder.addBinding({ tip: "如果反射看起来不对，请尝试调整以下参数" }, "tip", {
@@ -600,15 +825,15 @@ window.addEventListener("load", () => load().then((assets) => {
                 // 这里修改SSRPass的内部参数以优化曲面反射
                 if (e.value) {
                     // 增强曲面反射质量的参数
-                    ssrPass.thickness = 0.018;  // 保持适中厚度
+                    ssrPass.thickness = 0.03;  // 保持适中厚度
                     // SSRShader有个MAX_STEP限制，影响采样效果
                     // 我们间接优化采样步长
-                    ssrPass.maxDistance = 0.12; // 略微增加最大距离
+                    ssrPass.maxDistance = 0.05; // 略微增加最大距离
                     ssrPass.blur = true;        // 开启模糊以平滑反射
                 } else {
                     // 恢复默认参数
-                    ssrPass.thickness = 0.018;
-                    ssrPass.maxDistance = 0.1;
+                    ssrPass.thickness = 0.03;
+                    ssrPass.maxDistance = 0.05;
                     ssrPass.blur = true;
                 }
 
@@ -762,9 +987,9 @@ window.addEventListener("load", () => load().then((assets) => {
         );
 
         // 定时更新选择数量显示
-        setInterval(() => {
-            selectCountBinding.controller_.value.element.value = `已选择: ${selectedObjects.size} 个物体`;
-        }, 500);
+        // setInterval(() => {
+        //     selectCountBinding.controller_.value.element.value = `已选择: ${selectedObjects.size} 个物体`;
+        // }, 500);
 
         // 灯光控制
         const lightsFolder = pane.addFolder({ title: "灯光设置" });
@@ -843,6 +1068,36 @@ window.addEventListener("load", () => load().then((assets) => {
             });
         });
 
+        // 添加SSR输出模式的调试控制
+        settingsFolder.addBinding(
+            {
+                outputMode: compatSSRPass.threePass.output,
+                modes: {
+                    "Default (场景+反射)": SSRPass.OUTPUT.Default,
+                    "仅反射": SSRPass.OUTPUT.SSR,
+                    "仅美观": SSRPass.OUTPUT.Beauty,
+                    "深度": SSRPass.OUTPUT.Depth,
+                    "法线": SSRPass.OUTPUT.Normal,
+                    "金属度": SSRPass.OUTPUT.Metalness
+                }
+            },
+            "outputMode",
+            {
+                label: "输出模式",
+                options: {
+                    "Default (场景+反射)": SSRPass.OUTPUT.Default,
+                    "仅反射": SSRPass.OUTPUT.SSR,
+                    "仅美观": SSRPass.OUTPUT.Beauty,
+                    "深度": SSRPass.OUTPUT.Depth,
+                    "法线": SSRPass.OUTPUT.Normal,
+                    "金属度": SSRPass.OUTPUT.Metalness
+                }
+            }
+        ).on("change", (e) => {
+            compatSSRPass.threePass.output = e.value;
+            console.log("SSR输出模式切换为:", e.value);
+        });
+
     } catch (error) {
         console.error("Error setting up SSRPass:", error);
         // 创建一个错误信息面板
@@ -871,6 +1126,11 @@ window.addEventListener("load", () => load().then((assets) => {
             compatSSRPass.threePass.width = width;
             compatSSRPass.threePass.height = height;
             compatSSRPass.threePass.setSize(width, height);
+        }
+
+        // 更新SelectiveBloom效果的尺寸
+        if (bloomEffect) {
+            bloomEffect.setSize(width, height);
         }
 
         if (groundReflector) {

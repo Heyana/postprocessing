@@ -117,7 +117,7 @@ const SSRShader = {
 		void main(){
 			#ifdef SELECTIVE
 				float metalness=texture2D(tMetalness,vUv).r;
-				if(metalness < 0.5) return;
+				if(metalness < 0.1) return;
 			#endif
 
 			float depth = getDepth( vUv );

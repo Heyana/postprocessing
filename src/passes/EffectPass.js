@@ -565,7 +565,6 @@ export class EffectPass extends Pass {
 
 	afterRender(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass) {
 
-		console.log('Log-- ', renderer, inputBuffer, 'renderer,inputBuffer');
 		if (!this.skipRendering || this.renderToScreen) {
 
 			const material = this.fullscreenMaterial;
@@ -688,7 +687,6 @@ export class EffectPass extends Pass {
 				const {
 					renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass
 				} = event.map;
-				console.log('Log-- ', event, 'event');
 				this.afterRender(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass)
 				break;
 
