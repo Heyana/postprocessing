@@ -59,11 +59,16 @@ const params = {
     autoRotate: false,
     otherMeshes: true,
     groundReflector: true,
-    showHelpers: true
+    showHelpers: true,
+    useMetalnessThreshold: true,      // 使用金属度阈值自动选择
+    metalnessThreshold: 0.5,          // 默认金属度阈值
+    usePixelMetalnessThreshold: true, // 使用像素级金属度判断（新增）
+    renderMode: 'pixel'               // 渲染模式选项: 'pixel' 或 'object'
 };
 
 // 全局变量声明，提升作用域
-let ssrPass = null; // 声明为全局变量，在try块中会赋值
+let ssrPass = null; // 声明为全局变量，在try块中会赋值 =
+
 
 // 加载资源
 function load() {
@@ -315,11 +320,17 @@ window.addEventListener("load", () => load().then((assets) => {
     const mouse = new Vector2();
     let selectedObjects = new Set(); // 使用Set存储已选择的对象
 
-    // 添加点击事件处理
+    // 不再使用之前的点击选择函数
     function onMouseClick(event) {
-        // 如果ssrPass未初始化，则不处理点击事件
+        // 检查ssrPass是否已初始化
         if (!ssrPass) {
             console.warn("SSR Pass尚未初始化，无法处理选择操作");
+            return;
+        }
+
+        // 如果使用金属度阈值模式，则不处理手动点击选择
+        if (ssrPass.useMetalnessThreshold) {
+            console.log("当前使用金属度阈值模式，手动选择被禁用");
             return;
         }
 
@@ -336,31 +347,8 @@ window.addEventListener("load", () => load().then((assets) => {
 
         if (intersects.length > 0) {
             const object = intersects[0].object;
-
-            // 切换选中状态
-            if (selectedObjects.has(object)) {
-                // 移除对象
-                selectedObjects.delete(object);
-                // 从SelectiveSSRPass的选择中移除
-                ssrPass.selection.delete(object);
-
-                // 恢复原始材质
-                if (object._originalEmissive) {
-                    object.material.emissive.copy(object._originalEmissive);
-                }
-            } else {
-                // 添加对象
-                selectedObjects.add(object);
-                // 添加到SelectiveSSRPass的选择中
-                ssrPass.selection.add(object);
-
-                // 保存原始发光颜色并设置高亮
-                if (!object._originalEmissive) {
-                    object._originalEmissive = object.material.emissive.clone();
-                }
-                object.material.emissive.set(0x333333); // 添加微弱发光以指示选中
-            }
-
+            // 切换对象的选择状态
+            ssrPass.toggleSelection(object);
             // 更新UI显示
             updateSelectionDisplay();
         }
@@ -440,8 +428,14 @@ window.addEventListener("load", () => load().then((assets) => {
             height: window.innerHeight,
             // encoding: renderer.outputColorSpace,
             groundReflector: params.groundReflector ? groundReflector : null,
-            selectionLayer: 21 // 指定选择层
+            selectionLayer: 21, // 指定选择层
+            metalnessThreshold: params.metalnessThreshold, // 传递金属度阈值
+            useMetalnessThreshold: params.useMetalnessThreshold, // 是否使用金属度阈值模式
+            usePixelMetalnessThreshold: params.usePixelMetalnessThreshold // 是否使用像素级金属度判断（新增）
         });
+
+        // 设置场景引用以启用自动选择
+        ssrPass.setScene(scene);
 
         // 设置SSRPass的初始参数
         ssrPass.thickness = 0.035;        // 从0.001增加到0.035
@@ -449,7 +443,7 @@ window.addEventListener("load", () => load().then((assets) => {
         ssrPass.opacity = 0.75;           // 略微降低反射强度
         ssrPass.fresnel = true;           // 启用菲涅尔效应
         ssrPass.distanceAttenuation = true; // 启用距离衰减
-        ssrPass.bouncing = false;         // 禁用多次反射，简化计算
+        ssrPass.bouncing = true;         // 禁用多次反射，简化计算
         ssrPass.infiniteThick = false;    // 禁用无限厚度
         ssrPass.blur = true;              // 确保模糊开启
 
@@ -550,10 +544,6 @@ window.addEventListener("load", () => load().then((assets) => {
             .on("change", (e) => {
                 brightnessContrastPass.enabled = e.value;
             });
-
-        // 添加模型选择列表（用于Bloom效果）
-
-
 
         // 添加重置按钮 - 使用正确的Tweakpane按钮API
         const resetBtn = folder.addButton({
@@ -879,50 +869,227 @@ window.addEventListener("load", () => load().then((assets) => {
             { label: "选择提示", readonly: true }
         );
 
-        // 添加按钮清空选择
-        const clearSelectionBtn = folder.addButton({
-            title: "清空选择列表"
-        });
+        // 修改GUI控制面板，添加金属度阈值相关控制
+        const selectiveFolder = folder.addFolder({ title: "选择性SSR设置" });
 
-        clearSelectionBtn.on("click", () => {
-            // 恢复所有物体的原始材质
-            selectedObjects.forEach(obj => {
-                if (obj._originalEmissive) {
-                    obj.material.emissive.copy(obj._originalEmissive);
-                }
-            });
-
-            // 清空选择集合
-            selectedObjects.clear();
-
-            // 清空SelectiveSSRPass的选择
-            ssrPass.selection.clear();
+        // 添加渲染模式选择（像素级或对象级）
+        selectiveFolder.addBinding(params, "renderMode", {
+            label: "渲染模式",
+            options: {
+                "像素级金属度判断": "pixel",
+                "对象级选择": "object"
+            }
+        }).on("change", (e) => {
+            // 设置渲染模式
+            const isPixelMode = e.value === "pixel";
+            params.usePixelMetalnessThreshold = isPixelMode;
+            ssrPass.setUsePixelMetalnessThreshold(isPixelMode);
 
             // 更新UI显示
             updateSelectionDisplay();
         });
 
+        // 添加使用金属度阈值开关
+        selectiveFolder.addBinding(params, "useMetalnessThreshold", {
+            label: "使用金属度阈值"
+        }).on("change", (e) => {
+            ssrPass.useMetalnessThreshold = e.value;
+            // 如果启用金属度阈值，则更新选择
+            if (e.value && !params.usePixelMetalnessThreshold) {
+                ssrPass.updateSelectionBasedOnMetalness();
+            }
+            // 更新UI显示
+            updateSelectionDisplay();
+        });
+
+        // 添加金属度阈值控制滑块
+        selectiveFolder.addBinding(params, "metalnessThreshold", {
+            label: "金属度阈值",
+            min: 0,
+            max: 1,
+            step: 0.01
+        }).on("change", (e) => {
+            ssrPass.setMetalnessThreshold(e.value);
+            // 更新UI显示
+            updateSelectionDisplay();
+        });
+
+        // 添加像素级金属度判断开关
+        selectiveFolder.addBinding(params, "usePixelMetalnessThreshold", {
+            label: "像素级金属度判断"
+        }).on("change", (e) => {
+            params.usePixelMetalnessThreshold = e.value;
+            ssrPass.setUsePixelMetalnessThreshold(e.value);
+
+            // 如果禁用像素级判断但启用金属度阈值，则使用对象级判断
+            if (!e.value && params.useMetalnessThreshold) {
+                ssrPass.updateSelectionBasedOnMetalness();
+            }
+
+            // 更新UI显示
+            updateSelectionDisplay();
+        });
+
+        // 像素级渲染模式说明
+        const pixelModeInfo = {
+            info: "像素级模式：在着色器中基于每个像素的金属度值判断是否应用SSR效果，可以处理部分金属的表面，边缘效果更好。"
+        };
+        selectiveFolder.addBinding(pixelModeInfo, "info", {
+            label: "像素级模式说明",
+            readonly: true,
+            multiline: true,
+            rows: 2
+        });
+
+        // 对象级渲染模式说明
+        const objectModeInfo = {
+            info: "对象级模式：基于整个物体的平均金属度选择是否应用SSR效果，物体要么全有反射要么全无反射。"
+        };
+        selectiveFolder.addBinding(objectModeInfo, "info", {
+            label: "对象级模式说明",
+            readonly: true,
+            multiline: true,
+            rows: 2
+        });
+
+        // 添加反转选择控制（仅对对象级有效）
+        selectiveFolder.addBinding(ssrPass, "inverted", {
+            label: "反转选择(对象级)"
+        }).on("change", () => {
+            updateSelectionDisplay();
+        });
+
+        // 添加忽略背景控制（仅对对象级有效）
+        selectiveFolder.addBinding(ssrPass, "ignoreBackground", {
+            label: "忽略背景(对象级)"
+        });
+
+        // 更新选择显示的函数
+        function updateSelectionDisplay() {
+            // 获取选择的对象数量（仅在对象级模式下有意义）
+            let count = 0;
+            let displayInfo = "";
+
+            if (params.usePixelMetalnessThreshold) {
+                displayInfo = "像素级金属度判断激活";
+            } else if (ssrPass && ssrPass.selection) {
+                // 对象级模式下，显示选中的对象数量
+                if (ssrPass.selection.items) {
+                    count = ssrPass.selection.items.length;
+                } else if (ssrPass.selection.objects) {
+                    count = ssrPass.selection.objects.length;
+                } else if (ssrPass._processedObjects) {
+                    count = ssrPass._processedObjects.size;
+                }
+                displayInfo = `已选择: ${count} 个物体`;
+            }
+
+            // 更新UI显示
+            if (selectCountBinding) {
+                selectCountBinding.value = { count: displayInfo };
+            }
+        }
+
+        // 修改清空选择按钮行为
+        const clearSelectionBtn = selectiveFolder.addButton({
+            title: "清空选择列表"
+        });
+
+        clearSelectionBtn.on("click", () => {
+            // 清空选择
+            ssrPass.clearSelection();
+            // 更新UI显示
+            updateSelectionDisplay();
+        });
+
         // 添加按钮选择所有物体
-        const selectAllBtn = folder.addButton({
+        const selectAllBtn = selectiveFolder.addButton({
             title: "选择所有物体"
         });
 
         selectAllBtn.on("click", () => {
+            // 临时禁用金属度阈值模式
+            const originalMode = ssrPass.useMetalnessThreshold;
+            ssrPass.useMetalnessThreshold = false;
+
             // 选择所有测试对象
             testObjects.children.forEach(obj => {
-                if (!selectedObjects.has(obj)) {
-                    selectedObjects.add(obj);
-
-                    // 添加到SelectiveSSRPass的选择中
-                    ssrPass.selection.add(obj);
-
-                    // 保存原始发光颜色并设置高亮
-                    if (!obj._originalEmissive) {
-                        obj._originalEmissive = obj.material.emissive.clone();
-                    }
-                    obj.material.emissive.set(0x333333); // 添加微弱发光以指示选中
+                if (obj.isMesh) {
+                    ssrPass.addSelection(obj);
                 }
             });
+
+            // 恢复原始模式
+            ssrPass.useMetalnessThreshold = originalMode;
+
+            // 更新UI显示
+            updateSelectionDisplay();
+        });
+
+        // 添加金属度增强按钮，提高所有物体的金属度以增强反射效果
+        const enhanceMetalnessBtn = selectiveFolder.addButton({
+            title: "提高所有物体金属度"
+        });
+
+        enhanceMetalnessBtn.on("click", () => {
+            testObjects.children.forEach(obj => {
+                if (obj.isMesh && obj.material) {
+                    // 保存原始金属度值
+                    if (!obj._originalMetalness) {
+                        if (Array.isArray(obj.material)) {
+                            obj._originalMetalness = obj.material.map(m => m.metalness);
+                        } else {
+                            obj._originalMetalness = obj.material.metalness;
+                        }
+                    }
+
+                    // 增强金属度
+                    if (Array.isArray(obj.material)) {
+                        obj.material.forEach(m => {
+                            if (m.metalness !== undefined) {
+                                m.metalness = Math.min(1.0, m.metalness + 0.3);
+                            }
+                        });
+                    } else if (obj.material.metalness !== undefined) {
+                        obj.material.metalness = Math.min(1.0, obj.material.metalness + 0.3);
+                    }
+                }
+            });
+
+            // 如果使用金属度阈值，更新选择
+            if (ssrPass.useMetalnessThreshold) {
+                ssrPass.updateSelectionBasedOnMetalness();
+            }
+
+            // 更新UI显示
+            updateSelectionDisplay();
+        });
+
+        // 添加恢复原始金属度按钮
+        const restoreMetalnessBtn = selectiveFolder.addButton({
+            title: "恢复原始金属度"
+        });
+
+        restoreMetalnessBtn.on("click", () => {
+            testObjects.children.forEach(obj => {
+                if (obj.isMesh && obj.material && obj._originalMetalness) {
+                    // 恢复原始金属度
+                    if (Array.isArray(obj.material)) {
+                        obj.material.forEach((m, i) => {
+                            if (m.metalness !== undefined && obj._originalMetalness[i] !== undefined) {
+                                m.metalness = obj._originalMetalness[i];
+                            }
+                        });
+                    } else if (obj.material.metalness !== undefined) {
+                        obj.material.metalness = obj._originalMetalness;
+                    }
+                }
+            });
+
+            // 如果使用金属度阈值，更新选择
+            if (ssrPass.useMetalnessThreshold) {
+                ssrPass.updateSelectionBasedOnMetalness();
+            }
 
             // 更新UI显示
             updateSelectionDisplay();
@@ -934,13 +1101,6 @@ window.addEventListener("load", () => load().then((assets) => {
             "count",
             { label: "选择状态", readonly: true }
         );
-
-        // 添加更新选择显示的函数
-        function updateSelectionDisplay() {
-            // 如果有selectCountBinding，则更新选择数量显示
-            if (selectCountBinding) {
-            }
-        }
 
         // 灯光控制
         const lightsFolder = pane.addFolder({ title: "灯光设置" });
@@ -1050,22 +1210,71 @@ window.addEventListener("load", () => load().then((assets) => {
         });
 
         // 在SSR设置面板中添加SelectiveSSRPass特有的设置
-        const selectiveFolder = folder.addFolder({ title: "选择性SSR设置" });
-
-        // 添加反转选择控制
-        selectiveFolder.addBinding(ssrPass, "inverted", {
-            label: "反转选择"
-        }).on("change", () => {
-            updateSelectionDisplay();
-        });
-
-        // 添加忽略背景控制
-        selectiveFolder.addBinding(ssrPass, "ignoreBackground", {
-            label: "忽略背景"
-        });
+        // 删除这一行，避免重复创建selectiveFolder
+        // const selectiveFolder = folder.addFolder({ title: "选择性SSR设置" });
 
         // 在创建完SSRPass后，添加点击事件监听
         renderer.domElement.addEventListener('click', onMouseClick);
+
+        // 添加查看金属度纹理按钮
+        const viewMetalnessBtn = selectiveFolder.addButton({
+            title: "查看金属度纹理"
+        });
+
+        viewMetalnessBtn.on("click", () => {
+            // 切换到金属度输出模式，方便查看金属度纹理
+            compatSSRPass.threePass.output = SSRPass.OUTPUT.Metalness;
+            console.log("切换到金属度纹理视图");
+        });
+
+        // 添加恢复正常视图按钮
+        const restoreViewBtn = selectiveFolder.addButton({
+            title: "恢复正常视图"
+        });
+
+        restoreViewBtn.on("click", () => {
+            // 恢复到默认输出模式
+            compatSSRPass.threePass.output = SSRPass.OUTPUT.Default;
+            console.log("恢复到正常视图");
+        });
+
+        // 添加对比模式按钮 - 快速切换两种模式比较差异
+        const compareModesBtn = selectiveFolder.addButton({
+            title: "启动模式对比"
+        });
+
+        compareModesBtn.on("click", () => {
+            // 创建一个简单的对比演示，在像素级和对象级模式之间切换
+            let compareCount = 0;
+            const maxCompares = 6;
+            const compareInterval = setInterval(() => {
+                compareCount++;
+
+                if (compareCount <= maxCompares) {
+                    // 切换模式
+                    const newMode = compareCount % 2 === 0 ? "pixel" : "object";
+                    params.renderMode = newMode;
+                    params.usePixelMetalnessThreshold = newMode === "pixel";
+                    ssrPass.setUsePixelMetalnessThreshold(newMode === "pixel");
+
+                    // 显示当前模式
+                    console.log(`对比模式: ${newMode === "pixel" ? "像素级" : "对象级"} (${compareCount}/${maxCompares})`);
+
+                    // 更新UI
+                    updateSelectionDisplay();
+                } else {
+                    // 完成对比，恢复到像素级模式
+                    params.renderMode = "pixel";
+                    params.usePixelMetalnessThreshold = true;
+                    ssrPass.setUsePixelMetalnessThreshold(true);
+                    updateSelectionDisplay();
+
+                    // 停止定时器
+                    clearInterval(compareInterval);
+                    console.log("对比完成，恢复到像素级模式");
+                }
+            }, 1500); // 每1.5秒切换一次模式
+        });
 
     } catch (error) {
         console.error("Error setting up SelectiveSSRPass:", error);
