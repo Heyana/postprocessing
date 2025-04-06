@@ -14,6 +14,7 @@ export * from "./LambdaPass.js";
 export * from "./LuminancePass.js";
 export * from "./MaskPass.js";
 export * from "./MipmapBlurPass.js";
+export * from "./MRTRenderPass.js";
 export * from "./NormalPass.js";
 export * from "./Pass.js";
 export * from "./RenderPass.js";

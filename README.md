@@ -120,3 +120,42 @@ Please refer to the [contribution guidelines](https://github.com/pmndrs/postproc
 This library is licensed under the [Zlib license](https://github.com/pmndrs/postprocessing/blob/main/LICENSE.md).
 
 The original code that this library is based on, was written by [mrdoob](https://mrdoob.com) and the [three.js contributors](https://github.com/mrdoob/three.js/graphs/contributors) and is licensed under the [MIT license](https://github.com/mrdoob/three.js/blob/master/LICENSE).
+
+## 多渲染目标后处理库
+
+## 新增功能：8通道MRT渲染
+
+现在我们的MRTRenderPass支持最多8个渲染通道（WebGL2的最大限制），包括：
+
+1. **颜色通道** - 对象的基本颜色信息
+2. **法线通道** - 表面法线矢量
+3. **深度通道** - 非线性映射的深度信息
+4. **世界位置通道** - 存储片元在世界空间中的位置
+5. **PBR属性通道** - 存储物理渲染属性（粗糙度、金属度、环境光遮蔽）
+6. **运动向量通道** - 存储运动方向和速度，用于运动模糊
+7. **自发光通道** - 存储自发光材质信息，用于辉光效果
+8. **对象ID通道** - 使用唯一颜色标识不同对象，用于选择
+
+### 键盘快捷键
+
+可使用数字键1-9快速切换显示不同通道：
+- `1` - 颜色通道
+- `2` - 法线通道
+- `3` - 深度通道
+- `4` - 世界位置通道
+- `5` - PBR属性通道
+- `6` - 运动向量通道
+- `7` - 自发光通道
+- `8` - 对象ID通道
+- `9` - 多通道组合视图（2x4网格）
+
+## 项目简介
+
+这是一个基于Three.js的后处理效果库，专注于高质量的实时渲染效果，包括景深、动态模糊、辉光等。
+
+## 特性
+
+- 多种后处理效果
+- 高性能渲染
+- 灵活的组合方式
+- 简单易用的API
