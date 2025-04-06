@@ -39,6 +39,7 @@ class SelectiveSSRPass extends SSRPass {
     constructor(options) {
         super(options);
 
+        console.log('Log-- ', 0.01, '0.01');
         // 初始化this._selects数组，防止renderMetalness方法中出现undefined错误
         this._selects = options.selects || [];
 
@@ -184,6 +185,7 @@ class SelectiveSSRPass extends SSRPass {
         if (this.metalnessDetectionMaterial) {
             this.metalnessDetectionMaterial.uniforms.metalnessThreshold.value = value;
         }
+
 
         // 重新检测场景中的对象（对象级检测）
         if (this.usePixelMetalnessThreshold) {
@@ -357,7 +359,7 @@ class SelectiveSSRPass extends SSRPass {
         this.renderOverride(renderer, this.normalMaterial, this.normalRenderTarget, 0, 0);
 
         // 渲染金属度 - 这对像素级判断很重要
-        // this.renderMetalness(renderer, this.metalnessOnMaterial, this.metalnessRenderTarget, 0, 0);
+        this.renderMetalness(renderer, this.metalnessOnMaterial, this.metalnessRenderTarget, 0, 0);
 
         // 设置SSR材质的金属度相关参数
         if (this.usePixelMetalnessThreshold) {
@@ -366,7 +368,11 @@ class SelectiveSSRPass extends SSRPass {
             this.ssrMaterial.uniforms['usePixelMetalnessThreshold'].value = true;
         } else {
             // 如果不使用像素级判断，禁用shader中的判断逻辑
-            this.ssrMaterial.uniforms['usePixelMetalnessThreshold'].value = false;
+            if (!this.ssrMaterial.uniforms['usePixelMetalnessThreshold']) {
+                this.ssrMaterial.uniforms['usePixelMetalnessThreshold'] = { value: false };
+            } else {
+                this.ssrMaterial.uniforms['usePixelMetalnessThreshold'].value = false;
+            }
         }
 
         // 设置SSR材质的其他参数

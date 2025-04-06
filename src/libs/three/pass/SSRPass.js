@@ -27,6 +27,7 @@ class SSRPass extends Pass {
 
 		super();
 
+		console.log('Log-- ', 0.01, 'SSRPass');
 		this.width = (width !== undefined) ? width : 512;
 		this.height = (height !== undefined) ? height : 512;
 
@@ -561,6 +562,7 @@ class SSRPass extends Pass {
 		}
 
 		this.scene.overrideMaterial = overrideMaterial;
+		renderer.shadowMap.autoUpdate = false
 		renderer.render(this.scene, this.camera);
 		this.scene.overrideMaterial = null;
 
@@ -606,6 +608,7 @@ class SSRPass extends Pass {
 			}
 
 		});
+		renderer.shadowMap.autoUpdate = false
 		renderer.render(this.scene, this.camera);
 		this.scene.traverseVisible(child => {
 
