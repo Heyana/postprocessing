@@ -37,6 +37,7 @@ export class MRTRenderPass extends Pass {
     static CHANNEL_SHADOW = "shadow";       // 阴影通道
     static CHANNEL_VELOCITY = "velocity";   // 速度通道(与motion类似但计算方式不同)
     static CHANNEL_CUSTOM = "custom";       // 自定义通道
+    static CHANNEL_ORIGINAL = "original";   // 原始/正常画面通道 - 不使用特效着色器，直接显示物体的原始渲染
 
     // 默认通道配置
     static DEFAULT_CHANNELS = [
@@ -500,6 +501,15 @@ export class MRTRenderPass extends Pass {
                     `;
                     break;
 
+                case MRTRenderPass.CHANNEL_ORIGINAL:
+                    // 通道: 原始/正常渲染 - 尝试使用物体的原始颜色和光照
+                    outputAssignments += `
+                       	vec4 diffuse = texture( tDiffuse, vUv );
+                        // 输出结果
+                        gOutput${i} = vec4(diffuse.rgb, 1.0);
+                    `;
+                    break;
+
                 default:
                     // 默认输出 - 灰色
                     outputAssignments += `gOutput${i} = vec4(0.5, 0.5, 0.5, 1.0);\n`;
@@ -556,7 +566,7 @@ export class MRTRenderPass extends Pass {
                 
                 // Uniform变量
                 uniform float time;
-                
+                uniform sampler2D tDiffuse;
                 // 计算颜色 - 这里使用多种方法来确保颜色可见
                 vec3 getDiffuseColor() {
                     // 基础颜色（来自顶点着色器）

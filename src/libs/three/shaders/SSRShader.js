@@ -181,10 +181,11 @@ const SSRShader = {
 			}
 			
 			// 只有白色区域才应用反射
-			if(!isWhite) {
-				// 不是白色区域，不渲染反射
-				return;
-			}
+			// 注释掉 就是所有模型都使用ssr
+			// if(!isWhite) {
+			// 	// 不是白色区域，不渲染反射
+			// 	return;
+			// }
 			
 			// 下面是正常的SSR渲染代码
 			float depth = getDepth( vUv );

@@ -66,8 +66,11 @@ const createDisplayShader = (availableChannels = []) => ({
         "tShadow": { value: null },
         "tVelocity": { value: null },
         "tCustom": { value: null },
+        "tOriginal": { value: null },
         "displayMode": { value: 0 },
-        "numChannels": { value: availableChannels.length || 1 }
+        "numChannels": { value: availableChannels.length || 1 },
+        "splitView": { value: false },    // 是否使用分屏对比模式
+        "splitPosition": { value: 0.5 }   // 分屏位置(0-1)
     },
     vertexShader: /* glsl */`
         varying vec2 vUv;
@@ -94,8 +97,11 @@ const createDisplayShader = (availableChannels = []) => ({
         uniform sampler2D tShadow;
         uniform sampler2D tVelocity;
         uniform sampler2D tCustom;
+        uniform sampler2D tOriginal;
         uniform int displayMode;
         uniform int numChannels;
+        uniform bool splitView;
+        uniform float splitPosition;
         varying vec2 vUv;
 
         // 辅助函数 - 返回纹理颜色
@@ -103,42 +109,66 @@ const createDisplayShader = (availableChannels = []) => ({
             return texture2D(tex, uv);
         }
 
-        void main() {
-            // 根据显示模式选择不同的纹理
-            if(displayMode == 0) {
+        // 根据当前显示模式选择正确的纹理
+        vec4 getTextureByMode(int mode, vec2 uv) {
+            if(mode == 0) {
                 // 颜色通道
-                gl_FragColor = getTexColor(tColor, vUv);
-            } else if(displayMode == 1) {
+                return getTexColor(tColor, uv);
+            } else if(mode == 1) {
                 // 法线通道
-                gl_FragColor = getTexColor(tNormal, vUv);
-            } else if(displayMode == 2) {
+                return getTexColor(tNormal, uv);
+            } else if(mode == 2) {
                 // 深度通道
-                gl_FragColor = getTexColor(tDepth, vUv);
-            } else if(displayMode == 3) {
+                return getTexColor(tDepth, uv);
+            } else if(mode == 3) {
                 // 世界位置通道
-                gl_FragColor = getTexColor(tWorldPos, vUv);
-            } else if(displayMode == 4) {
+                return getTexColor(tWorldPos, uv);
+            } else if(mode == 4) {
                 // PBR属性通道
-                gl_FragColor = getTexColor(tPBR, vUv);
-            } else if(displayMode == 5) {
+                return getTexColor(tPBR, uv);
+            } else if(mode == 5) {
                 // 粗糙度通道
-                gl_FragColor = getTexColor(tRoughness, vUv);
-            } else if(displayMode == 6) {
+                return getTexColor(tRoughness, uv);
+            } else if(mode == 6) {
                 // 金属度通道
-                gl_FragColor = getTexColor(tMetalness, vUv);
-            } else if(displayMode == 7) {
+                return getTexColor(tMetalness, uv);
+            } else if(mode == 7) {
                 // 环境光遮蔽通道
-                gl_FragColor = getTexColor(tAO, vUv);
-            } else if(displayMode == 8) {
+                return getTexColor(tAO, uv);
+            } else if(mode == 8) {
                 // 运动向量通道
-                vec4 motionTex = getTexColor(tMotion, vUv);
-                gl_FragColor = vec4(motionTex.rg * 0.5 + 0.5, 0.0, 1.0);
-            } else if(displayMode == 9) {
+                vec4 motionTex = getTexColor(tMotion, uv);
+                return vec4(motionTex.rg * 0.5 + 0.5, 0.0, 1.0);
+            } else if(mode == 9) {
                 // 自发光通道
-                gl_FragColor = getTexColor(tEmission, vUv);
-            } else if(displayMode == 10) {
+                return getTexColor(tEmission, uv);
+            } else if(mode == 10) {
                 // ID通道
-                gl_FragColor = getTexColor(tID, vUv);
+                return getTexColor(tID, uv);
+            } else if(mode == 12) {
+                // 原始/正常画面通道
+                return getTexColor(tOriginal, uv);
+            } else {
+                // 默认灰色
+                return vec4(0.5, 0.5, 0.5, 1.0);
+            }
+        }
+
+        void main() {
+            if(splitView) {
+                // 分屏对比模式 - 左侧显示原始渲染，右侧显示当前选择的通道
+                if(vUv.x < splitPosition) {
+                    // 左侧显示原始渲染
+                    gl_FragColor = getTexColor(tOriginal, vUv);
+                } else {
+                    // 右侧显示当前选择的通道
+                    gl_FragColor = getTextureByMode(displayMode, vUv);
+                    
+                    // 在分界线附近绘制一个细线
+                    if(abs(vUv.x - splitPosition) < 0.002) {
+                        gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0);
+                    }
+                }
             } else if(displayMode == 11) {
                 // 多通道拼接显示 - 使用固定的2x4网格
                 // 计算网格单元
@@ -165,9 +195,7 @@ const createDisplayShader = (availableChannels = []) => ({
                     vec4 motionTex = getTexColor(tMotion, gridUV);
                     gl_FragColor = vec4(motionTex.rg * 0.5 + 0.5, 0.0, 1.0);
                 } else if(index == 6) {
-                    gl_FragColor = getTexColor(tEmission, gridUV);
-                } else if(index == 7) {
-                    gl_FragColor = getTexColor(tID, gridUV);
+                    gl_FragColor = getTexColor(tOriginal, gridUV);
                 } else {
                     gl_FragColor = vec4(0.2, 0.2, 0.2, 1.0);
                 }
@@ -177,8 +205,8 @@ const createDisplayShader = (availableChannels = []) => ({
                     gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0);
                 }
             } else {
-                // 默认显示灰色
-                gl_FragColor = vec4(0.5, 0.5, 0.5, 1.0);
+                // 单通道显示模式
+                gl_FragColor = getTextureByMode(displayMode, vUv);
             }
         }
     `
@@ -411,7 +439,6 @@ window.addEventListener("load", () => load().then((assets) => {
 
     // 创建MRT渲染通道，可以自定义需要的通道
     const mrtRenderPass = new MRTRenderPass(scene, camera, {
-        // 指定需要的通道类型
         channels: [
             MRTRenderPass.CHANNEL_COLOR,      // 颜色通道
             MRTRenderPass.CHANNEL_NORMAL,     // 法线通道
@@ -419,14 +446,13 @@ window.addEventListener("load", () => load().then((assets) => {
             MRTRenderPass.CHANNEL_POSITION,   // 世界位置通道
             MRTRenderPass.CHANNEL_PBR,        // PBR属性通道
             MRTRenderPass.CHANNEL_MOTION,     // 运动向量通道
-            // MRTRenderPass.CHANNEL_EMISSION,   // 自发光通道
-            // MRTRenderPass.CHANNEL_ID          // 对象ID通道
+            MRTRenderPass.CHANNEL_ORIGINAL,   // 原始/正常画面通道 - 新增
+            MRTRenderPass.CHANNEL_ID          // 对象ID通道
             // 如果需要单独的材质属性，请使用下面的配置（最多8个通道）
-            MRTRenderPass.CHANNEL_ROUGHNESS,   // 粗糙度通道
-            MRTRenderPass.CHANNEL_METALNESS,   // 金属度通道
+            // MRTRenderPass.CHANNEL_ROUGHNESS,   // 粗糙度通道
+            // MRTRenderPass.CHANNEL_METALNESS,   // 金属度通道
             // MRTRenderPass.CHANNEL_AO,          // 环境光遮蔽通道
         ],
-        // 为每个通道指定格式
         formats: [
             // 颜色输出格式 - 使用RGBA确保兼容性
             {
@@ -514,8 +540,14 @@ window.addEventListener("load", () => load().then((assets) => {
         "displayMode": 0,
         "rotateObjects": true,
         "multisampling": true,
-        "customChannels": false // 新增：是否使用自定义通道配置
+        "customChannels": false, // 是否使用自定义通道配置
+        "splitView": false,      // 新增：是否启用分屏对比模式
+        "splitPosition": 0.5     // 新增：分屏位置
     };
+
+    // 设置初始分屏参数
+    displayMaterial.uniforms.splitView.value = params.splitView;
+    displayMaterial.uniforms.splitPosition.value = params.splitPosition;
 
     // 使用空选项初始化显示模式选择（将在首次渲染后更新）
     folder.addBinding(params, "displayMode", {
@@ -540,7 +572,7 @@ window.addEventListener("load", () => load().then((assets) => {
                 MRTRenderPass.CHANNEL_ROUGHNESS,
                 MRTRenderPass.CHANNEL_METALNESS,
                 MRTRenderPass.CHANNEL_AO,
-                MRTRenderPass.CHANNEL_MOTION
+                MRTRenderPass.CHANNEL_ORIGINAL    // 保留原始/正常画面通道
             ];
         } else {
             // 使用默认通道组合
@@ -551,7 +583,7 @@ window.addEventListener("load", () => load().then((assets) => {
                 MRTRenderPass.CHANNEL_POSITION,
                 MRTRenderPass.CHANNEL_PBR,
                 MRTRenderPass.CHANNEL_MOTION,
-                MRTRenderPass.CHANNEL_EMISSION,
+                MRTRenderPass.CHANNEL_ORIGINAL,   // 保留原始/正常画面通道
                 MRTRenderPass.CHANNEL_ID
             ];
         }
@@ -583,6 +615,22 @@ window.addEventListener("load", () => load().then((assets) => {
             composer.multisampling = e.value ? multisampling : 0;
         });
 
+    // 添加分屏对比模式控制
+    folder.addBinding(params, "splitView", {
+        label: "分屏对比模式"
+    }).on("change", (e) => {
+        displayMaterial.uniforms.splitView.value = e.value;
+    });
+
+    folder.addBinding(params, "splitPosition", {
+        label: "分界线位置",
+        min: 0.1,
+        max: 0.9,
+        step: 0.01
+    }).on("change", (e) => {
+        displayMaterial.uniforms.splitPosition.value = e.value;
+    });
+
     // 添加键盘快捷键切换显示模式
     window.addEventListener('keydown', (event) => {
         // 数字键映射
@@ -595,7 +643,8 @@ window.addEventListener("load", () => load().then((assets) => {
             '6': 5,  // 粗糙度/运动
             '7': 6,  // 金属度/发光
             '8': 10, // ID
-            '9': 11  // 全部通道网格
+            '9': 11, // 全部通道网格
+            '0': 12  // 原始画面
         };
 
         // 检查按键是否在映射中
@@ -610,6 +659,15 @@ window.addEventListener("load", () => load().then((assets) => {
             // 刷新UI
             const binding = folder.children.find(child =>
                 child.label === "显示通道" || child.label === "displayMode");
+            if (binding) binding.refresh();
+        } else if (event.key === 's' || event.key === 'S') {
+            // 切换分屏模式
+            params.splitView = !params.splitView;
+            displayMaterial.uniforms.splitView.value = params.splitView;
+
+            // 刷新UI
+            const binding = folder.children.find(child =>
+                child.label === "分屏对比模式" || child.label === "splitView");
             if (binding) binding.refresh();
         }
     });
@@ -698,7 +756,8 @@ window.addEventListener("load", () => load().then((assets) => {
                 [MRTRenderPass.CHANNEL_MASK]: "tMask",
                 [MRTRenderPass.CHANNEL_SHADOW]: "tShadow",
                 [MRTRenderPass.CHANNEL_VELOCITY]: "tVelocity",
-                [MRTRenderPass.CHANNEL_CUSTOM]: "tCustom"
+                [MRTRenderPass.CHANNEL_CUSTOM]: "tCustom",
+                [MRTRenderPass.CHANNEL_ORIGINAL]: "tOriginal"
             };
 
             // 首先清空所有纹理
@@ -753,7 +812,8 @@ window.addEventListener("load", () => load().then((assets) => {
             [MRTRenderPass.CHANNEL_AO]: 7,
             [MRTRenderPass.CHANNEL_MOTION]: 8,
             [MRTRenderPass.CHANNEL_EMISSION]: 9,
-            [MRTRenderPass.CHANNEL_ID]: 10
+            [MRTRenderPass.CHANNEL_ID]: 10,
+            [MRTRenderPass.CHANNEL_ORIGINAL]: 12
         };
 
         // 通道显示名称映射
@@ -772,7 +832,8 @@ window.addEventListener("load", () => load().then((assets) => {
             [MRTRenderPass.CHANNEL_MASK]: "遮罩",
             [MRTRenderPass.CHANNEL_SHADOW]: "阴影",
             [MRTRenderPass.CHANNEL_VELOCITY]: "速度向量",
-            [MRTRenderPass.CHANNEL_CUSTOM]: "自定义"
+            [MRTRenderPass.CHANNEL_CUSTOM]: "自定义",
+            [MRTRenderPass.CHANNEL_ORIGINAL]: "原始画面"
         };
 
         // 为每个可用通道添加选项
@@ -785,6 +846,11 @@ window.addEventListener("load", () => load().then((assets) => {
 
         // 总是添加"全部通道"选项
         newOptions["全部通道"] = 11; // 对应着色器中的多通道视图模式
+
+        // 确保"原始画面"选项存在
+        if (availableChannels.includes(MRTRenderPass.CHANNEL_ORIGINAL)) {
+            newOptions["原始画面"] = channelModeMap[MRTRenderPass.CHANNEL_ORIGINAL];
+        }
 
         // 查找显示模式控件
         const binding = folder.children.find(child =>

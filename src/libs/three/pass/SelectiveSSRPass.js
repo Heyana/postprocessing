@@ -9,7 +9,7 @@ import {
 import { Selection } from '../../../core/Selection.js';
 import { SSRPass } from './SSRPass.js';
 
-console.log('Log-- ', 0.06, 'SelectiveSSRPass');
+console.log('Log-- ', 0.07, 'SelectiveSSRPass');
 /**
  * SelectiveSSRPass - 选择性屏幕空间反射通道
  * 
@@ -452,7 +452,7 @@ class SelectiveSSRPass extends SSRPass {
         // this.ssrMaterial.uniforms['readBuffer'].value = this..texture
 
         // 渲染金属度 - 这对像素级判断很重要
-        this.renderMetalness(renderer, this.metalnessOnMaterial, this.metalnessRenderTarget, 0, 0);
+        // this.renderMetalness(renderer, this.metalnessOnMaterial, this.metalnessRenderTarget, 0, 0);
 
         if (!this.ssrMaterial.uniforms['tMetalness']) {
             this.ssrMaterial.uniforms['tMetalness'] = { value: this.metalnessRenderTarget.texture };
