@@ -20,6 +20,7 @@ import { SSRShader } from '../shaders/SSRShader.js';
 import { SSRBlurShader } from '../shaders/SSRShader.js';
 import { SSRDepthShader } from '../shaders/SSRShader.js';
 import { CopyShader } from '../shaders/CopyShader.js';
+console.log('Log-- ', 0.03, 'SSRPass');
 
 class SSRPass extends Pass {
 
@@ -27,7 +28,6 @@ class SSRPass extends Pass {
 
 		super();
 
-		console.log('Log-- ', 0.01, 'SSRPass');
 		this.width = (width !== undefined) ? width : 512;
 		this.height = (height !== undefined) ? height : 512;
 
@@ -43,6 +43,7 @@ class SSRPass extends Pass {
 
 		this.maxDistance = SSRShader.uniforms.maxDistance.value;
 		this.thickness = SSRShader.uniforms.thickness.value;
+		this.metalnessThreshold = SSRShader.uniforms.metalnessThreshold.value;
 
 		this.tempColor = new Color();
 
@@ -154,6 +155,23 @@ class SSRPass extends Pass {
 				this.ssrMaterial.defines.INFINITE_THICK = val;
 				this.ssrMaterial.needsUpdate = true;
 
+			}
+		});
+
+		// metalness threshold property
+		this._metalnessThreshold = SSRShader.uniforms.metalnessThreshold.value;
+		Object.defineProperty(this, 'metalnessThreshold', {
+			get() {
+				return this._metalnessThreshold;
+			},
+			set(val) {
+				if (this._metalnessThreshold === val) return;
+				this._metalnessThreshold = val;
+				console.log('Log-- ', val, 'val');
+				if (this.ssrMaterial) {
+					this.ssrMaterial.uniforms.metalnessThreshold.value = val;
+					this.ssrMaterial.needsUpdate = true;
+				}
 			}
 		});
 
@@ -383,6 +401,7 @@ class SSRPass extends Pass {
 		this.ssrMaterial.uniforms['opacity'].value = this.opacity;
 		this.ssrMaterial.uniforms['maxDistance'].value = this.maxDistance;
 		this.ssrMaterial.uniforms['thickness'].value = this.thickness;
+		this.ssrMaterial.uniforms['metalnessThreshold'].value = this.metalnessThreshold;
 
 		// 如果使用外部深度纹理，则需要确保更新SSR材质
 		if (this.useExternalDepth && this.externalDepthTexture) {
@@ -505,6 +524,31 @@ class SSRPass extends Pass {
 
 				break;
 
+			case SSRPass.OUTPUT.Color:
+				// 显示颜色通道
+				if (this.copyMaterial) {
+					// 如果有颜色纹理，直接显示
+					if (this.beautyRenderTarget && this.beautyRenderTarget.texture) {
+						this.copyMaterial.uniforms.tDiffuse.value = this.beautyRenderTarget.texture;
+						this.copyMaterial.blending = NoBlending;
+						this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
+					}
+				}
+				break;
+
+			case SSRPass.OUTPUT.Brightness:
+				// 设置debugMode为1（亮度模式）
+				if (this.ssrMaterial.uniforms.debugMode) {
+					this.ssrMaterial.uniforms.debugMode.value = 1;
+				}
+				// 使用SSR着色器但专门显示亮度
+				this.renderPass(renderer, this.ssrMaterial, this.renderToScreen ? null : writeBuffer);
+				// 恢复debugMode为0
+				if (this.ssrMaterial.uniforms.debugMode) {
+					this.ssrMaterial.uniforms.debugMode.value = 0;
+				}
+				break;
+
 			default:
 				console.warn('THREE.SSRPass: Unknown output type.');
 
@@ -593,28 +637,38 @@ class SSRPass extends Pass {
 			renderer.clear();
 
 		}
-
-		this.scene.traverseVisible(child => {
-
+		this._selects.map(child => {
 			child._SSRPassBackupMaterial = child.material;
-			if (this._selects.includes(child)) {
 
-				child.material = this.metalnessOnMaterial;
+			child.material = this.metalnessOnMaterial;
 
-			} else {
+		})
 
-				child.material = this.metalnessOffMaterial;
+		// this.scene.traverseVisible(child => {
 
-			}
+		// 	child._SSRPassBackupMaterial = child.material;
+		// 	if (this._selects.includes(child)) {
 
-		});
+		// 		child.material = this.metalnessOnMaterial;
+
+		// 	} else {
+
+		// 		child.material = this.metalnessOffMaterial;
+
+		// 	}
+
+		// });
 		renderer.shadowMap.autoUpdate = false
 		renderer.render(this.scene, this.camera);
-		this.scene.traverseVisible(child => {
+		// this.scene.traverseVisible(child => {
 
+		// 	child.material = child._SSRPassBackupMaterial;
+
+		// });
+
+		this._selects.map(child => {
 			child.material = child._SSRPassBackupMaterial;
-
-		});
+		})
 
 		// restore original state
 
@@ -687,6 +741,15 @@ class SSRPass extends Pass {
 		}
 	}
 
+	setMetalnessThreshold(threshold) {
+		console.log('Log-- ', this.ssrMaterial, threshold, 'threshold');
+		this.metalnessThreshold = threshold;
+		if (this.ssrMaterial) {
+			this.ssrMaterial.uniforms['metalnessThreshold'].value = threshold;
+			this.ssrMaterial.needsUpdate = true;
+		}
+	}
+
 }
 
 SSRPass.OUTPUT = {
@@ -696,6 +759,8 @@ SSRPass.OUTPUT = {
 	'Depth': 4,
 	'Normal': 5,
 	'Metalness': 7,
+	'Color': 8,
+	'Brightness': 10
 };
 
 export { SSRPass };

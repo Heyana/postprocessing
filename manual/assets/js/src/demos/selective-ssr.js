@@ -60,16 +60,23 @@ const params = {
     otherMeshes: true,
     groundReflector: true,
     showHelpers: true,
-    useMetalnessThreshold: true,      // 使用金属度阈值自动选择
+    useMetalnessThreshold: false,      // 使用金属度阈值自动选择
     metalnessThreshold: 0.5,          // 默认金属度阈值
-    usePixelMetalnessThreshold: true, // 使用像素级金属度判断（新增）
+    usePixelMetalnessThreshold: false, // 使用像素级金属度判断（新增）
     renderMode: 'pixel'               // 渲染模式选项: 'pixel' 或 'object'
 };
 
 // 全局变量声明，提升作用域
 let ssrPass = null; // 声明为全局变量，在try块中会赋值 =
 
-
+// 添加反射方向控制
+const reflectionParams = {
+    invertY: false,
+    flipReflector: false,  // 翻转反射器选项
+    sphereEnhanced: true,  // 球体增强反射选项
+    curveSampling: true,    // 新增：曲面采样优化选项
+    pixelMetalnessThreshold: 0.1  // 新增：像素级金属度阈值
+};
 // 加载资源
 function load() {
     const assets = new Map();
@@ -300,7 +307,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
     const plane = new Mesh(
         new PlaneGeometry(8, 8),
-        new MeshPhongMaterial({ color: 0xcbcbcb })
+        new MeshPhongMaterial({ color: 0x777777 })
     );
     plane.rotation.x = - Math.PI / 2;
     plane.position.y = - 0.0001;
@@ -437,6 +444,9 @@ window.addEventListener("load", () => load().then((assets) => {
         // 设置场景引用以启用自动选择
         ssrPass.setScene(scene);
 
+        // 确保初始金属度阈值设置生效 - 强制更新一次
+
+
         // 设置SSRPass的初始参数
         ssrPass.thickness = 0.035;        // 从0.001增加到0.035
         ssrPass.maxDistance = 0.08;       // 适当增加
@@ -451,30 +461,10 @@ window.addEventListener("load", () => load().then((assets) => {
         ssrPass.inverted = false;         // 不反转选择
         ssrPass.ignoreBackground = true;  // 忽略背景
 
-        // 调整SSRPass的材质参数，解决白色条纹问题
-        if (ssrPass.ssrMaterial) {
-            // 调整SSR材质属性
-            ssrPass.ssrMaterial.defines.MAX_STEP = Math.sqrt(window.innerWidth * window.innerWidth + window.innerHeight * window.innerHeight);
-            ssrPass.ssrMaterial.uniforms['maxDistance'].value = 0.08;
-            ssrPass.ssrMaterial.uniforms['thickness'].value = 0.035;
-            // 重要：确保SSR材质更新
-            ssrPass.ssrMaterial.needsUpdate = true;
+        // 设置初始的像素级金属度阈值
+        ssrPass.metalnessThreshold = reflectionParams.pixelMetalnessThreshold;
 
-            if (ssrPass.copyMaterial) {
-                // 确保复制材质的混合模式正确
-                ssrPass.copyMaterial.blending = NormalBlending;
-                ssrPass.copyMaterial.needsUpdate = true;
-            }
 
-            // 打印材质状态用于调试
-            console.log("SSR材质配置:", {
-                maxDistance: ssrPass.ssrMaterial.uniforms['maxDistance'].value,
-                thickness: ssrPass.ssrMaterial.uniforms['thickness'].value,
-                MAX_STEP: ssrPass.ssrMaterial.defines.MAX_STEP,
-                FRESNEL: ssrPass.ssrMaterial.defines.FRESNEL,
-                INFINITE_THICK: ssrPass.ssrMaterial.defines.INFINITE_THICK
-            });
-        }
 
         // 使用EnhancedThreeCompatPass包装SSRPass
         compatSSRPass = new EnhancedThreeCompatPass(ssrPass, "SelectiveSSRPass", "ssr");
@@ -689,13 +679,7 @@ window.addEventListener("load", () => load().then((assets) => {
             label: "提示"
         });
 
-        // 添加反射方向控制
-        const reflectionParams = {
-            invertY: false,
-            flipReflector: false,  // 翻转反射器选项
-            sphereEnhanced: true,  // 球体增强反射选项
-            curveSampling: true    // 新增：曲面采样优化选项
-        };
+
 
         settingsFolder.addBinding(reflectionParams, "invertY", { label: "反转Y轴反射" })
             .on("change", (e) => {
@@ -804,6 +788,21 @@ window.addEventListener("load", () => load().then((assets) => {
                 });
             });
 
+        // 添加像素级金属度阈值控制
+        settingsFolder.addBinding(reflectionParams, "pixelMetalnessThreshold", {
+            label: "像素金属度阈值",
+            min: 0.0,
+            max: 1.0,
+            step: 0.01
+        }).on("change", (e) => {
+            // 更新SSRPass的金属度阈值
+            const ssrPass = compatSSRPass.threePass;
+            if (ssrPass) {
+                ssrPass.metalnessThreshold = e.value;
+                console.log("像素金属度阈值设置为:", e.value);
+            }
+        });
+
         // 使用compatSSRPass.threePass获取ssrPass
         settingsFolder.addBinding(compatSSRPass.threePass, "thickness", {
             label: "厚度",
@@ -910,6 +909,12 @@ window.addEventListener("load", () => load().then((assets) => {
             step: 0.01
         }).on("change", (e) => {
             ssrPass.setMetalnessThreshold(e.value);
+
+            // 强制更新效果
+            if (ssrPass.ssrMaterial) {
+                ssrPass.ssrMaterial.needsUpdate = true;
+            }
+
             // 更新UI显示
             updateSelectionDisplay();
         });
@@ -1032,6 +1037,7 @@ window.addEventListener("load", () => load().then((assets) => {
         });
 
         enhanceMetalnessBtn.on("click", () => {
+            console.log('Log-- ', testObjects, 'testObjects');
             testObjects.children.forEach(obj => {
                 if (obj.isMesh && obj.material) {
                     // 保存原始金属度值
@@ -1047,11 +1053,12 @@ window.addEventListener("load", () => load().then((assets) => {
                     if (Array.isArray(obj.material)) {
                         obj.material.forEach(m => {
                             if (m.metalness !== undefined) {
-                                m.metalness = Math.min(1.0, m.metalness + 0.3);
+                                m.metalness = 1.0
                             }
                         });
                     } else if (obj.material.metalness !== undefined) {
-                        obj.material.metalness = Math.min(1.0, obj.material.metalness + 0.3);
+                        obj.material.color = new Color(1.0, 1.0, 1.0)
+                        obj.material.metalness = 1.0
                     }
                 }
             });

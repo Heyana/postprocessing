@@ -4,12 +4,15 @@ import {
     NoBlending,
     NormalBlending,
     ShaderMaterial,
-    Uniform
+    Uniform,
+    WebGLRenderTarget,
+    GLSL3,
+    NearestFilter
 } from 'three';
 import { Selection } from '../../../core/Selection.js';
 import { SSRPass } from './SSRPass.js';
 
-console.log('Log-- ', 0.06, 'SelectiveSSRPass');
+console.log('Log-- ', 0.05, 'SelectiveSSRPass');
 /**
  * SelectiveSSRPass - 选择性屏幕空间反射通道
  * 
@@ -392,6 +395,145 @@ class SelectiveSSRPass extends SSRPass {
     }
 
     /**
+     * 创建多层渲染所需的材质和渲染目标
+     * @private
+     */
+    _createMultiRenderMaterials() {
+        // 创建一个支持多渲染目标(MRT)的WebGLRenderTarget，设置count为3表示三个渲染目标
+        this.multiRenderTarget = new WebGLRenderTarget(
+            this.width,
+            this.height,
+            {
+                count: 3, // 指定要使用的渲染目标数量：法线、金属度和颜色
+                minFilter: NearestFilter,
+                magFilter: NearestFilter
+            }
+        );
+
+        // 设置渲染目标类型和格式，与原来的renderTarget保持一致
+        this.multiRenderTarget.textures[0].name = 'normalTexture';
+        this.multiRenderTarget.textures[1].name = 'metalnessTexture';
+        this.multiRenderTarget.textures[2].name = 'colorTexture';
+
+        // 创建一个能够同时输出法线、金属度和颜色的多通道材质
+        this.multiPassMaterial = new ShaderMaterial({
+            uniforms: {
+                // 可以在这里添加需要的uniform变量
+                diffuseMap: { value: null } // 可选：如果需要基于纹理的颜色
+                ,
+                metalness: {
+                    value: 0.0
+                }
+            },
+            vertexShader: `
+                out vec3 vNormal;
+                out vec2 vUv;
+                out vec3 vViewPosition;
+                void main() {
+                    vUv = uv;
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    vViewPosition = -mvPosition.xyz;
+                    vNormal = normalMatrix * normal;    
+                    
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `,
+            fragmentShader: `
+                precision highp float;
+                precision highp int;
+                
+                layout(location = 0) out vec4 gNormal;
+                layout(location = 1) out vec4 gMetalness;
+                layout(location = 2) out vec4 gColor;
+                
+                in vec3 vNormal;
+                in vec2 vUv;
+                in vec3 vColor;
+
+                uniform sampler2D tDiffuse;
+
+                
+                void main() {
+                    // 输出法线信息到第一个渲染目标
+                    vec3 normal = normalize(vNormal);
+                    gNormal = vec4(  0.5,0.5, 0.5, 1.0);
+                    
+                    // 输出金属度信息到第二个渲染目标
+                    float metalness = 1.0; // 对于选中的对象，金属度始终为1
+                    gMetalness = vec4(0.0, 0.0, 0.0, 1.0);
+                    
+                    // 输出颜色信息到第三个渲染目标
+                    // 这里使用了顶点颜色，您也可以使用材质颜色或纹理
+                vec3 baseColor = texture(tDiffuse, vUv).rgb;
+                    gColor = vec4(baseColor, 1.0); // 输出实际颜色 + alpha
+                }
+            `,
+            side: FrontSide,
+            blending: NoBlending,
+            glslVersion: GLSL3
+        });
+    }
+
+    /**
+     * 渲染多个层（法线、金属度和颜色）到多个渲染目标
+     * @param {WebGLRenderer} renderer - WebGL渲染器
+     */
+    renderMultipleLayers(renderer) {
+        // 如果多渲染目标材质不存在，创建它
+        if (!this.multiRenderTarget) {
+            this._createMultiRenderMaterials();
+        }
+
+        // 保存当前渲染器状态
+        this.originalClearColor.copy(renderer.getClearColor(this.tempColor));
+        const originalClearAlpha = renderer.getClearAlpha(this.tempColor);
+        const originalAutoClear = renderer.autoClear;
+
+        // 设置渲染目标
+        renderer.setRenderTarget(this.multiRenderTarget);
+        renderer.autoClear = false;
+        renderer.setClearColor(0, 0);
+        renderer.clear();
+
+        // 临时保存材质
+        const materialCache = new Map();
+        this.selection.forEach((child) => {
+            materialCache.set(child, child.material);
+            child.material = this.multiPassMaterial;
+        });
+
+        // 应用多通道材质并渲染场景
+        this.scene.overrideMaterial = this.multiPassMaterial;
+        renderer.render(this.scene, this.camera);
+        this.scene.overrideMaterial = null;
+
+        // 恢复原始材质
+        this.selection.forEach((child) => {
+            child.material = materialCache.get(child);
+        });
+
+        // 拷贝结果到原始渲染目标
+        // 法线数据被保存到normalRenderTarget
+        // this.copyMaterial.uniforms['tDiffuse'].value = this.multiRenderTarget.textures[0];
+        this.copyMaterial.blending = NoBlending;
+        this.renderPass(renderer, this.copyMaterial, this.normalRenderTarget);
+
+        // 金属度数据被保存到metalnessRenderTarget
+        // this.copyMaterial.uniforms['tDiffuse'].value = this.multiRenderTarget.textures[2];
+        this.renderPass(renderer, this.copyMaterial, this.metalnessRenderTarget);
+
+        // 颜色数据可以直接使用，或者拷贝到其他渲染目标
+        // 如果需要，您可以添加代码来保存颜色数据到单独的渲染目标
+        // this.copyMaterial.uniforms['tDiffuse'].value = this.multiRenderTarget.textures[2];
+        // this.renderPass(renderer, this.copyMaterial, this.colorRenderTarget);
+
+        // 恢复渲染器状态
+        renderer.autoClear = originalAutoClear;
+        renderer.setClearColor(this.originalClearColor);
+        renderer.setClearAlpha(originalClearAlpha);
+    }
+
+    /**
      * 覆盖原始渲染方法，添加选择性渲染逻辑
      * @override
      */
@@ -424,6 +566,10 @@ class SelectiveSSRPass extends SSRPass {
             if (!this.ssrMaterial.uniforms['brightnessThreshold']) {
                 this.ssrMaterial.uniforms['brightnessThreshold'] = { value: this.brightnessThreshold };
             }
+            // 添加颜色纹理的uniform
+            if (!this.ssrMaterial.uniforms['tColor']) {
+                this.ssrMaterial.uniforms['tColor'] = { value: null };
+            }
 
             // 设置uniform值
             this.ssrMaterial.uniforms['metalnessThreshold'].value = this.metalnessThreshold;
@@ -445,21 +591,20 @@ class SelectiveSSRPass extends SSRPass {
         // renderer.render(this.scene, this.camera);
         if (this.groundReflector) this.groundReflector.visible = false;
 
+        // 使用多层渲染替代分开渲染法线和金属度
+        this.renderMultipleLayers(renderer);
 
-        // render normals
-        this.renderOverride(renderer, this.normalMaterial, this.normalRenderTarget, 0, 0);
-
-        // this.ssrMaterial.uniforms['readBuffer'].value = this..texture
-
-        // 渲染金属度 - 这对像素级判断很重要
-        this.renderMetalness(renderer, this.metalnessOnMaterial, this.metalnessRenderTarget, 0, 0);
+        // 设置SSR材质的输入纹理
+        this.ssrMaterial.uniforms['readBuffer'].value = this.multiRenderTarget.textures[2]; // 法线纹理
 
         if (!this.ssrMaterial.uniforms['tMetalness']) {
-            this.ssrMaterial.uniforms['tMetalness'] = { value: this.metalnessRenderTarget.texture };
+            this.ssrMaterial.uniforms['tMetalness'] = { value: this.multiRenderTarget.textures[1] }; // 金属度纹理
         } else {
-            this.ssrMaterial.uniforms['tMetalness'].value = this.metalnessRenderTarget.texture;
+            this.ssrMaterial.uniforms['tMetalness'].value = this.multiRenderTarget.textures[1];
         }
 
+        // 设置颜色纹理
+        this.ssrMaterial.uniforms['tColor'].value = this.multiRenderTarget.textures[2]; // 颜色纹理
 
         // 设置SSR材质的其他参数
         this.ssrMaterial.uniforms['opacity'].value = this.opacity;
@@ -548,12 +693,18 @@ class SelectiveSSRPass extends SSRPass {
                 this.renderPass(renderer, this.depthRenderMaterial, this.renderToScreen ? null : writeBuffer);
                 break;
             case SSRPass.OUTPUT.Normal:
-                this.copyMaterial.uniforms['tDiffuse'].value = this.normalRenderTarget.texture;
+                this.copyMaterial.uniforms['tDiffuse'].value = this.multiRenderTarget.textures[0];
                 this.copyMaterial.blending = NoBlending;
                 this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
                 break;
             case SSRPass.OUTPUT.Metalness:
-                this.copyMaterial.uniforms['tDiffuse'].value = this.metalnessRenderTarget.texture;
+                this.copyMaterial.uniforms['tDiffuse'].value = this.multiRenderTarget.textures[1];
+                this.copyMaterial.blending = NoBlending;
+                this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
+                break;
+            case SSRPass.OUTPUT.Color:
+                // 新增：输出颜色通道
+                this.copyMaterial.uniforms['tDiffuse'].value = this.multiRenderTarget.textures[2];
                 this.copyMaterial.blending = NoBlending;
                 this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
                 break;
@@ -574,7 +725,6 @@ class SelectiveSSRPass extends SSRPass {
         }
 
         // 在渲染后恢复对象的原始状态（仅在使用对象级选择时需要）
-
     }
     renderOverride(renderer, overrideMaterial, renderTarget, clearColor, clearAlpha) {
 
@@ -645,6 +795,7 @@ class SelectiveSSRPass extends SSRPass {
         }
 
         // 临时保存材质和可见性
+        const visibilityCache = new Map();
         const materialCache = new Map();
 
         // console.log('Log-- ', this.selection, 'this.selection');
@@ -822,6 +973,15 @@ class SelectiveSSRPass extends SSRPass {
 
         if (this.metalnessDetectionMaterial) {
             this.metalnessDetectionMaterial.dispose();
+        }
+
+        // 释放多渲染目标资源
+        if (this.multiRenderTarget) {
+            this.multiRenderTarget.dispose();
+        }
+
+        if (this.multiPassMaterial) {
+            this.multiPassMaterial.dispose();
         }
 
         super.dispose();

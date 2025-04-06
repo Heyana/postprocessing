@@ -34,7 +34,12 @@ const SSRShader = {
 		'opacity': { value: .5 },
 		'maxDistance': { value: 180 },
 		'cameraRange': { value: 0 },
-		'thickness': { value: .018 }
+		'thickness': { value: .018 },
+		'metalnessThreshold': { value: 1.0 },
+		'debugMode': { value: 0 },
+		'brightnessThreshold': { value: 1.0 },
+		'readBuffer': { value: null },
+		'normalBuffer': { value: null }
 
 	},
 
@@ -60,6 +65,8 @@ const SSRShader = {
 		uniform sampler2D tNormal;
 		uniform sampler2D tMetalness;
 		uniform sampler2D tDiffuse;
+		uniform sampler2D readBuffer;
+		uniform sampler2D normalBuffer;
 		uniform float cameraRange;
 		uniform vec2 resolution;
 		uniform float opacity;
@@ -69,6 +76,9 @@ const SSRShader = {
 		uniform float thickness;
 		uniform mat4 cameraProjectionMatrix;
 		uniform mat4 cameraInverseProjectionMatrix;
+		uniform float metalnessThreshold;
+		uniform int debugMode;
+		uniform float brightnessThreshold;
 		#include <packing>
 		float pointToLineDistance(vec3 x0, vec3 x1, vec3 x2) {
 			//x0: point, x1: linePointA, x2: linePointB
@@ -115,11 +125,68 @@ const SSRShader = {
 			return xy;
 		}
 		void main(){
-			#ifdef SELECTIVE
-				float metalness=texture2D(tMetalness,vUv).r;
-				if(metalness < 0.1) return;
-			#endif
-
+			// 金属度检查 - 判断是否为白色，而非简单的亮度判断
+			  // 读取原始场景颜色（用于调试模式）
+  vec4 sceneColor = texture2D(tMetalness, vUv);
+			vec3 colorForBrightness = sceneColor.rgb;
+			// 使用更精确的感知亮度计算 - 考虑人眼对RGB的不同敏感度
+			// 参考: https://en.wikipedia.org/wiki/Relative_luminance
+			  float perceptualBrightness = dot(colorForBrightness, vec3(0.299, 0.587, 0.114));
+			
+			// 调试模式 - 类似AOEffect的debugMode
+			// if(debugMode == 1) {
+				// 亮度调试模式 - 显示归一化的亮度
+				float normalizedBrightness = clamp(perceptualBrightness / brightnessThreshold, 0.0, 1.0);
+				// gl_FragColor = vec4(vec3(sceneColor), 1.0);
+				// return;
+			// }
+			
+			// 简单亮度计算 (RGB平均值) - 用于白色检测
+			float brightness = (sceneColor.r + sceneColor.g + sceneColor.b) / 3.0;
+			
+			// 检查是否为白色 - 两步判断:
+			// 1. 计算颜色与白色(1,1,1)的差距
+			vec3 colorDiff = abs(sceneColor.rgb - vec3(1.0));
+			float maxDiff = max(max(colorDiff.r, colorDiff.g), colorDiff.b);
+			
+			// 白色判断条件：
+			// - 颜色差异小于0.3（允许一定的偏差）
+			// - 亮度大于0.7（确保足够亮）
+			bool isWhite =normalizedBrightness>0.9;
+			
+			// 调试模式：取消注释以下行之一来启用不同的调试视图
+			
+			// 1. 显示原始金属度纹理
+			if(debugMode == 2) {
+				gl_FragColor = vec4(sceneColor.rgb, 1.0); 
+				return;
+			}
+			
+			// 2. 显示白色检测结果（绿色=白色区域，红色=非白色区域）
+			if(debugMode == 3) {
+				gl_FragColor = isWhite ? vec4(0.0, 1.0, 0.0, 1.0) : vec4(1.0, 0.0, 0.0, 1.0); 
+				return;
+			}
+			
+			// 3. 显示颜色差距的热图（蓝色=接近白色，红色=远离白色）
+			if(debugMode == 4) {
+				gl_FragColor = vec4(maxDiff, 0.0, 1.0 - maxDiff, 1.0); 
+				return;
+			}
+			
+			// 4. 显示亮度热图
+			if(debugMode == 5) {
+				gl_FragColor = vec4(brightness, brightness, brightness, 1.0); 
+				return;
+			}
+			
+			// 只有白色区域才应用反射
+			if(!isWhite) {
+				// 不是白色区域，不渲染反射
+				return;
+			}
+			
+			// 下面是正常的SSR渲染代码
 			float depth = getDepth( vUv );
 			float viewZ = getViewZ( depth );
 			if(-viewZ>=cameraFar) return;
