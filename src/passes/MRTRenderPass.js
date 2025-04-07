@@ -504,9 +504,12 @@ export class MRTRenderPass extends Pass {
                 case MRTRenderPass.CHANNEL_ORIGINAL:
                     // 通道: 原始/正常渲染 - 尝试使用物体的原始颜色和光照
                     outputAssignments += `
-                       	vec4 diffuse = texture( tDiffuse, vUv );
-                        // 输出结果
-                        gOutput${i} = vec4(diffuse.rgb, 1.0);
+                       vec3 customColor = vec3(
+                            0.5 + 0.5 * sin(vUv.x * 20.0 + time),
+                            0.5 + 0.5 * sin(vUv.y * 20.0 + time * 0.7),
+                            0.5 + 0.5 * sin((vUv.x + vUv.y) * 10.0 + time * 1.3)
+                        );
+                        gOutput${i} = vec4(customColor, 1.0);
                     `;
                     break;
 

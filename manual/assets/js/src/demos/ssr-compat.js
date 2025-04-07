@@ -1,9 +1,7 @@
 import {
     RenderPass,
-    ThreeCompatPass,
     EffectComposer,
     SSRPass, ReflectorForSSRPass,
-    CopyPass,
     SelectiveBloomEffect,
     BrightnessContrastEffect,
     BlendFunction,
@@ -351,6 +349,9 @@ window.addEventListener("load", () => load().then((assets) => {
             if (compatSSRPass && compatSSRPass.threePass) {
                 compatSSRPass.threePass.selects = Array.from(selectedObjects);
                 console.log("选中物体数量:", selectedObjects.size, "SSRPass selective模式:", compatSSRPass.threePass.selective);
+
+                // 添加自动刷新反射
+                refreshSSRReflection();
             }
         }
     }
@@ -439,6 +440,7 @@ window.addEventListener("load", () => load().then((assets) => {
         ssrPass.thickness = 0.035;        // 从0.001增加到0.035
         ssrPass.maxDistance = 0.08;       // 适当增加
         ssrPass.opacity = 0.75;           // 略微降低反射强度
+        ssrPass.reflectionStrength = 1.0; // 设置默认反射强度
         ssrPass.fresnel = true;           // 启用菲涅尔效应
         ssrPass.distanceAttenuation = true; // 启用距离衰减
         ssrPass.bouncing = false;         // 禁用多次反射，简化计算
@@ -451,6 +453,7 @@ window.addEventListener("load", () => load().then((assets) => {
             ssrPass.ssrMaterial.defines.MAX_STEP = Math.sqrt(window.innerWidth * window.innerWidth + window.innerHeight * window.innerHeight);
             ssrPass.ssrMaterial.uniforms['maxDistance'].value = 0.08;
             ssrPass.ssrMaterial.uniforms['thickness'].value = 0.035;
+            ssrPass.ssrMaterial.uniforms['reflectionStrength'].value = 1.0; // 设置着色器反射强度
             // 重要：确保SSR材质更新
             ssrPass.ssrMaterial.needsUpdate = true;
 
@@ -464,6 +467,7 @@ window.addEventListener("load", () => load().then((assets) => {
             console.log("SSR材质配置:", {
                 maxDistance: ssrPass.ssrMaterial.uniforms['maxDistance'].value,
                 thickness: ssrPass.ssrMaterial.uniforms['thickness'].value,
+                reflectionStrength: ssrPass.ssrMaterial.uniforms['reflectionStrength'].value,
                 MAX_STEP: ssrPass.ssrMaterial.defines.MAX_STEP,
                 FRESNEL: ssrPass.ssrMaterial.defines.FRESNEL,
                 INFINITE_THICK: ssrPass.ssrMaterial.defines.INFINITE_THICK,
@@ -629,6 +633,7 @@ window.addEventListener("load", () => load().then((assets) => {
             ssrPass.thickness = 0.035;
             ssrPass.maxDistance = 0.08;
             ssrPass.opacity = 0.75;
+            ssrPass.reflectionStrength = 1.0; // 重置反射强度
             ssrPass.fresnel = true;
             ssrPass.distanceAttenuation = true;
             ssrPass.bouncing = false;
@@ -684,6 +689,9 @@ window.addEventListener("load", () => load().then((assets) => {
                     // 保持当前的选择集合
                     compatSSRPass.threePass.selects = Array.from(selectedObjects);
                 }
+
+                // 添加自动刷新反射
+                refreshSSRReflection();
             });
 
         folder.addBinding(params, "autoRotate", { label: "自动旋转相机" })
@@ -881,6 +889,14 @@ window.addEventListener("load", () => load().then((assets) => {
             min: 0,
             max: 0.1,
             step: 0.001
+        }).on("change", (e) => {
+            // 使用延迟刷新
+            if (thicknessTimeout) {
+                clearTimeout(thicknessTimeout);
+            }
+            thicknessTimeout = setTimeout(() => {
+                refreshSSRReflection();
+            }, 300);
         });
 
         settingsFolder.addBinding(compatSSRPass.threePass, "infiniteThick", {
@@ -896,6 +912,14 @@ window.addEventListener("load", () => load().then((assets) => {
             if (groundReflector) {
                 groundReflector.maxDistance = e.value;
             }
+
+            // 使用延迟刷新
+            if (maxDistanceTimeout) {
+                clearTimeout(maxDistanceTimeout);
+            }
+            maxDistanceTimeout = setTimeout(() => {
+                refreshSSRReflection();
+            }, 300);
         });
 
         settingsFolder.addBinding(compatSSRPass.threePass, "opacity", {
@@ -960,6 +984,9 @@ window.addEventListener("load", () => load().then((assets) => {
             if (compatSSRPass && compatSSRPass.threePass) {
                 compatSSRPass.threePass.selects = [];
                 console.log("已清空选择列表，SSRPass selective模式:", compatSSRPass.threePass.selective);
+
+                // 添加自动刷新反射
+                refreshSSRReflection();
             }
         });
 
@@ -986,6 +1013,9 @@ window.addEventListener("load", () => load().then((assets) => {
             if (compatSSRPass && compatSSRPass.threePass) {
                 compatSSRPass.threePass.selects = Array.from(selectedObjects);
                 console.log("已选择所有物体，数量:", selectedObjects.size, "SSRPass selective模式:", compatSSRPass.threePass.selective);
+
+                // 添加自动刷新反射
+                refreshSSRReflection();
             }
         });
 
@@ -1108,6 +1138,103 @@ window.addEventListener("load", () => load().then((assets) => {
             console.log("SSR输出模式切换为:", e.value);
         });
 
+        // 添加反射强度控制
+        settingsFolder.addBinding(compatSSRPass.threePass, "reflectionStrength", {
+            label: "反射强度",
+            min: 0,
+            max: 5,
+            step: 0.1
+        }).on("change", (e) => {
+            if (groundReflector) {
+                // 如果有地面反射器，也同步更新其反射强度
+                groundReflector.reflectionStrength = e.value;
+            }
+
+            // 自动刷新反射 - 但使用较轻的延迟刷新以避免拖动滑块时频繁刷新
+            if (reflectionStrengthTimeout) {
+                clearTimeout(reflectionStrengthTimeout);
+            }
+            reflectionStrengthTimeout = setTimeout(() => {
+                refreshSSRReflection();
+            }, 300);
+        });
+
+        // 添加延迟变量
+        let reflectionStrengthTimeout = null;
+
+        // 修改厚度控制，添加自动刷新
+        settingsFolder.addBinding(compatSSRPass.threePass, "thickness", {
+            label: "厚度",
+            min: 0,
+            max: 0.1,
+            step: 0.001
+        }).on("change", (e) => {
+            // 使用延迟刷新
+            if (thicknessTimeout) {
+                clearTimeout(thicknessTimeout);
+            }
+            thicknessTimeout = setTimeout(() => {
+                refreshSSRReflection();
+            }, 300);
+        });
+
+        // 添加延迟变量
+        let thicknessTimeout = null;
+
+        // 修改maxDistance控制，添加自动刷新
+        settingsFolder.addBinding(compatSSRPass.threePass, "maxDistance", {
+            label: "最大距离",
+            min: 0,
+            max: 0.5,
+            step: 0.001
+        }).on("change", (e) => {
+            if (groundReflector) {
+                groundReflector.maxDistance = e.value;
+            }
+
+            // 使用延迟刷新
+            if (maxDistanceTimeout) {
+                clearTimeout(maxDistanceTimeout);
+            }
+            maxDistanceTimeout = setTimeout(() => {
+                refreshSSRReflection();
+            }, 300);
+        });
+
+        // 添加延迟变量
+        let maxDistanceTimeout = null;
+
+        // 添加一个专门用于刷新反射的按钮
+        const refreshReflectionBtn = folder.addButton({
+            title: "刷新反射效果"
+        });
+
+        refreshReflectionBtn.on("click", () => {
+            refreshSSRReflection();
+        });
+
+        // 在设置面板中添加对selective模式的控制，加在SSR参数控制部分之前
+        const selectiveMode = folder.addBinding(
+            { selective: compatSSRPass.threePass.selective },
+            "selective",
+            { label: "仅选中物体反射" }
+        ).on("change", (e) => {
+            if (compatSSRPass && compatSSRPass.threePass) {
+                if (e.value) {
+                    // 启用selective模式，使用当前选中的物体
+                    compatSSRPass.threePass.selects = Array.from(selectedObjects);
+                } else {
+                    // 禁用selective模式
+                    compatSSRPass.threePass.selects = null;
+                }
+
+                // 自动刷新反射
+                refreshSSRReflection();
+
+                console.log("Selective模式已" + (e.value ? "启用" : "禁用"));
+            }
+        });
+
     } catch (error) {
         console.error("Error setting up SSRPass:", error);
         // 创建一个错误信息面板
@@ -1131,12 +1258,13 @@ window.addEventListener("load", () => load().then((assets) => {
         composer.setSize(width, height);
         renderer.setSize(width, height);
 
+        console.log('Log-- ', width, height, 'width, height');
         // 更新SSRPass和地面反射器的尺寸
-        if (compatSSRPass && compatSSRPass.threePass) {
-            compatSSRPass.threePass.width = width;
-            compatSSRPass.threePass.height = height;
-            compatSSRPass.threePass.setSize(width, height);
-        }
+        // if (compatSSRPass && compatSSRPass.threePass) {
+        //     compatSSRPass.threePass.width = width;
+        //     compatSSRPass.threePass.height = height;
+        //     compatSSRPass.threePass.setSize(width, height);
+        // }
 
         // 更新SelectiveBloom效果的尺寸
         if (bloomEffect) {
@@ -1177,4 +1305,11 @@ window.addEventListener("load", () => load().then((assets) => {
 
         requestAnimationFrame(render);
     });
+
+    // 添加刷新反射的辅助函数
+    function refreshSSRReflection() {
+        // 使用我们新添加的refreshReflection方法刷新反射
+        // 传入renderer和null作为writeBuffer（因为在EffectComposer中不需要指定writeBuffer）
+        compatSSRPass.threePass.refreshReflection()
+    }
 })); 

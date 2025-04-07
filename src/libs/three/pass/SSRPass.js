@@ -20,8 +20,8 @@ import { SSRShader } from '../shaders/SSRShader.js';
 import { SSRBlurShader } from '../shaders/SSRShader.js';
 import { SSRDepthShader } from '../shaders/SSRShader.js';
 import { CopyShader } from '../shaders/CopyShader.js';
-console.log('Log-- ', 0.03, 'SSRPass');
 
+console.log('Log-- ', 0.3, 'SSRPass');
 class SSRPass extends Pass {
 
 	constructor({ renderer, scene, camera, width, height, selects, bouncing = false, groundReflector }) {
@@ -43,7 +43,7 @@ class SSRPass extends Pass {
 
 		this.maxDistance = SSRShader.uniforms.maxDistance.value;
 		this.thickness = SSRShader.uniforms.thickness.value;
-		this.metalnessThreshold = SSRShader.uniforms.metalnessThreshold.value;
+		this.reflectionStrength = SSRShader.uniforms.reflectionStrength.value;
 
 		this.tempColor = new Color();
 
@@ -89,17 +89,8 @@ class SSRPass extends Pass {
 			},
 			set(val) {
 
-				if (this._bouncing === val) return;
-				this._bouncing = val;
-				if (val) {
 
-					this.ssrMaterial.uniforms['tDiffuse'].value = this.prevRenderTarget.texture;
-
-				} else {
-
-					this.ssrMaterial.uniforms['tDiffuse'].value = this.beautyRenderTarget.texture;
-
-				}
+				this.setBouncing(val);
 
 			}
 		});
@@ -158,19 +149,17 @@ class SSRPass extends Pass {
 			}
 		});
 
-		// metalness threshold property
-		this._metalnessThreshold = SSRShader.uniforms.metalnessThreshold.value;
-		Object.defineProperty(this, 'metalnessThreshold', {
+		// 反射强度属性
+		this._reflectionStrength = SSRShader.uniforms.reflectionStrength.value;
+		Object.defineProperty(this, 'reflectionStrength', {
 			get() {
-				return this._metalnessThreshold;
+				return this._reflectionStrength;
 			},
 			set(val) {
-				if (this._metalnessThreshold === val) return;
-				this._metalnessThreshold = val;
-				console.log('Log-- ', val, 'val');
+				if (this._reflectionStrength === val) return;
+				this._reflectionStrength = val;
 				if (this.ssrMaterial) {
-					this.ssrMaterial.uniforms.metalnessThreshold.value = val;
-					this.ssrMaterial.needsUpdate = true;
+					this.ssrMaterial.uniforms['reflectionStrength'].value = val;
 				}
 			}
 		});
@@ -249,6 +238,7 @@ class SSRPass extends Pass {
 		this.ssrMaterial.uniforms['resolution'].value.set(this.width, this.height);
 		this.ssrMaterial.uniforms['cameraProjectionMatrix'].value.copy(this.camera.projectionMatrix);
 		this.ssrMaterial.uniforms['cameraInverseProjectionMatrix'].value.copy(this.camera.projectionMatrixInverse);
+		this.ssrMaterial.uniforms['reflectionStrength'].value = this.reflectionStrength;
 
 		// normal material
 
@@ -401,7 +391,7 @@ class SSRPass extends Pass {
 		this.ssrMaterial.uniforms['opacity'].value = this.opacity;
 		this.ssrMaterial.uniforms['maxDistance'].value = this.maxDistance;
 		this.ssrMaterial.uniforms['thickness'].value = this.thickness;
-		this.ssrMaterial.uniforms['metalnessThreshold'].value = this.metalnessThreshold;
+		this.ssrMaterial.uniforms['reflectionStrength'].value = this.reflectionStrength;
 
 		// 如果使用外部深度纹理，则需要确保更新SSR材质
 		if (this.useExternalDepth && this.externalDepthTexture) {
@@ -524,31 +514,6 @@ class SSRPass extends Pass {
 
 				break;
 
-			case SSRPass.OUTPUT.Color:
-				// 显示颜色通道
-				if (this.copyMaterial) {
-					// 如果有颜色纹理，直接显示
-					if (this.beautyRenderTarget && this.beautyRenderTarget.texture) {
-						this.copyMaterial.uniforms.tDiffuse.value = this.beautyRenderTarget.texture;
-						this.copyMaterial.blending = NoBlending;
-						this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
-					}
-				}
-				break;
-
-			case SSRPass.OUTPUT.Brightness:
-				// 设置debugMode为1（亮度模式）
-				if (this.ssrMaterial.uniforms.debugMode) {
-					this.ssrMaterial.uniforms.debugMode.value = 1;
-				}
-				// 使用SSR着色器但专门显示亮度
-				this.renderPass(renderer, this.ssrMaterial, this.renderToScreen ? null : writeBuffer);
-				// 恢复debugMode为0
-				if (this.ssrMaterial.uniforms.debugMode) {
-					this.ssrMaterial.uniforms.debugMode.value = 0;
-				}
-				break;
-
 			default:
 				console.warn('THREE.SSRPass: Unknown output type.');
 
@@ -607,8 +572,11 @@ class SSRPass extends Pass {
 
 		this.scene.overrideMaterial = overrideMaterial;
 		renderer.shadowMap.autoUpdate = false
+		const oldUpdate = this.scene.matrixWorldAutoUpdate
+		this.scene.matrixWorldAutoUpdate = false
 		renderer.render(this.scene, this.camera);
 		this.scene.overrideMaterial = null;
+		this.scene.matrixWorldAutoUpdate = oldUpdate
 
 		// restore original state
 
@@ -637,38 +605,32 @@ class SSRPass extends Pass {
 			renderer.clear();
 
 		}
-		this._selects.map(child => {
+
+		this.scene.traverseVisible(child => {
+
 			child._SSRPassBackupMaterial = child.material;
+			if (this._selects.includes(child)) {
 
-			child.material = this.metalnessOnMaterial;
+				child.material = this.metalnessOnMaterial;
 
-		})
+			} else {
 
-		// this.scene.traverseVisible(child => {
+				child.material = this.metalnessOffMaterial;
 
-		// 	child._SSRPassBackupMaterial = child.material;
-		// 	if (this._selects.includes(child)) {
+			}
 
-		// 		child.material = this.metalnessOnMaterial;
-
-		// 	} else {
-
-		// 		child.material = this.metalnessOffMaterial;
-
-		// 	}
-
-		// });
+		});
 		renderer.shadowMap.autoUpdate = false
+
+		const oldUpdate = this.scene.matrixWorldAutoUpdate
+		this.scene.matrixWorldAutoUpdate = false
 		renderer.render(this.scene, this.camera);
-		// this.scene.traverseVisible(child => {
+		this.scene.matrixWorldAutoUpdate = oldUpdate
+		this.scene.traverseVisible(child => {
 
-		// 	child.material = child._SSRPassBackupMaterial;
-
-		// });
-
-		this._selects.map(child => {
 			child.material = child._SSRPassBackupMaterial;
-		})
+
+		});
 
 		// restore original state
 
@@ -701,6 +663,7 @@ class SSRPass extends Pass {
 		this.blurMaterial.uniforms['resolution'].value.set(width, height);
 		this.blurMaterial2.uniforms['resolution'].value.set(width, height);
 
+		console.log('Log-- ', width, height, 'width,height,ssrpass');
 	}
 
 	/**
@@ -741,15 +704,44 @@ class SSRPass extends Pass {
 		}
 	}
 
-	setMetalnessThreshold(threshold) {
-		console.log('Log-- ', this.ssrMaterial, threshold, 'threshold');
-		this.metalnessThreshold = threshold;
-		if (this.ssrMaterial) {
-			this.ssrMaterial.uniforms['metalnessThreshold'].value = threshold;
-			this.ssrMaterial.needsUpdate = true;
+	/**
+	 * 刷新反射效果，适用于修改selects后需要重新计算反射的情况
+	 * 临时开启bouncing，渲染一帧，然后自动关闭
+	 * @param {WebGLRenderer} renderer - 渲染器
+	 * @param {WebGLRenderTarget} writeBuffer - 写入缓冲区
+	 * @param {number} [refreshFrames=1] - 刷新帧数，默认为1
+	 * @returns {Promise} 返回一个Promise，当刷新完成时解析
+	 */
+	refreshReflection() {
+
+
+		// 保存原始状态
+		const originalBouncing = this._bouncing;
+
+
+		this.setBouncing(true);
+		// 强制更新材质
+		setTimeout(() => {
+			this.setBouncing(originalBouncing);
+
+		})
+
+
+		// 渲染指定的帧数
+
+
+
+		// 开始刷新渲染
+	}
+	setBouncing(val) {
+		if (this._bouncing === val) return;
+		this._bouncing = val;
+		if (val) {
+			this.ssrMaterial.uniforms['tDiffuse'].value = this.prevRenderTarget.texture;
+		} else {
+			this.ssrMaterial.uniforms['tDiffuse'].value = this.beautyRenderTarget.texture;
 		}
 	}
-
 }
 
 SSRPass.OUTPUT = {
@@ -759,8 +751,6 @@ SSRPass.OUTPUT = {
 	'Depth': 4,
 	'Normal': 5,
 	'Metalness': 7,
-	'Color': 8,
-	'Brightness': 10
 };
 
 export { SSRPass };

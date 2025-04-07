@@ -1,15 +1,17 @@
+import { SSRPass } from './SSRPass.js';
+import { Selection } from '../../../core/Selection.js';
 import {
-    Color,
-    FrontSide,
     NoBlending,
     NormalBlending,
     ShaderMaterial,
-    Uniform
+    Color,
+    Uniform,
+    FrontSide,
+    Vector2,
+    ShaderLib,
+    UniformsUtils
 } from 'three';
-import { Selection } from '../../../core/Selection.js';
-import { SSRPass } from './SSRPass.js';
 
-console.log('Log-- ', 0.07, 'SelectiveSSRPass');
 /**
  * SelectiveSSRPass - 选择性屏幕空间反射通道
  * 
@@ -37,7 +39,6 @@ class SelectiveSSRPass extends SSRPass {
     constructor(options) {
         super(options);
 
-        console.log('Log-- ', 0.01, '0.01');
         // 初始化this._selects数组，防止renderMetalness方法中出现undefined错误
         this._selects = options.selects || [];
 
@@ -57,21 +58,15 @@ class SelectiveSSRPass extends SSRPass {
         this.usePixelMetalnessThreshold = options.usePixelMetalnessThreshold !== undefined ? options.usePixelMetalnessThreshold : false;
 
         // 金属度阈值 - 仅在usePixelMetalnessThreshold为true时使用
-
-        // 使用金属度阈值进行自动选择
-        this.useMetalnessThreshold = options.useMetalnessThreshold !== undefined ? options.useMetalnessThreshold : true;
-
-        // 初始化调试模式 (0=关闭, 1=亮度, 2=金属度纹理, 3=白色检测, 4=颜色差距, 5=亮度热图)
-        this.debugMode = options.debugMode !== undefined ? options.debugMode : 0;
-
-        // 初始化亮度阈值 - 用于亮度调试模式
-        this.brightnessThreshold = options.brightnessThreshold !== undefined ? options.brightnessThreshold : 0.7;
+        this.metalnessThreshold = options.metalnessThreshold !== undefined ? options.metalnessThreshold : 0.5;
 
         // 创建用于渲染金属度的材质
         this._createMetalnessDetectionMaterial();
 
-        // 修改SSR着色器以支持金属度判断 - 无论是否启用像素级判断，都先初始化相关uniforms
-        this._modifySSRShader();
+        // 修改SSR着色器以支持像素级金属度判断
+        if (this.usePixelMetalnessThreshold) {
+            this._modifySSRShader();
+        }
 
         // 记录原始图层
         this._originalLayers = new Map();
@@ -88,12 +83,6 @@ class SelectiveSSRPass extends SSRPass {
 
         // 初始化场景引用
         this.scene = options.scene || null;
-
-        // 重要：如果启用了金属度阈值选择（对象级）且有场景引用，立即执行初始选择
-        if (this.useMetalnessThreshold && !this.usePixelMetalnessThreshold && this.scene) {
-            this.updateSelectionBasedOnMetalness();
-        }
-        this.setDebugMode(1)
     }
 
     /**
@@ -144,14 +133,10 @@ class SelectiveSSRPass extends SSRPass {
         // 确保ssrMaterial已创建
         if (!this.ssrMaterial) return;
 
-        // 添加金属度相关uniform - 无论usePixelMetalnessThreshold是否为true，都初始化这些uniform
+        // 添加金属度相关uniform
         this.ssrMaterial.uniforms.tMetalness = { value: null };
         this.ssrMaterial.uniforms.metalnessThreshold = { value: this.metalnessThreshold };
         this.ssrMaterial.uniforms.usePixelMetalnessThreshold = { value: this.usePixelMetalnessThreshold };
-
-        // 添加调试模式相关的uniform
-        this.ssrMaterial.uniforms.debugMode = { value: this.debugMode };
-        this.ssrMaterial.uniforms.brightnessThreshold = { value: this.brightnessThreshold };
 
         // 获取原始fragment shader代码
         const originalFragmentShader = this.ssrMaterial.fragmentShader;
@@ -159,7 +144,7 @@ class SelectiveSSRPass extends SSRPass {
         // 添加金属度uniform声明
         let modifiedShader = originalFragmentShader.replace(
             'uniform sampler2D tNormal;',
-            'uniform sampler2D tNormal;\nuniform float metalnessThreshold;\nuniform bool usePixelMetalnessThreshold;\nuniform int debugMode;\nuniform float brightnessThreshold;'
+            'uniform sampler2D tNormal;\nuniform float metalnessThreshold;\nuniform bool usePixelMetalnessThreshold;'
         );
 
         // 在main函数开始处添加金属度检查
@@ -180,8 +165,8 @@ class SelectiveSSRPass extends SSRPass {
         );
 
         // 应用修改后的着色器代码
-        // this.ssrMaterial.fragmentShader = modifiedShader;
-        // this.ssrMaterial.needsUpdate = true;
+        this.ssrMaterial.fragmentShader = modifiedShader;
+        this.ssrMaterial.needsUpdate = true;
     }
 
     /**
@@ -190,41 +175,19 @@ class SelectiveSSRPass extends SSRPass {
      */
     setMetalnessThreshold(value) {
         this.metalnessThreshold = value;
-        if (this.ssrMaterial) {
-            this.ssrMaterial.uniforms['metalnessThreshold'].value = value;
-            this.ssrMaterial.needsUpdate = true;
-        }
-    }
 
-    /**
-     * 设置调试模式
-     * @param {Number} mode - 调试模式 (0=关闭, 1=亮度, 2=金属度纹理, 3=白色检测, 4=颜色差距, 5=亮度热图)
-     */
-    setDebugMode(mode) {
-        this.debugMode = mode;
-        if (this.ssrMaterial) {
-            if (!this.ssrMaterial.uniforms['debugMode']) {
-                this.ssrMaterial.uniforms['debugMode'] = { value: mode };
-            } else {
-                this.ssrMaterial.uniforms['debugMode'].value = mode;
-            }
-            this.ssrMaterial.needsUpdate = true;
+        // 更新shader中的阈值
+        if (this.ssrMaterial && this.ssrMaterial.uniforms.metalnessThreshold) {
+            this.ssrMaterial.uniforms.metalnessThreshold.value = value;
         }
-    }
 
-    /**
-     * 设置亮度阈值 - 用于亮度调试模式
-     * @param {Number} value - 亮度阈值 (0.0-1.0)
-     */
-    setBrightnessThreshold(value) {
-        this.brightnessThreshold = value;
-        if (this.ssrMaterial) {
-            if (!this.ssrMaterial.uniforms['brightnessThreshold']) {
-                this.ssrMaterial.uniforms['brightnessThreshold'] = { value: value };
-            } else {
-                this.ssrMaterial.uniforms['brightnessThreshold'].value = value;
-            }
-            this.ssrMaterial.needsUpdate = true;
+        if (this.metalnessDetectionMaterial) {
+            this.metalnessDetectionMaterial.uniforms.metalnessThreshold.value = value;
+        }
+
+        // 重新检测场景中的对象（对象级检测）
+        if (this.usePixelMetalnessThreshold) {
+            this.updateSelectionBasedOnMetalness();
         }
     }
 
@@ -236,21 +199,12 @@ class SelectiveSSRPass extends SSRPass {
         this.usePixelMetalnessThreshold = value;
 
         // 更新shader中的标志
-        if (this.ssrMaterial) {
-            // 确保uniform存在
-            if (!this.ssrMaterial.uniforms.usePixelMetalnessThreshold) {
-                this.ssrMaterial.uniforms.usePixelMetalnessThreshold = { value: value };
-                // 如果这是首次设置，可能需要再次修改着色器
-                this._modifySSRShader();
-            } else {
-                this.ssrMaterial.uniforms.usePixelMetalnessThreshold.value = value;
-            }
-            // 标记材质需要更新
-            this.ssrMaterial.needsUpdate = true;
+        if (this.ssrMaterial && this.ssrMaterial.uniforms.usePixelMetalnessThreshold) {
+            this.ssrMaterial.uniforms.usePixelMetalnessThreshold.value = value;
         }
 
         // 如果禁用像素级判断，但启用对象级判断，更新选择
-        if (!value && this.useMetalnessThreshold) {
+        if (!value && this.usePixelMetalnessThreshold) {
             this.updateSelectionBasedOnMetalness();
         }
     }
@@ -259,19 +213,11 @@ class SelectiveSSRPass extends SSRPass {
      * 根据金属度更新对象选择（对象级选择模式）
      */
     updateSelectionBasedOnMetalness() {
-        return
-        if (!this.scene) {
-            console.warn("SelectiveSSRPass: updateSelectionBasedOnMetalness无法执行 - 场景未设置");
-            return;
-        }
-
-        console.log("执行updateSelectionBasedOnMetalness，阈值:", this.metalnessThreshold);
+        if (!this.scene) return;
 
         // 清除当前选择
         this.selection.clear();
         this._processedObjects.clear();
-
-        let selectedCount = 0;
 
         // 遍历场景中的所有对象
         this.scene.traverse((object) => {
@@ -283,7 +229,6 @@ class SelectiveSSRPass extends SSRPass {
                 if (metalness >= this.metalnessThreshold) {
                     this.selection.add(object);
                     this._processedObjects.add(object);
-                    selectedCount++;
 
                     // 存储原始发光颜色并设置高亮
                     this._storeOriginalEmissive(object);
@@ -295,17 +240,6 @@ class SelectiveSSRPass extends SSRPass {
                 }
             }
         });
-
-        console.log(`金属度选择完成，选中了 ${selectedCount} 个对象`);
-
-        // 即使在像素级模式下，也更新shader中的参数，确保实时效果
-        if (this.ssrMaterial) {
-            this.ssrMaterial.uniforms['metalnessThreshold'].value = this.metalnessThreshold;
-            this.ssrMaterial.needsUpdate = true;
-        }
-
-        // 更新_selects数组以避免在renderMetalness中出错
-        this._selects = Array.from(this.selection);
     }
 
     /**
@@ -395,42 +329,16 @@ class SelectiveSSRPass extends SSRPass {
      * 覆盖原始渲染方法，添加选择性渲染逻辑
      * @override
      */
-    render(renderer, writeBuffer, readBuffer /*, readBuffer, deltaTime, maskActive */) {
+    render(renderer, writeBuffer /*, readBuffer, deltaTime, maskActive */) {
         // 如果启用了对象级金属度阈值检测，且未使用像素级判断
-        // if (this.useMetalnessThreshold && !this.usePixelMetalnessThreshold) {
+        // if (this.usePixelMetalnessThreshold) {
         //     this.updateSelectionBasedOnMetalness();
         // }
 
         // 在渲染前准备选择性渲染（仅在使用对象级选择时需要）
-        if (!this.usePixelMetalnessThreshold) {
-            this._prepareSelectionBeforeRender(this.scene);
-        }
-
-        // 确保SSR材质属性更新
-        if (this.ssrMaterial) {
-            this.ssrMaterial.uniforms['readBuffer'] = { value: readBuffer.texture };
-
-
-            // 确保所有所需的uniform都已创建
-            if (!this.ssrMaterial.uniforms['metalnessThreshold']) {
-                this.ssrMaterial.uniforms['metalnessThreshold'] = { value: this.metalnessThreshold };
-            }
-            if (!this.ssrMaterial.uniforms['usePixelMetalnessThreshold']) {
-                this.ssrMaterial.uniforms['usePixelMetalnessThreshold'] = { value: this.usePixelMetalnessThreshold };
-            }
-            if (!this.ssrMaterial.uniforms['debugMode']) {
-                this.ssrMaterial.uniforms['debugMode'] = { value: this.debugMode };
-            }
-            if (!this.ssrMaterial.uniforms['brightnessThreshold']) {
-                this.ssrMaterial.uniforms['brightnessThreshold'] = { value: this.brightnessThreshold };
-            }
-
-            // 设置uniform值
-            this.ssrMaterial.uniforms['metalnessThreshold'].value = this.metalnessThreshold;
-            this.ssrMaterial.uniforms['usePixelMetalnessThreshold'].value = this.usePixelMetalnessThreshold;
-            this.ssrMaterial.uniforms['debugMode'].value = this.debugMode;
-            this.ssrMaterial.uniforms['brightnessThreshold'].value = this.brightnessThreshold;
-        }
+        // if (!this.usePixelMetalnessThreshold) {
+        //     this._prepareSelectionBeforeRender(this.scene);
+        // }
 
         // render beauty and depth
         renderer.setRenderTarget(this.beautyRenderTarget);
@@ -445,21 +353,21 @@ class SelectiveSSRPass extends SSRPass {
         // renderer.render(this.scene, this.camera);
         if (this.groundReflector) this.groundReflector.visible = false;
 
-
         // render normals
         this.renderOverride(renderer, this.normalMaterial, this.normalRenderTarget, 0, 0);
-
-        // this.ssrMaterial.uniforms['readBuffer'].value = this..texture
 
         // 渲染金属度 - 这对像素级判断很重要
         // this.renderMetalness(renderer, this.metalnessOnMaterial, this.metalnessRenderTarget, 0, 0);
 
-        if (!this.ssrMaterial.uniforms['tMetalness']) {
-            this.ssrMaterial.uniforms['tMetalness'] = { value: this.metalnessRenderTarget.texture };
-        } else {
+        // 设置SSR材质的金属度相关参数
+        if (this.usePixelMetalnessThreshold) {
             this.ssrMaterial.uniforms['tMetalness'].value = this.metalnessRenderTarget.texture;
+            this.ssrMaterial.uniforms['metalnessThreshold'].value = this.metalnessThreshold;
+            this.ssrMaterial.uniforms['usePixelMetalnessThreshold'].value = true;
+        } else {
+            // 如果不使用像素级判断，禁用shader中的判断逻辑
+            this.ssrMaterial.uniforms['usePixelMetalnessThreshold'].value = false;
         }
-
 
         // 设置SSR材质的其他参数
         this.ssrMaterial.uniforms['opacity'].value = this.opacity;
@@ -557,24 +465,14 @@ class SelectiveSSRPass extends SSRPass {
                 this.copyMaterial.blending = NoBlending;
                 this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
                 break;
-            case SSRPass.OUTPUT.Brightness:
-                // 设置debugMode为1（亮度模式）
-                if (this.ssrMaterial.uniforms['debugMode']) {
-                    this.ssrMaterial.uniforms['debugMode'].value = 1;
-                }
-                // 使用SSR着色器但专门显示亮度
-                this.renderPass(renderer, this.ssrMaterial, this.renderToScreen ? null : writeBuffer);
-                // 恢复debugMode为0
-                if (this.ssrMaterial.uniforms['debugMode']) {
-                    this.ssrMaterial.uniforms['debugMode'].value = 0;
-                }
-                break;
             default:
                 console.warn('THREE.SSRPass: Unknown output type.');
         }
 
         // 在渲染后恢复对象的原始状态（仅在使用对象级选择时需要）
-
+        if (!this.usePixelMetalnessThreshold) {
+            this._restoreSelectionAfterRender();
+        }
     }
     renderOverride(renderer, overrideMaterial, renderTarget, clearColor, clearAlpha) {
 
@@ -597,9 +495,9 @@ class SelectiveSSRPass extends SSRPass {
         }
 
         this.scene.overrideMaterial = overrideMaterial;
+        renderer.shadowMap.autoUpdate = false
 
         renderer.render(this.scene, this.camera);
-
         this.scene.overrideMaterial = null;
 
         // restore original state
@@ -620,7 +518,21 @@ class SelectiveSSRPass extends SSRPass {
             this._selects = Array.from(this.selection);
         }
 
+        // 如果使用像素级金属度判断，使用标准方法处理
+        if (this.usePixelMetalnessThreshold) {
+            // 确保scene存在，避免在super.renderMetalness中出错
+            if (!this.scene) {
+                console.warn("SelectiveSSRPass: 场景未设置，无法渲染金属度");
+                return;
+            }
 
+            try {
+                super.renderMetalness(renderer, overrideMaterial, renderTarget, clearColor, clearAlpha);
+            } catch (error) {
+                console.error("SelectiveSSRPass: renderMetalness出错", error);
+            }
+            return;
+        }
 
         // 以下是对象级金属度判断的逻辑
         // 保存当前渲染器状态
@@ -645,39 +557,43 @@ class SelectiveSSRPass extends SSRPass {
         }
 
         // 临时保存材质和可见性
+        const visibilityCache = new Map();
         const materialCache = new Map();
 
-        // console.log('Log-- ', this.selection, 'this.selection');
-        this.selection.forEach((child) => {
-            // 保存原始信息
-            materialCache.set(child, child.material);
-            // 根据选择确定使用哪种金属度材质
-            child.material = this.metalnessOnMaterial;
-        })
+        // // 遍历场景，为选中的对象应用金属度材质
+        // this.scene.traverseVisible((child) => {
+        //     if (child.isMesh) {
+        //         // 保存原始信息
+        //         materialCache.set(child, child.material);
+        //         visibilityCache.set(child, child.visible);
+
+        //         // 根据选择确定使用哪种金属度材质
+        //         const isSelected = Array.isArray(this._selects) && this._selects.includes(child);
+        //         child.material = isSelected ? this.metalnessOnMaterial : this.metalnessOffMaterial;
+        //     }
+        // });
 
         // 渲染金属度
-        renderer.render(this.scene, this.camera);
+        // renderer.render(this.scene, this.camera);
 
-
-        this.selection.forEach((child) => {
-            child.material = materialCache.get(child);
-        })
+        // // 恢复场景状态
+        // this.scene.traverseVisible((child) => {
+        //     if (child.isMesh && materialCache.has(child)) {
+        //         child.material = materialCache.get(child);
+        //         child.visible = visibilityCache.get(child);
+        //     }
+        // });
 
         // 恢复渲染器状态
         renderer.setClearColor(this.originalClearColor, originalClearAlpha);
         renderer.autoClear = originalAutoClear;
     }
-
     /**
      * 在渲染前准备选择性渲染（对象级选择模式）
      * @private
      * @param {Scene} scene - 场景
      */
     _prepareSelectionBeforeRender(scene) {
-        // this.selection.forEach((object) => {
-        //     object.material.metalness = 1.0
-        // })
-        return
         // 清除缓存
         this._originalLayers.clear();
 
@@ -716,10 +632,10 @@ class SelectiveSSRPass extends SSRPass {
      */
     _restoreSelectionAfterRender() {
         // 恢复所有对象的原始图层和可见性
-        // for (const [object, mask] of this._originalLayers) {
-        //     object.layers.mask = mask;
-        //     object.visible = this._visibilityCache.get(object);
-        // }
+        for (const [object, mask] of this._originalLayers) {
+            object.layers.mask = mask;
+            object.visible = this._visibilityCache.get(object);
+        }
     }
 
     /**
@@ -728,7 +644,7 @@ class SelectiveSSRPass extends SSRPass {
      */
     setScene(scene) {
         this.scene = scene;
-        if (this.useMetalnessThreshold && !this.usePixelMetalnessThreshold) {
+        if (this.usePixelMetalnessThreshold) {
             this.updateSelectionBasedOnMetalness();
         }
         // 更新_selects以避免renderMetalness中的错误
@@ -810,6 +726,86 @@ class SelectiveSSRPass extends SSRPass {
     }
 
     /**
+     * 覆盖SSRPass的renderMetalness方法，考虑选择的对象
+     */
+    renderMetalness(renderer, overrideMaterial, renderTarget, clearColor, clearAlpha) {
+        // 确保_selects始终存在，防止undefined错误
+        if (!this._selects) {
+            this._selects = Array.from(this.selection);
+        }
+
+        // 如果使用像素级金属度判断，使用标准方法处理
+        if (this.usePixelMetalnessThreshold) {
+            // 确保scene存在，避免在super.renderMetalness中出错
+            if (!this.scene) {
+                console.warn("SelectiveSSRPass: 场景未设置，无法渲染金属度");
+                return;
+            }
+
+            try {
+                super.renderMetalness(renderer, overrideMaterial, renderTarget, clearColor, clearAlpha);
+            } catch (error) {
+                console.error("SelectiveSSRPass: renderMetalness出错", error);
+            }
+            return;
+        }
+
+        // 以下是对象级金属度判断的逻辑
+        // 保存当前渲染器状态
+        this.originalClearColor.copy(renderer.getClearColor(this.tempColor));
+        const originalClearAlpha = renderer.getClearAlpha(this.tempColor);
+        const originalAutoClear = renderer.autoClear;
+
+        renderer.setRenderTarget(renderTarget);
+
+        // 设置Pass状态
+        renderer.autoClear = false;
+        if ((clearColor !== undefined) && (clearColor !== null)) {
+            renderer.setClearColor(clearColor);
+            renderer.setClearAlpha(clearAlpha || 0.0);
+            renderer.clear();
+        }
+
+        // 确保scene存在
+        if (!this.scene) {
+            console.warn("SelectiveSSRPass: 场景未设置，无法渲染金属度");
+            return;
+        }
+
+        // 临时保存材质和可见性
+        const visibilityCache = new Map();
+        const materialCache = new Map();
+
+        // 遍历场景，为选中的对象应用金属度材质
+        this.scene.traverseVisible((child) => {
+            if (child.isMesh) {
+                // 保存原始信息
+                materialCache.set(child, child.material);
+                visibilityCache.set(child, child.visible);
+
+                // 根据选择确定使用哪种金属度材质
+                const isSelected = Array.isArray(this._selects) && this._selects.includes(child);
+                child.material = isSelected ? this.metalnessOnMaterial : this.metalnessOffMaterial;
+            }
+        });
+
+        // 渲染金属度
+        // renderer.render(this.scene, this.camera);
+
+        // 恢复场景状态
+        this.scene.traverseVisible((child) => {
+            if (child.isMesh && materialCache.has(child)) {
+                child.material = materialCache.get(child);
+                child.visible = visibilityCache.get(child);
+            }
+        });
+
+        // 恢复渲染器状态
+        renderer.setClearColor(this.originalClearColor, originalClearAlpha);
+        renderer.autoClear = originalAutoClear;
+    }
+
+    /**
      * 资源释放
      * @override
      */
@@ -828,4 +824,4 @@ class SelectiveSSRPass extends SSRPass {
     }
 }
 
-export { SelectiveSSRPass };
+export { SelectiveSSRPass }; 
