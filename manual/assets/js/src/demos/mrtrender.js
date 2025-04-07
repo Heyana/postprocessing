@@ -443,9 +443,9 @@ window.addEventListener("load", () => load().then((assets) => {
             MRTRenderPass.CHANNEL_COLOR,      // 颜色通道
             MRTRenderPass.CHANNEL_NORMAL,     // 法线通道
             MRTRenderPass.CHANNEL_DEPTH,      // 深度通道
-            MRTRenderPass.CHANNEL_POSITION,   // 世界位置通道
-            MRTRenderPass.CHANNEL_PBR,        // PBR属性通道
-            MRTRenderPass.CHANNEL_MOTION,     // 运动向量通道
+            MRTRenderPass.CHANNEL_ROUGHNESS,   // 世界位置通道
+            MRTRenderPass.CHANNEL_METALNESS,        // PBR属性通道
+            MRTRenderPass.CHANNEL_EMISSION,     // 运动向量通道
             MRTRenderPass.CHANNEL_ORIGINAL,   // 原始/正常画面通道 - 新增
             MRTRenderPass.CHANNEL_ID          // 对象ID通道
             // 如果需要单独的材质属性，请使用下面的配置（最多8个通道）
@@ -515,7 +515,6 @@ window.addEventListener("load", () => load().then((assets) => {
     });
 
     // 渲染标准视图的渲染通道
-    const renderPass = new RenderPass(scene, camera);
 
     // 创建一个自定义的着色器通道，用于显示不同的渲染目标
     const displayMaterial = new ShaderMaterial(createDisplayShader(mrtRenderPass.channels));
@@ -540,7 +539,6 @@ window.addEventListener("load", () => load().then((assets) => {
         "displayMode": 0,
         "rotateObjects": true,
         "multisampling": true,
-        "customChannels": false, // 是否使用自定义通道配置
         "splitView": false,      // 新增：是否启用分屏对比模式
         "splitPosition": 0.5     // 新增：分屏位置
     };
@@ -557,51 +555,7 @@ window.addEventListener("load", () => load().then((assets) => {
         displayMaterial.uniforms.displayMode.value = e.value;
     });
 
-    // 添加自定义通道配置开关
-    folder.addBinding(params, "customChannels", {
-        label: "使用自定义通道"
-    }).on("change", (e) => {
-        // 切换通道配置
-        if (e.value) {
-            // 使用自定义通道组合（单独的粗糙度/金属度，而不是PBR）
-            mrtRenderPass.channels = [
-                MRTRenderPass.CHANNEL_COLOR,
-                MRTRenderPass.CHANNEL_NORMAL,
-                MRTRenderPass.CHANNEL_DEPTH,
-                MRTRenderPass.CHANNEL_POSITION,
-                MRTRenderPass.CHANNEL_ROUGHNESS,
-                MRTRenderPass.CHANNEL_METALNESS,
-                MRTRenderPass.CHANNEL_AO,
-                MRTRenderPass.CHANNEL_ORIGINAL    // 保留原始/正常画面通道
-            ];
-        } else {
-            // 使用默认通道组合
-            mrtRenderPass.channels = [
-                MRTRenderPass.CHANNEL_COLOR,
-                MRTRenderPass.CHANNEL_NORMAL,
-                MRTRenderPass.CHANNEL_DEPTH,
-                MRTRenderPass.CHANNEL_POSITION,
-                MRTRenderPass.CHANNEL_PBR,
-                MRTRenderPass.CHANNEL_MOTION,
-                MRTRenderPass.CHANNEL_ORIGINAL,   // 保留原始/正常画面通道
-                MRTRenderPass.CHANNEL_ID
-            ];
-        }
 
-        // 强制重新初始化MRT渲染目标
-        mrtRenderPass.renderTargets = null;
-
-        // 强制刷新通道映射
-        mrtRenderPass.channelMap.clear();
-        for (let i = 0; i < Math.min(mrtRenderPass.channels.length, mrtRenderPass.outputCount); i++) {
-            mrtRenderPass.channelMap.set(mrtRenderPass.channels[i], i);
-        }
-
-        // 等下一帧更新UI
-        setTimeout(() => {
-            updateDisplayModeOptions(mrtRenderPass.getAvailableChannels());
-        }, 100);
-    });
 
     // 添加旋转控制
     folder.addBinding(params, "rotateObjects")
@@ -631,46 +585,7 @@ window.addEventListener("load", () => load().then((assets) => {
         displayMaterial.uniforms.splitPosition.value = e.value;
     });
 
-    // 添加键盘快捷键切换显示模式
-    window.addEventListener('keydown', (event) => {
-        // 数字键映射
-        const keyModeMap = {
-            '1': 0,  // 颜色
-            '2': 1,  // 法线
-            '3': 2,  // 深度
-            '4': 3,  // 位置
-            '5': 4,  // PBR
-            '6': 5,  // 粗糙度/运动
-            '7': 6,  // 金属度/发光
-            '8': 10, // ID
-            '9': 11, // 全部通道网格
-            '0': 12  // 原始画面
-        };
 
-        // 检查按键是否在映射中
-        if (event.key in keyModeMap) {
-            // 获取模式索引
-            const modeIndex = keyModeMap[event.key];
-
-            // 更新显示模式
-            params.displayMode = modeIndex;
-            displayMaterial.uniforms.displayMode.value = modeIndex;
-
-            // 刷新UI
-            const binding = folder.children.find(child =>
-                child.label === "显示通道" || child.label === "displayMode");
-            if (binding) binding.refresh();
-        } else if (event.key === 's' || event.key === 'S') {
-            // 切换分屏模式
-            params.splitView = !params.splitView;
-            displayMaterial.uniforms.splitView.value = params.splitView;
-
-            // 刷新UI
-            const binding = folder.children.find(child =>
-                child.label === "分屏对比模式" || child.label === "splitView");
-            if (binding) binding.refresh();
-        }
-    });
 
     // 窗口大小调整处理
     function onResize() {
