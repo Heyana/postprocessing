@@ -7,7 +7,6 @@ uniform sampler2D maskTexture;
 uniform float power;
 uniform vec3 color;
 uniform float brightnessThreshold; // 亮度阈值，超过此值将减少AO效果
-uniform float maskThreshold;       // 遮罩阈值，低于此值应用AO效果
 uniform int debugMode; // 调试模式: 0=正常, 1=显示亮度
 
 // 深度可视化参数
@@ -45,9 +44,8 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
     outputColor = vec4(vec3(pow(aoSample.a, power)), 1.0);
     return;
   } else if (debugMode == 4) {
-    // 遮罩可视化 - 增强对比度使黑色区域更明显
-    float isAoArea = maskValue <= maskThreshold ? 0.0 : 1.0; // 黑色区域(会应用AO)为0，其他区域为1
-    outputColor = vec4(vec3(isAoArea), 1.0);
+    // 遮罩可视化
+    outputColor = vec4(vec3(maskValue), 1.0);
     return;
   } else if (debugMode == 5) {
     // 深度(灰度)
@@ -87,13 +85,12 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   float aoStrength = clamp(1.0 - pow(perceptualBrightness / max(brightnessThreshold, 0.001), 0.5), 0.0, 1.0);
   ao = mix(1.0, ao, aoStrength);
   
-  // 遮罩处理 - 只在遮罩黑色区域应用AO
-  // 使用遮罩阈值来确定黑色区域
-  if (maskValue > maskThreshold) {
-    // 非黑色区域 - 不应用AO效果
+  // 应用遮罩 - 对遮罩值进行锐化处理，增强边缘对比
+  //float sharpMask = smoothstep(0.3, 0.7, maskValue);
+  
+  if(maskValue > 0.1){
     ao = 1.0;
   }
-  
   // 最终合成
   vec3 aoColor = mix(color, vec3(1.0), ao);
   aoColor *= inputColor.rgb;

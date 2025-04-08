@@ -12,14 +12,15 @@ const defaultAOOptions = {
     spp: 8,
     distance: 2,
     distancePower: 1,
-    power: 2,
+    power: 4,
     bias: 40,
     thickness: 0.075,
     color: new Color("black"),
     brightnessThreshold: 0.7,
+    maskThreshold: 0.01,  // 添加遮罩阈值参数
     debugMode: 0,
     ignoreSelection: null,
-    highlightValue: 0.8,
+    highlightValue: 1000,
     closeAutoUpdate: false,
     useNormalPass: false,
     velocityDepthNormalPass: null,
@@ -29,7 +30,7 @@ const defaultAOOptions = {
     ...PoissionDenoisePass.DefaultOptions
 };
 
-console.log('Log-- ', 0.02, 'SelectiveAOEffect');
+console.log('Log-- ', 0.06, 'SelectiveAOEffect');
 export class SelectiveAOEffect extends Effect {
     constructor(composer, camera, scene, aoPass, options = defaultAOOptions) {
         // 合并选项
@@ -49,6 +50,7 @@ export class SelectiveAOEffect extends Effect {
                 ["power", new Uniform(0)],
                 ["color", new Uniform(new Color("black"))],
                 ["brightnessThreshold", new Uniform(0.7)],
+                ["maskThreshold", new Uniform(0.01)],  // 添加遮罩阈值统一变量
                 ["debugMode", new Uniform(0)],
                 ["depthNear", new Uniform(0.1)],
                 ["depthFar", new Uniform(1000.0)]
@@ -102,9 +104,9 @@ export class SelectiveAOEffect extends Effect {
         this.depthMaskMaterial.depthPacking0 = BasicDepthPacking;
         this.depthMaskMaterial.depthBuffer1 = this.depthPass.texture; // 选中对象深度
         this.depthMaskMaterial.depthPacking1 = RGBADepthPacking;
-        this.depthMaskMaterial.depthMode = NotEqualDepth;             // 使用非等深度模式，默认情况下AO应用于未选中区域
+        this.depthMaskMaterial.depthMode = EqualDepth;                // 默认使用相等深度模式
         this.depthMaskMaterial.maxDepthStrategy = DepthTestStrategy.KEEP_MAX_DEPTH; // 默认保留背景
-        this.depthMaskMaterial.epsilon = 0.001;                       // 增加深度比较容差以改善匹配
+        this.depthMaskMaterial.epsilon = 0.00001;                     // 降低容差，使深度比较更精确
         this.depthMaskMaterial.blending = NoBlending;                 // 禁用混合
         this.depthMaskMaterial.transparent = false;                   // 禁用透明
         this.depthMaskMaterial.depthTest = false;                     // 禁用深度测试
@@ -498,7 +500,6 @@ export class SelectiveAOEffect extends Effect {
 
         // 获取选中对象
         const selection = this._ignoreSelection;
-
         try {
             // 1. 清理所有渲染目标
             this.clearAllRenderTargets(renderer);
@@ -509,20 +510,28 @@ export class SelectiveAOEffect extends Effect {
 
             // 3. 首先渲染选中对象的深度
             this.camera.layers.set(selection.layer);
+
+            selection.forEach(object => {
+                this.setObjectHighlight(object, true)
+            })
             this.depthPass.render(renderer);
 
             // 4. 恢复相机层
             this.camera.layers.mask = mask;
 
+
             // 5. 明确清理遮罩渲染目标
             renderer.setRenderTarget(this.renderTargetMask);
-            // renderer.clear(true, true, true);
+            renderer.clear(true, true, true);
 
             // 6. 使用深度遮罩材质渲染遮罩到renderTargetMask
             this.maskPass.render(renderer, inputBuffer, this.renderTargetMask);
 
             // 7. 恢复场景背景
             this.scene.background = background;
+            selection.forEach(object => {
+                this.setObjectHighlight(object, false)
+            })
 
             // 8. 设置AO效果的遮罩纹理
             this.aoPass.fullscreenMaterial.uniforms.maskTexture = {
@@ -531,12 +540,11 @@ export class SelectiveAOEffect extends Effect {
 
             // 9. 渲染AO效果
             renderer.setRenderTarget(this.aoPass.renderTarget);
-            // renderer.clear(true, true, true);
+            renderer.clear(true, true, true);
             this.aoPass.render(renderer);
 
             // 10. 对AO结果进行降噪
             renderer.setRenderTarget(this.poissionDenoisePass.renderTarget);
-            // renderer.clear(true, true, true);
             this.poissionDenoisePass.render(renderer);
 
             // 11. 设置最终AO纹理
@@ -775,7 +783,7 @@ export class SelectiveAOEffect extends Effect {
 
     set inverted(value) {
         this._inverted = value;
-        this.depthMaskMaterial.depthMode = value ? EqualDepth : NotEqualDepth;
+        this.depthMaskMaterial.depthMode = value ? NotEqualDepth : EqualDepth;
     }
 
     /**

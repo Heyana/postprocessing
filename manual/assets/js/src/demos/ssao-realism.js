@@ -589,7 +589,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	});
 
 	aoFolder.addBinding(ssaoEffect, "power", {
-		min: 0, max: 10, step: 0.1,
+		min: 0, max: 100, step: 0.1,
 		label: "AO强度"
 	});
 
@@ -825,7 +825,8 @@ window.addEventListener("load", () => load().then((assets) => {
 		debugMode: 0,
 		showInfo: true,
 		invertMask: false,
-		ignoreBackground: false
+		ignoreBackground: false,
+		maskThreshold: 0.01
 	};
 
 	debugFolder.addBinding(debugModes, "debugMode", {
@@ -879,6 +880,21 @@ window.addEventListener("load", () => load().then((assets) => {
 			}
 		} catch (error) {
 			console.error('设置背景忽略时出错:', error);
+		}
+	});
+
+	// 添加遮罩阈值控制
+	debugFolder.addBinding(debugModes, "maskThreshold", {
+		min: 0.001, max: 0.1, step: 0.001,
+		label: "遮罩阈值"
+	}).on("change", (e) => {
+		try {
+			if (ssaoEffect.maskThreshold !== undefined) {
+				ssaoEffect.maskThreshold = e.value;
+				console.log(`设置遮罩阈值为: ${e.value}`);
+			}
+		} catch (error) {
+			console.error('设置遮罩阈值时出错:', error);
 		}
 	});
 
