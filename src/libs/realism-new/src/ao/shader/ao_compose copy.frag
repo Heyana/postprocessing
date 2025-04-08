@@ -13,9 +13,6 @@ uniform int debugMode; // 调试模式: 0=正常, 1=显示亮度
 uniform float depthNear;
 uniform float depthFar;
 
-// AO增强因子 - 默认为1.0（不增强）
-#define AO_INTENSITY_BOOST 1.5
-
 // 忽略超亮物体的阈值
 #define IGNORE_BRIGHTNESS_THRESHOLD 20.0
 
@@ -77,9 +74,7 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   if (depth < 1.0) {
     vec4 aoSample = texture2D(inputTexture, uv);
     ao = aoSample.a;
-    
-    // 增强AO效果 - 将AO值推向更暗的区域
-    ao = pow(ao, power * AO_INTENSITY_BOOST);
+    ao = pow(ao, power);
   }
   
   // 根据亮度调整AO强度
@@ -88,11 +83,12 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   float aoStrength = clamp(1.0 - (perceptualBrightness / max(brightnessThreshold, 0.001)), 0.0, 1.0);
   ao = mix(1.0, ao, aoStrength);
   
-  // 应用遮罩到AO
-  float maskFactor = 1.0 - maskValue; // 反转遮罩，使1变为0（忽略），0变为1（应用AO）
-  
-  // 根据maskFactor调整AO强度 - maskFactor=1时保持原始AO效果，maskFactor=0时没有AO效果（等于1.0）
-  ao = mix(1.0, ao, maskFactor);
+  // 应用遮罩
+float depthTest = compareDepth(uv); // 获取深度比较结果
+
+float validMask = maskValue * depthTest; // 结合遮罩和深度测试
+
+ao = mix(1.0, ao, validMask); // 仅当两者都满足时应用遮罩
   
   // 最终合成
   vec3 aoColor = mix(color, vec3(1.0), ao);

@@ -169,9 +169,9 @@ export class MaskPass extends Pass {
 		buffers.stencil.setLocked(true);
 
 		// Clear the stencil.
-		if(this.clearPass.enabled) {
+		if (this.clearPass.enabled) {
 
-			if(this.renderToScreen) {
+			if (this.renderToScreen) {
 
 				clearPass.render(renderer, null);
 
@@ -185,7 +185,7 @@ export class MaskPass extends Pass {
 		}
 
 		// Draw the mask.
-		if(this.renderToScreen) {
+		if (this.renderToScreen) {
 
 			renderer.setRenderTarget(null);
 			renderer.render(scene, camera);

@@ -18,6 +18,7 @@ export {
 
 export * as  RealismNew from './realism-new/index'
 export { SSAOEffect as RSSAOEffect } from './realism-new/src/ao/SSAOEffect'
+export { SelectiveSSAOEffect } from './realism-new/src/ao/SelectiveSSAOEffect'
 export { MotionBlurEffect } from './realism-effects/src/motion-blur/MotionBlurEffect'
 export { VelocityPass } from './realism-effects/src/temporal-reproject/pass/VelocityPass'
 export { LensDistortionEffect } from './realism-effects/src/lens-distortion/LensDistortionEffect'

@@ -27,6 +27,7 @@ import {
 	RealismNew,
 	RenderPass,
 	RealismSSAOEffect,
+	SelectiveSSAOEffect,
 	RSSAOEffect,
 	Selection
 } from "postprocessing";
@@ -333,7 +334,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	// 后处理
 	const multisampling = Math.min(4, renderer.capabilities.maxSamples);
-	const composer = new EffectComposer(renderer, { multisampling });
+	const composer = new EffectComposer(renderer, { multisampling, });
 	composer.setMainScene(scene)
 
 	console.log('Log-- ', composer, 'composer');
@@ -347,7 +348,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	console.log('Log-- ', 'RealismSSAOEffect');
 	// 创建SSAO效果
-	const ssaoEffect = new RSSAOEffect(composer, camera, scene, {
+	const ssaoEffect = new SelectiveSSAOEffect(composer, camera, scene, {
 		// 基本参数
 		resolutionScale: 0.25,
 		color: new Color(0xFFFFFF).convertSRGBToLinear(),
@@ -822,7 +823,9 @@ window.addEventListener("load", () => load().then((assets) => {
 	// 调试模式选择器
 	const debugModes = {
 		debugMode: 0,
-		showInfo: true
+		showInfo: true,
+		invertMask: false,
+		ignoreBackground: false
 	};
 
 	debugFolder.addBinding(debugModes, "debugMode", {
@@ -830,7 +833,11 @@ window.addEventListener("load", () => load().then((assets) => {
 			"正常渲染": 0,
 			"亮度可视化": 1,
 			"AO强度可视化": 2,
-			"AO值可视化": 3
+			"AO值可视化": 3,
+			"遮罩可视化": 4,
+			"深度(灰度)": 5,
+			"深度(彩色)": 6,
+			"遮罩和深度对比": 7
 		},
 		label: "调试显示模式"
 	}).on("change", (e) => {
@@ -844,6 +851,34 @@ window.addEventListener("load", () => load().then((assets) => {
 			}
 		} catch (error) {
 			console.error('设置调试模式时出错:', error);
+		}
+	});
+
+	// 添加反转遮罩选项
+	debugFolder.addBinding(debugModes, "invertMask", {
+		label: "反转遮罩"
+	}).on("change", (e) => {
+		try {
+			if (ssaoEffect.inverted !== undefined) {
+				ssaoEffect.inverted = e.value;
+				console.log(`${e.value ? '启用' : '禁用'}遮罩反转`);
+			}
+		} catch (error) {
+			console.error('设置遮罩反转时出错:', error);
+		}
+	});
+
+	// 添加忽略背景选项
+	debugFolder.addBinding(debugModes, "ignoreBackground", {
+		label: "忽略背景"
+	}).on("change", (e) => {
+		try {
+			if (ssaoEffect.ignoreBackground !== undefined) {
+				ssaoEffect.ignoreBackground = e.value;
+				console.log(`${e.value ? '启用' : '禁用'}背景忽略`);
+			}
+		} catch (error) {
+			console.error('设置背景忽略时出错:', error);
 		}
 	});
 

@@ -1,7 +1,6 @@
 import { SSAOPass } from "../../index"
 import { Vector3 } from "run-scene-core"
-import { AOEffect } from "./AOEffect"
-
+import { SelectiveAOEffect } from "./SelectiveAOEffect"
 function getPointsOnSphere(n) {
     const points = [];
     const inc = Math.PI * (3 - Math.sqrt(5));
@@ -17,11 +16,11 @@ function getPointsOnSphere(n) {
     return points;
 }
 
-export class SSAOEffect extends AOEffect {
+export class SelectiveSSAOEffect extends SelectiveAOEffect {
     constructor(composer, camera, scene, options = {
     }) {
-        SSAOEffect.DefaultOptions = {
-            ...AOEffect.DefaultOptions,
+        SelectiveSSAOEffect.DefaultOptions = {
+            ...SelectiveAOEffect.DefaultOptions,
             ...{
                 spp: 16,
                 distance: 1,
@@ -30,7 +29,7 @@ export class SSAOEffect extends AOEffect {
             }
         };
         options = {
-            ...SSAOEffect.DefaultOptions,
+            ...SelectiveSSAOEffect.DefaultOptions,
             ...options
         };
         const aoPass = new SSAOPass(camera, scene);
