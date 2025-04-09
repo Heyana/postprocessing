@@ -838,7 +838,8 @@ window.addEventListener("load", () => load().then((assets) => {
 			"遮罩可视化": 4,
 			"深度(灰度)": 5,
 			"深度(彩色)": 6,
-			"遮罩和深度对比": 7
+			"遮罩和深度对比": 7,
+			"对象ID可视化": 8
 		},
 		label: "调试显示模式"
 	}).on("change", (e) => {
