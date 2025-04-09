@@ -2,7 +2,6 @@ uniform sampler2D inputTexture;  // AO的纹理
 uniform sampler2D inputBuffer;   // 原始场景的颜色纹理
 uniform sampler2D maskPass;   // 原始场景的颜色纹理
 
-uniform highp sampler2D depthPass1;
 uniform highp sampler2D depthTexture;
 uniform sampler2D maskTexture;
 uniform float power;
@@ -49,7 +48,7 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
     // 遮罩可视化 - 增强对比度使黑色区域更明显
     float depthGradient = length(vec2(dFdx(linearDepth), dFdy(linearDepth)));
     float isAoArea = maskValue <= maskThreshold ? 0.0 : 1.0; // 黑色区域(会应用AO)为0，其他区域为1
-    outputColor = vec4(vec3(maskValue), 1.0);
+    outputColor = vec4(vec3(maskValue >0.000001?1.0:0.0,1.0,inputColor.a), 1.0);
     return;
   } else if (debugMode == 5) {
     // 深度(灰度)

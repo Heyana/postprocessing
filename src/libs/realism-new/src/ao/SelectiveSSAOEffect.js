@@ -19,7 +19,7 @@ function getPointsOnSphere(n) {
 export class SelectiveSSAOEffect extends SelectiveAOEffect {
     constructor(composer, camera, scene, options = {
     }) {
-        SelectiveSSAOEffect.DefaultOptions = {
+        SelectiveAOEffect.DefaultOptions = {
             ...SelectiveAOEffect.DefaultOptions,
             ...{
                 spp: 16,

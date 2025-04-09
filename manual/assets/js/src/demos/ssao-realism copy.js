@@ -29,7 +29,6 @@ import {
 	RealismSSAOEffect,
 	SelectiveSSAOEffect,
 	RSSAOEffect,
-
 	Selection
 } from "postprocessing";
 import * as THREE from "three";
@@ -338,13 +337,6 @@ window.addEventListener("load", () => load().then((assets) => {
 	riggedSimple.scene.scale.multiplyScalar(0.3);
 	riggedSimple.scene.position.set(2, -1.5, -1);
 	riggedSimple.scene.rotation.y = -Math.PI / 4;
-	riggedSimple.scene.traverse((object) => {
-		if (object.isMesh) {
-			object.transparent = true;
-			// object.material.alphaTest = 0.5;
-			object.material.opacity = 0.5;
-		}
-	});
 	scene.add(riggedSimple.scene);
 
 	const tree = assets.get("tree");
@@ -863,8 +855,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			"遮罩可视化": 4,
 			"深度(灰度)": 5,
 			"深度(彩色)": 6,
-			"遮罩和深度对比": 7,
-			"模型ID可视化": 8
+			"遮罩和深度对比": 7
 		},
 		label: "调试显示模式"
 	}).on("change", (e) => {

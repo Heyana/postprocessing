@@ -30,7 +30,7 @@ const defaultAOOptions = {
     ...PoissionDenoisePass.DefaultOptions
 };
 
-console.log('Log-- ', 0.06, 'SelectiveAOEffect');
+console.log('Log-- ', 0.12, 'SelectiveAOEffect');
 export class SelectiveAOEffect extends Effect {
     constructor(composer, camera, scene, aoPass, options = defaultAOOptions) {
         // 合并选项
@@ -108,9 +108,9 @@ export class SelectiveAOEffect extends Effect {
         this.depthMaskMaterial.maxDepthStrategy = DepthTestStrategy.KEEP_MAX_DEPTH; // 默认保留背景
         this.depthMaskMaterial.epsilon = 0.00001;                     // 降低容差，使深度比较更精确
         this.depthMaskMaterial.blending = NoBlending;                 // 禁用混合
-        this.depthMaskMaterial.transparent = false;                   // 禁用透明
-        this.depthMaskMaterial.depthTest = false;                     // 禁用深度测试
-        this.depthMaskMaterial.depthWrite = false;                    // 禁用深度写入
+        this.depthMaskMaterial.transparent = true;                   // 禁用透明
+        this.depthMaskMaterial.depthTest = true;                     // 禁用深度测试
+        this.depthMaskMaterial.depthWrite = true;                    // 禁用深度写入
         this.depthMaskMaterial.needsUpdate = true;                    // 确保材质更新
 
         // 使用深度遮罩材质创建遮罩通道替代原来的RenderPass
@@ -455,7 +455,6 @@ export class SelectiveAOEffect extends Effect {
 
     update(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass) {
         // 准备场景 - 设置高亮对象等
-        this.prepareScene();
         if (!this.aoPass.fullscreenMaterial.uniforms.inputBuffer) {
             this.aoPass.fullscreenMaterial.uniforms.inputBuffer = {
                 value: null
@@ -511,10 +510,9 @@ export class SelectiveAOEffect extends Effect {
             // 3. 首先渲染选中对象的深度
             this.camera.layers.set(selection.layer);
 
-            selection.forEach(object => {
-                this.setObjectHighlight(object, true)
-            })
-            this.depthPass.render(renderer);
+
+            this.depthPass.render(renderer, inputBuffer);
+            this.aoPass.fullscreenMaterial.uniforms.depthPass1 = new Uniform(this.depthPass.texture)
 
             // 4. 恢复相机层
             this.camera.layers.mask = mask;
@@ -529,9 +527,7 @@ export class SelectiveAOEffect extends Effect {
 
             // 7. 恢复场景背景
             this.scene.background = background;
-            selection.forEach(object => {
-                this.setObjectHighlight(object, false)
-            })
+
 
             // 8. 设置AO效果的遮罩纹理
             this.aoPass.fullscreenMaterial.uniforms.maskTexture = {
@@ -557,7 +553,6 @@ export class SelectiveAOEffect extends Effect {
             renderer.setRenderTarget(currentRenderTarget);
 
             // 恢复场景状态
-            this.restoreScene();
         }
     }
 
