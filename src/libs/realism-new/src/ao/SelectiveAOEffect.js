@@ -1,11 +1,9 @@
-import { Effect, Selection, NormalPass, RenderPass, ClearPass, ShaderPass } from "postprocessing"
-import { Color, Uniform, Layers, WebGLRenderTarget, LinearFilter, HalfFloatType, NoBlending, DepthTexture, EqualDepth, NotEqualDepth, BasicDepthPacking, RGBADepthPacking, ShaderMaterial, Vector2 } from "three"
+import { Effect, Selection, NormalPass, RenderPass, ClearPass } from "postprocessing"
+import { Color, Uniform, Layers, WebGLRenderTarget, LinearFilter, HalfFloatType, NoBlending, DepthTexture, EqualDepth, NotEqualDepth, BasicDepthPacking, RGBADepthPacking } from "three"
 import { TRAAEffect } from '../../index'
 import ao_compose from './shader/ao_compose.frag'
-import object_id_frag from './shader/object_id.frag'
-import object_id_vert from './shader/object_id.vert'
 import { PoissionDenoisePass } from '../pass/PoissionDenoisePass'
-import { DepthComparisonMaterial, DepthPass } from "postprocessing"
+import { DepthComparisonMaterial, DepthPass, ShaderPass } from "postprocessing"
 import { DepthMaskMaterial } from "postprocessing"
 import { DepthTestStrategy } from "postprocessing"
 
@@ -49,11 +47,10 @@ export class SelectiveAOEffect extends Effect {
                 ["inputBuffer", new Uniform(null)],
                 ["depthTexture", new Uniform(null)],
                 ["maskTexture", new Uniform(null)],
-                ["objectIdTexture", new Uniform(null)],  // 添加对象ID纹理的uniform
                 ["power", new Uniform(0)],
                 ["color", new Uniform(new Color("black"))],
                 ["brightnessThreshold", new Uniform(0.7)],
-                ["maskThreshold", new Uniform(0.01)],
+                ["maskThreshold", new Uniform(0.01)],  // 添加遮罩阈值统一变量
                 ["debugMode", new Uniform(0)],
                 ["depthNear", new Uniform(0.1)],
                 ["depthFar", new Uniform(1000.0)]
@@ -168,18 +165,6 @@ export class SelectiveAOEffect extends Effect {
             console.error("降噪通道(PoissionDenoisePass)创建失败");
         }
 
-        // 创建对象ID渲染材质
-        this.objectIdMaterial = new ShaderMaterial({
-            uniforms: {
-                objectId: { value: 1.0 }
-            },
-            vertexShader: object_id_vert,
-            fragmentShader: object_id_frag,
-            depthTest: true,
-            depthWrite: false,
-            transparent: false
-        });
-
         // 使选项响应式
         this.makeOptionsReactive(options);
 
@@ -218,16 +203,6 @@ export class SelectiveAOEffect extends Effect {
         });
         this.renderTargetAO.texture.name = "AO.Target";
         this.renderTargetAO.depthTexture.name = "AO.Depth";
-
-        // 创建对象ID渲染目标
-        this.renderTargetObjectId = new WebGLRenderTarget(1, 1, {
-            minFilter: LinearFilter,
-            magFilter: LinearFilter,
-            type: HalfFloatType,
-            depthBuffer: false
-        });
-        this.renderTargetObjectId.texture.name = "AO.ObjectId";
-        this.uniforms.get("objectIdTexture").value = this.renderTargetObjectId.texture;
     }
 
     makeOptionsReactive(options) {
@@ -319,43 +294,60 @@ export class SelectiveAOEffect extends Effect {
     }
 
     setSize(width, height) {
-        // 记录分辨率变化
-        const resolutionScale = this.resolutionScale || 1.0;
-        this.lastSize = {
-            width,
-            height,
-            resolutionScale
-        };
+        if (width === undefined || height === undefined) return;
 
-        // 计算基于分辨率缩放的尺寸
-        const scaledWidth = Math.floor(width * resolutionScale);
-        const scaledHeight = Math.floor(height * resolutionScale);
+        if (width === this.lastSize.width && height === this.lastSize.height && this.resolutionScale === this.lastSize.resolutionScale) {
+            return;
+        }
+
+        // 更新法线通道尺寸
+        if (this.normalPass) {
+            this.normalPass.setSize(width, height);
+        }
 
         // 更新AO通道尺寸
-        // this.aoPass.resolution.setPreferredSize(scaledWidth, scaledHeight);
-        // this.aoPass.resolution.scale = resolutionScale;
-        this.aoPass.setSize(width, height);
+        if (this.aoPass) {
+            this.aoPass.setSize(width * this.resolutionScale, height * this.resolutionScale);
+        }
+
+        // 更新遮罩渲染目标尺寸
+        if (this.renderTargetMask) {
+            this.renderTargetMask.setSize(width * this.resolutionScale, height * this.resolutionScale);
+        }
 
         // 更新降噪通道尺寸
         if (this.poissionDenoisePass) {
-            this.poissionDenoisePass.setSize(scaledWidth, scaledHeight);
+            try {
+                this.poissionDenoisePass.setSize(width, height);
+                if (!this.poissionDenoisePass.renderTarget) {
+                    console.warn("调整大小后，PoissionDenoisePass的renderTarget仍然未定义");
+                }
+            } catch (error) {
+                console.error("设置PoissionDenoisePass大小时出错:", error);
+            }
         }
 
-        // 更新遮罩渲染目标
-        this.renderTargetMask.setSize(width, height);
-
-        // 更新对象ID渲染目标
-        this.renderTargetObjectId.setSize(width, height);
-
-        // 更新AO渲染目标
+        // 更新渲染目标尺寸
         if (this.renderTargetAO) {
-            this.renderTargetAO.setSize(width * resolutionScale, height * resolutionScale);
+            this.renderTargetAO.setSize(width * this.resolutionScale, height * this.resolutionScale);
         }
 
         // 更新深度通道尺寸
         if (this.depthPass) {
             this.depthPass.setSize(width, height);
         }
+
+        // 更新遮罩通道尺寸
+        if (this.maskPass) {
+            this.maskPass.setSize(width, height);
+        }
+
+        // 保存新尺寸
+        this.lastSize = {
+            width,
+            height,
+            resolutionScale: this.resolutionScale
+        };
     }
 
     // 获取Selection中的对象
@@ -430,9 +422,6 @@ export class SelectiveAOEffect extends Effect {
                     // 使用更高的值确保在所有情况下都被识别
                     object.material.emissive.set(2000, 2000, 2000);
                 }
-
-                // 为选中的对象设置特殊标记，用于对象ID渲染
-                object._isAoExcluded = true;
             }
         });
     }
@@ -530,65 +519,37 @@ export class SelectiveAOEffect extends Effect {
             // 4. 恢复相机层
             this.camera.layers.mask = mask;
 
-            // 5. 渲染对象ID纹理
-            renderer.setRenderTarget(this.renderTargetObjectId);
-            renderer.clear(true, true, true);
 
-            // 保存所有对象的原始材质
-            const objectMaterials = new Map();
-
-            // 将选中对象的材质替换为objectIdMaterial
-            selection.forEach(object => {
-                if (object && object.isMesh) {
-                    objectMaterials.set(object, object.material);
-                    object.material = this.objectIdMaterial;
-                }
-            });
-
-            // 渲染对象ID
-            renderer.render(this.scene, this.camera);
-
-            // 恢复原始材质
-            selection.forEach(object => {
-                if (object && object.isMesh && objectMaterials.has(object)) {
-                    object.material = objectMaterials.get(object);
-                }
-            });
-
-            // 6. 明确清理遮罩渲染目标
+            // 5. 明确清理遮罩渲染目标
             renderer.setRenderTarget(this.renderTargetMask);
             renderer.clear(true, true, true);
 
-            // 7. 使用深度遮罩材质渲染遮罩到renderTargetMask
+            // 6. 使用深度遮罩材质渲染遮罩到renderTargetMask
             this.maskPass.render(renderer, inputBuffer, this.renderTargetMask);
 
-            // 8. 恢复场景背景
+            // 7. 恢复场景背景
             this.scene.background = background;
             selection.forEach(object => {
                 this.setObjectHighlight(object, false)
             })
 
-            // 9. 设置AO效果的遮罩纹理和对象ID纹理
+            // 8. 设置AO效果的遮罩纹理
             this.aoPass.fullscreenMaterial.uniforms.maskTexture = {
                 value: this.renderTargetMask.texture
             }
-            this.aoPass.fullscreenMaterial.uniforms.objectIdTexture = {
-                value: this.renderTargetObjectId.texture
-            }
 
-            // 10. 渲染AO效果
+            // 9. 渲染AO效果
             renderer.setRenderTarget(this.aoPass.renderTarget);
             renderer.clear(true, true, true);
             this.aoPass.render(renderer);
 
-            // 11. 对AO结果进行降噪
+            // 10. 对AO结果进行降噪
             renderer.setRenderTarget(this.poissionDenoisePass.renderTarget);
             this.poissionDenoisePass.render(renderer);
 
-            // 12. 设置最终AO纹理
+            // 11. 设置最终AO纹理
             this.uniforms.get("inputTexture").value = this.poissionDenoisePass.texture;
             this.uniforms.get("inputBuffer").value = inputBuffer.texture;
-            this.uniforms.get("objectIdTexture").value = this.renderTargetObjectId.texture;
         } catch (error) {
             console.error("渲染AO效果时出错:", error);
         } finally {
@@ -610,7 +571,6 @@ export class SelectiveAOEffect extends Effect {
             const targets = [
                 this.renderTargetAO,
                 this.renderTargetMask,
-                this.renderTargetObjectId,  // 添加对象ID渲染目标
                 this.aoPass?.renderTarget,
                 this.poissionDenoisePass?.renderTarget
             ];

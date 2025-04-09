@@ -4,7 +4,6 @@ uniform sampler2D maskPass;   // 原始场景的颜色纹理
 
 uniform highp sampler2D depthTexture;
 uniform sampler2D maskTexture;
-uniform sampler2D objectIdTexture;  // 对象ID纹理
 uniform float power;
 uniform vec3 color;
 uniform float brightnessThreshold; // 亮度阈值，超过此值将减少AO效果
@@ -17,8 +16,6 @@ uniform float depthFar;
 
 // 忽略超亮物体的阈值
 #define IGNORE_BRIGHTNESS_THRESHOLD 20.0
-// 对象ID阈值 - 大于此值的像素被视为排除对象
-#define OBJECT_ID_THRESHOLD 0.5
 
 void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
   // 读取原始场景颜色
@@ -30,9 +27,6 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   
   // 读取遮罩值
   float maskValue = texture2D(maskTexture, uv).r;
-  
-  // 读取对象ID值
-  float objectId = texture2D(objectIdTexture, uv).r;
   
   // 根据调试模式显示不同信息
   if (debugMode == 1) {
@@ -74,17 +68,6 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
     vec3 depthColor = vec3(linearDepth);
     vec3 maskColor = vec3(maskValue);
     outputColor = vec4(mix(depthColor, maskColor, 0.5), 1.0);
-    return;
-  } else if (debugMode == 8) {
-    // 对象ID可视化
-    outputColor = vec4(vec3(objectId), 1.0);
-    return;
-  }
-  
-  // 检查是否是被排除的对象
-  if (objectId > OBJECT_ID_THRESHOLD) {
-    // 这是被排除的对象，不应用AO效果
-    outputColor = inputColor;
     return;
   }
   
