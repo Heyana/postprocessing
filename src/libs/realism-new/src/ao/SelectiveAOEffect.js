@@ -30,7 +30,7 @@ const defaultAOOptions = {
     ...PoissionDenoisePass.DefaultOptions
 };
 
-console.log('Log-- ', 0.16, 'SelectiveAOEffect');
+console.log('Log-- ', 0.18, 'SelectiveAOEffect');
 export class SelectiveAOEffect extends Effect {
     constructor(composer, camera, scene, aoPass, options = defaultAOOptions) {
         // 合并选项
@@ -105,6 +105,7 @@ export class SelectiveAOEffect extends Effect {
         this.depthMaskMaterial.depthBuffer1 = this.depthPass.texture; // 选中对象深度
         this.depthMaskMaterial.depthPacking1 = RGBADepthPacking;
         this.depthMaskMaterial.depthMode = THREE.EqualDepth;                // 默认使用相等深度模式
+        this.depthMaskMaterial.epsilon = 0.000009;                // 默认使用相等深度模式
 
         // 使用深度遮罩材质创建遮罩通道替代原来的RenderPass
         this.maskPass = new ShaderPass(this.depthMaskMaterial);

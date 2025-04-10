@@ -91,7 +91,7 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   
   // 遮罩处理 - 只在遮罩黑色区域应用AO
   // 使用遮罩阈值来确定黑色区域
-  if (maskValue > 0.000001){
+  if (maskValue < 0.000001){
     // 非黑色区域 - 不应用AO效果
     //ao = 1.0;
     outputColor =inputColor;
