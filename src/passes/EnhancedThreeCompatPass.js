@@ -149,26 +149,23 @@ export class EnhancedThreeCompatPass extends Pass {
                 if (this.threePass.beautyRenderTarget) {
                     // 在保持原有深度纹理的同时，确保颜色缓冲区使用输入缓冲区
                     // 而不是完全替换beautyRenderTarget，这样可以保留深度信息
-                    if (inputBuffer.depthTexture && this.threePass.setDepthTexture) {
-                        // 如果输入缓冲区有深度纹理且Pass支持设置深度纹理
-                        this.threePass.setDepthTexture(inputBuffer.depthTexture);
-                    } else {
-                        // 仅更新颜色纹理引用，保留原有深度纹理
-                        const originalDepthTexture = this.threePass.beautyRenderTarget.depthTexture;
-                        // 临时保存原始beautyRenderTarget以便后续恢复
-                        const originalBeautyTarget = this.threePass.beautyRenderTarget;
 
-                        // 使用输入缓冲区作为beautyRenderTarget
-                        this.threePass.beautyRenderTarget = inputBuffer;
 
-                        // 确保SSR材质使用正确的深度纹理
-                        if (this.threePass.ssrMaterial) {
-                            if (inputBuffer.depthTexture) {
-                                this.threePass.ssrMaterial.uniforms['tDepth'].value = inputBuffer.depthTexture;
-                            } else if (originalDepthTexture) {
-                                // 如果输入缓冲区没有深度纹理，继续使用原始深度纹理
-                                this.threePass.ssrMaterial.uniforms['tDepth'].value = originalDepthTexture;
-                            }
+                    // 仅更新颜色纹理引用，保留原有深度纹理
+                    const originalDepthTexture = this.threePass.beautyRenderTarget.depthTexture;
+                    // 临时保存原始beautyRenderTarget以便后续恢复
+                    const originalBeautyTarget = this.threePass.beautyRenderTarget;
+
+                    // 使用输入缓冲区作为beautyRenderTarget
+                    this.threePass.beautyRenderTarget = inputBuffer;
+
+                    // 确保SSR材质使用正确的深度纹理
+                    if (this.threePass.ssrMaterial) {
+                        if (inputBuffer.depthTexture) {
+                            this.threePass.ssrMaterial.uniforms['tDepth'].value = inputBuffer.depthTexture;
+                        } else if (originalDepthTexture) {
+                            // 如果输入缓冲区没有深度纹理，继续使用原始深度纹理
+                            this.threePass.ssrMaterial.uniforms['tDepth'].value = originalDepthTexture;
                         }
                     }
                 }

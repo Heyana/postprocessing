@@ -278,7 +278,11 @@ export class SelectiveBloomEffect extends BloomEffect {
 	 */
 
 	update(renderer, inputBuffer, deltaTime, depthPass) {
-
+		//准备修改
+		// if (this.scene) {
+		// 	const oldMatrixAutoUpdate = this.scene.matrixWorldAutoUpdate;
+		// 	this.scene.matrixWorldAutoUpdate = false
+		// }
 		const camera = this.camera;
 		const selection = this.selection;
 		const inverted = this.inverted;
@@ -329,6 +333,8 @@ export class SelectiveBloomEffect extends BloomEffect {
 		timeEndLog("SelectiveBloomEffect.update.superUpdate");
 
 		timeEndLog("SelectiveBloomEffect.update");
+		//准备修改
+		// this.scene.matrixWorldAutoUpdate = oldMatrixAutoUpdate;
 	}
 
 	/**

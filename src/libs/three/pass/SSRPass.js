@@ -712,25 +712,19 @@ class SSRPass extends Pass {
 	 * @param {number} [refreshFrames=1] - 刷新帧数，默认为1
 	 * @returns {Promise} 返回一个Promise，当刷新完成时解析
 	 */
+	refring = false
 	refreshReflection() {
-
-
+		if (this.refring) return;
+		this.refring = true
 		// 保存原始状态
-		const originalBouncing = this._bouncing;
-
-
+		const oldBouncing = this._bouncing;
 		this.setBouncing(true);
 		// 强制更新材质
 		setTimeout(() => {
-			this.setBouncing(originalBouncing);
-
+			this.setBouncing(oldBouncing);
+			this.refring = false
 		})
-
-
 		// 渲染指定的帧数
-
-
-
 		// 开始刷新渲染
 	}
 	setBouncing(val) {

@@ -1,346 +1,399 @@
-import { SSRPass } from './SSRPass.js';
-import { Selection } from '../../../core/Selection.js';
 import {
-    NoBlending,
-    NormalBlending,
-    ShaderMaterial,
+    AddEquation,
     Color,
+    NormalBlending,
+    DepthTexture,
+    SrcAlphaFactor,
+    OneMinusSrcAlphaFactor,
+    MeshNormalMaterial,
+    MeshBasicMaterial,
+    NearestFilter,
+    NoBlending,
+    ShaderMaterial,
+    UniformsUtils,
+    UnsignedShortType,
+    WebGLRenderTarget,
+    HalfFloatType,
+    RGBADepthPacking,
+    BasicDepthPacking,
+    EqualDepth,
+    NotEqualDepth,
+    Layers,
     Uniform,
-    FrontSide,
-    Vector2,
-    ShaderLib,
-    UniformsUtils
 } from 'three';
+import { Pass, FullScreenQuad } from './Pass.js';
+import { SSRShader, SSRBlurShader, SSRDepthShader } from '../shaders/SelectiveSSRShader.js';
+import { CopyShader } from '../shaders/CopyShader.js';
+// 导入Selection类，用于管理选中对象
+import { Selection } from 'postprocessing';
+// 导入DepthMaskMaterial和DepthPass
+import { DepthMaskMaterial, DepthPass, ShaderPass } from 'postprocessing';
+// 导入深度测试策略
+import { DepthTestStrategy } from 'postprocessing';
+console.log('Log-- ', 1.2, 'SSRPass');
+class SelectiveSSRPass extends Pass {
 
-/**
- * SelectiveSSRPass - 选择性屏幕空间反射通道
- * 
- * 这个通道继承自SSRPass，但增加了选择性功能，可以基于金属度阈值自动选择哪些像素需要渲染SSR效果，
- * 从而提高性能，避免对所有场景对象进行处理。
- * 
- * 支持两种工作模式：
- * 1. 对象级选择：使用Selection类选择特定对象应用SSR
- * 2. 像素级判断：在shader中基于金属度值判断每个像素是否应用SSR
- */
-class SelectiveSSRPass extends SSRPass {
-    /**
-     * 构造函数
-     * @param {Object} options - 配置参数
-     * @param {WebGLRenderer} options.renderer - WebGL渲染器
-     * @param {Scene} options.scene - 渲染场景
-     * @param {Camera} options.camera - 摄像机
-     * @param {Object[]} [options.selects] - 选择的对象（对象级选择模式）
-     * @param {number} [options.width=window.innerWidth] - 宽度
-     * @param {number} [options.height=window.innerHeight] - 高度
-     * @param {number} [options.selectionLayer=10] - 选择层
-     * @param {boolean} [options.usePixelMetalnessThreshold=false] - 是否使用像素级金属度判断
-     * @param {number} [options.metalnessThreshold=0.5] - 金属度阈值（仅在usePixelMetalnessThreshold为true时使用）
-     */
-    constructor(options) {
-        super(options);
+    constructor({ renderer, scene, camera, width, height, selection, bouncing = false, groundReflector, composer }) {
 
-        // 初始化this._selects数组，防止renderMetalness方法中出现undefined错误
-        this._selects = options.selects || [];
+        super();
 
-        // 选择对象的集合 - 修复：使用undefined而不是null，因为Selection期望可迭代对象或undefined
-        this.selection = new Selection(undefined, options.selectionLayer || 10);
+        this.width = (width !== undefined) ? width : 512;
+        this.height = (height !== undefined) ? height : 512;
 
-        // 是否反转选择
-        this.inverted = false;
+        this.clear = true;
 
-        // 是否忽略背景
-        this.ignoreBackground = false;
+        this.renderer = renderer;
+        this.scene = scene;
+        this.camera = camera;
+        this.composer = composer;
+        this.groundReflector = groundReflector;
 
-        // 高亮颜色 - 用于指示被选中的对象
-        this.highlightColor = new Color(0x333333);
+        this.opacity = SSRShader.uniforms.opacity.value;
+        this.output = 0;
 
-        // 是否使用像素级金属度判断（在着色器中判断）
-        this.usePixelMetalnessThreshold = options.usePixelMetalnessThreshold !== undefined ? options.usePixelMetalnessThreshold : false;
+        this.maxDistance = SSRShader.uniforms.maxDistance.value;
+        this.thickness = SSRShader.uniforms.thickness.value;
+        this.reflectionStrength = SSRShader.uniforms.reflectionStrength.value;
 
-        // 金属度阈值 - 仅在usePixelMetalnessThreshold为true时使用
-        this.metalnessThreshold = options.metalnessThreshold !== undefined ? options.metalnessThreshold : 0.5;
+        this.tempColor = new Color();
 
-        // 创建用于渲染金属度的材质
-        this._createMetalnessDetectionMaterial();
+        // 添加外部深度纹理支持
+        this.externalDepthTexture = null;
+        this.useExternalDepth = false;
 
-        // 修改SSR着色器以支持像素级金属度判断
-        if (this.usePixelMetalnessThreshold) {
-            this._modifySSRShader();
-        }
+        // 替换selects为selection
+        this._selection = selection || new Selection();
+        this.selective = true; // 始终启用选择性
 
-        // 记录原始图层
-        this._originalLayers = new Map();
 
-        // 记录对象可见性
-        this._visibilityCache = new Map();
+        this._bouncing = bouncing;
+        Object.defineProperty(this, 'bouncing', {
+            get() {
 
-        // 记录原始自发光颜色
-        this._originalEmissive = new Map();
-        this._originalIntensity = new Map();
+                return this._bouncing;
 
-        // 初始化已处理对象集合
-        this._processedObjects = new Set();
-
-        // 初始化场景引用
-        this.scene = options.scene || null;
-    }
-
-    /**
-     * 创建金属度检测材质
-     * @private
-     */
-    _createMetalnessDetectionMaterial() {
-        // 金属度检测着色器
-        this.metalnessDetectionMaterial = new ShaderMaterial({
-            uniforms: {
-                metalnessThreshold: new Uniform(this.metalnessThreshold)
             },
-            vertexShader: `
-                varying vec2 vUv;
-                void main() {
-                    vUv = uv;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            set(val) {
+
+
+                this.setBouncing(val);
+
+            }
+        });
+
+        this.blur = true;
+
+        this._distanceAttenuation = SSRShader.defines.DISTANCE_ATTENUATION;
+        Object.defineProperty(this, 'distanceAttenuation', {
+            get() {
+
+                return this._distanceAttenuation;
+
+            },
+            set(val) {
+
+                if (this._distanceAttenuation === val) return;
+                this._distanceAttenuation = val;
+                this.ssrMaterial.defines.DISTANCE_ATTENUATION = val;
+                this.ssrMaterial.needsUpdate = true;
+
+            }
+        });
+
+
+        this._fresnel = SSRShader.defines.FRESNEL;
+        Object.defineProperty(this, 'fresnel', {
+            get() {
+
+                return this._fresnel;
+
+            },
+            set(val) {
+
+                if (this._fresnel === val) return;
+                this._fresnel = val;
+                this.ssrMaterial.defines.FRESNEL = val;
+                this.ssrMaterial.needsUpdate = true;
+
+            }
+        });
+
+        this._infiniteThick = SSRShader.defines.INFINITE_THICK;
+        Object.defineProperty(this, 'infiniteThick', {
+            get() {
+
+                return this._infiniteThick;
+
+            },
+            set(val) {
+
+                if (this._infiniteThick === val) return;
+                this._infiniteThick = val;
+                this.ssrMaterial.defines.INFINITE_THICK = val;
+                this.ssrMaterial.needsUpdate = true;
+
+            }
+        });
+
+        // 反射强度属性
+        this._reflectionStrength = SSRShader.uniforms.reflectionStrength.value;
+        Object.defineProperty(this, 'reflectionStrength', {
+            get() {
+                return this._reflectionStrength;
+            },
+            set(val) {
+                if (this._reflectionStrength === val) return;
+                this._reflectionStrength = val;
+                if (this.ssrMaterial) {
+                    this.ssrMaterial.uniforms['reflectionStrength'].value = val;
                 }
-            `,
-            fragmentShader: `
-                uniform float metalnessThreshold;
-                varying vec2 vUv;
-                
-                // 从材质属性中获取金属度
-                // 实际使用时，您需要将对象的金属度值传递给这个shader
-                void main() {
-                    // 这里是示例逻辑，实际实现中您需要访问材质的金属度值
-                    float metalness = 0.0; // 这个值应该由材质提供
-                    
-                    // 如果金属度超过阈值，输出白色，否则输出黑色
-                    if(metalness >= metalnessThreshold) {
-                        gl_FragColor = vec4(1.0);
-                    } else {
-                        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-                    }
-                }
-            `,
-            side: FrontSide,
+            }
+        });
+
+        // beauty render target with depth buffer
+
+        const depthTexture = new DepthTexture();
+        depthTexture.type = UnsignedShortType;
+        depthTexture.minFilter = NearestFilter;
+        depthTexture.magFilter = NearestFilter;
+
+        this.beautyRenderTarget = new WebGLRenderTarget(this.width, this.height, {
+            minFilter: NearestFilter,
+            magFilter: NearestFilter,
+            type: HalfFloatType,
+            depthTexture: depthTexture,
+            depthBuffer: true
+        });
+
+        //for bouncing
+        this.prevRenderTarget = new WebGLRenderTarget(this.width, this.height, {
+            minFilter: NearestFilter,
+            magFilter: NearestFilter
+        });
+
+        // normal render target
+
+        this.normalRenderTarget = new WebGLRenderTarget(this.width, this.height, {
+            minFilter: NearestFilter,
+            magFilter: NearestFilter,
+            type: HalfFloatType,
+        });
+
+        // metalness render target
+
+        this.metalnessRenderTarget = new WebGLRenderTarget(this.width, this.height, {
+            minFilter: NearestFilter,
+            magFilter: NearestFilter,
+            type: HalfFloatType,
+        });
+
+
+
+        // ssr render target
+
+        this.ssrRenderTarget = new WebGLRenderTarget(this.width, this.height, {
+            minFilter: NearestFilter,
+            magFilter: NearestFilter
+        });
+
+        this.blurRenderTarget = this.ssrRenderTarget.clone();
+        this.blurRenderTarget2 = this.ssrRenderTarget.clone();
+        // this.blurRenderTarget3 = this.ssrRenderTarget.clone();
+
+        // ssr material
+
+        this.ssrMaterial = new ShaderMaterial({
+            defines: Object.assign({}, SSRShader.defines, {
+                MAX_STEP: Math.sqrt(this.width * this.width + this.height * this.height)
+            }),
+            uniforms: UniformsUtils.clone(SSRShader.uniforms),
+            vertexShader: SSRShader.vertexShader,
+            fragmentShader: SSRShader.fragmentShader,
             blending: NoBlending
         });
-    }
 
-    /**
-     * 修改SSR着色器，添加金属度阈值判断
-     * @private
-     */
-    _modifySSRShader() {
-        // 确保ssrMaterial已创建
-        if (!this.ssrMaterial) return;
+        if (!composer.depthTexture) composer.createDepthTexture();
+        this.ssrMaterial.uniforms['depthTexture'] = new Uniform(composer.depthTexture)
+        console.log('Log-- ', composer.depthTexture, 'composer.depthTexture');
+        // this.uniforms.get("depthTexture").value = composer.depthTexture;
 
-        // 添加金属度相关uniform
-        this.ssrMaterial.uniforms.tMetalness = { value: null };
-        this.ssrMaterial.uniforms.metalnessThreshold = { value: this.metalnessThreshold };
-        this.ssrMaterial.uniforms.usePixelMetalnessThreshold = { value: this.usePixelMetalnessThreshold };
-
-        // 获取原始fragment shader代码
-        const originalFragmentShader = this.ssrMaterial.fragmentShader;
-
-        // 添加金属度uniform声明
-        let modifiedShader = originalFragmentShader.replace(
-            'uniform sampler2D tNormal;',
-            'uniform sampler2D tNormal;\nuniform float metalnessThreshold;\nuniform bool usePixelMetalnessThreshold;'
-        );
-
-        // 在main函数开始处添加金属度检查
-        modifiedShader = modifiedShader.replace(
-            'void main() {',
-            `void main() {
-    // 如果启用像素级金属度判断，先检查当前像素的金属度
-    if(usePixelMetalnessThreshold) {
-        vec4 metalSample = texture2D(tMetalness, vUv);
-        float metalness = metalSample.r; // 金属度通常存储在R通道
-        
-        // 如果金属度低于阈值，直接返回无反射
-        if(metalness < metalnessThreshold) {
-            gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
-            return;
-        }
-    }`
-        );
-
-        // 应用修改后的着色器代码
-        this.ssrMaterial.fragmentShader = modifiedShader;
+        this.ssrMaterial.uniforms['tDiffuse'].value = this.beautyRenderTarget.texture;
+        this.ssrMaterial.uniforms['tNormal'].value = this.normalRenderTarget.texture;
+        this.ssrMaterial.defines.SELECTIVE = this.selective;
         this.ssrMaterial.needsUpdate = true;
-    }
+        this.ssrMaterial.uniforms['tMetalness'].value = this.metalnessRenderTarget.texture;
+        this.ssrMaterial.uniforms['tDepth'].value = this.beautyRenderTarget.depthTexture;
+        this.ssrMaterial.uniforms['cameraNear'].value = this.camera.near;
+        this.ssrMaterial.uniforms['cameraFar'].value = this.camera.far;
+        this.ssrMaterial.uniforms['thickness'].value = this.thickness;
+        this.ssrMaterial.uniforms['resolution'].value.set(this.width, this.height);
+        this.ssrMaterial.uniforms['cameraProjectionMatrix'].value.copy(this.camera.projectionMatrix);
+        this.ssrMaterial.uniforms['cameraInverseProjectionMatrix'].value.copy(this.camera.projectionMatrixInverse);
+        this.ssrMaterial.uniforms['reflectionStrength'].value = this.reflectionStrength;
 
-    /**
-     * 更新金属度阈值
-     * @param {Number} value - 新的金属度阈值
-     */
-    setMetalnessThreshold(value) {
-        this.metalnessThreshold = value;
 
-        // 更新shader中的阈值
-        if (this.ssrMaterial && this.ssrMaterial.uniforms.metalnessThreshold) {
-            this.ssrMaterial.uniforms.metalnessThreshold.value = value;
-        }
-
-        if (this.metalnessDetectionMaterial) {
-            this.metalnessDetectionMaterial.uniforms.metalnessThreshold.value = value;
-        }
-
-        // 重新检测场景中的对象（对象级检测）
-        if (this.usePixelMetalnessThreshold) {
-            this.updateSelectionBasedOnMetalness();
-        }
-    }
-
-    /**
-     * 设置是否使用像素级金属度判断
-     * @param {Boolean} value - 是否启用像素级判断
-     */
-    setUsePixelMetalnessThreshold(value) {
-        this.usePixelMetalnessThreshold = value;
-
-        // 更新shader中的标志
-        if (this.ssrMaterial && this.ssrMaterial.uniforms.usePixelMetalnessThreshold) {
-            this.ssrMaterial.uniforms.usePixelMetalnessThreshold.value = value;
-        }
-
-        // 如果禁用像素级判断，但启用对象级判断，更新选择
-        if (!value && this.usePixelMetalnessThreshold) {
-            this.updateSelectionBasedOnMetalness();
-        }
-    }
-
-    /**
-     * 根据金属度更新对象选择（对象级选择模式）
-     */
-    updateSelectionBasedOnMetalness() {
-        if (!this.scene) return;
-
-        // 清除当前选择
-        this.selection.clear();
-        this._processedObjects.clear();
-
-        // 遍历场景中的所有对象
-        this.scene.traverse((object) => {
-            if (object.isMesh && object.material) {
-                // 检查对象的金属度
-                const metalness = this._getObjectMetalness(object);
-
-                // 如果金属度超过阈值，则添加到选择中
-                if (metalness >= this.metalnessThreshold) {
-                    this.selection.add(object);
-                    this._processedObjects.add(object);
-
-                    // 存储原始发光颜色并设置高亮
-                    this._storeOriginalEmissive(object);
-                    this._setObjectHighlight(object, true);
-                } else if (this._processedObjects.has(object)) {
-                    // 如果之前处理过但现在不符合条件，移除高亮
-                    this._setObjectHighlight(object, false);
-                    this._processedObjects.delete(object);
-                }
-            }
+        // 创建遮罩渲染目标
+        this.renderTargetMask = new WebGLRenderTarget(this.width, this.height, {
+            minFilter: NearestFilter,
+            magFilter: NearestFilter,
+            type: HalfFloatType,
+            depthBuffer: true
         });
+        this.renderTargetMask.texture.name = "SSR.Mask";
+
+        // 创建深度通道
+        this.depthPass = new DepthPass(scene, camera);
+
+        // 创建深度遮罩材质
+        this.depthMaskMaterial = new DepthMaskMaterial();
+        this.depthMaskMaterial.copyCameraSettings(camera);
+        this.depthMaskMaterial.depthBuffer0 = composer.depthTexture;  // 场景深度
+        this.depthMaskMaterial.depthPacking0 = BasicDepthPacking; // BasicDepthPacking
+        this.depthMaskMaterial.depthBuffer1 = this.depthPass.texture; // 选中对象深度
+        this.depthMaskMaterial.depthPacking1 = RGBADepthPacking; // RGBADepthPacking
+        this.depthMaskMaterial.depthMode = EqualDepth; // 默认使用相等深度模式
+        // this.depthMaskMaterial.epsilon = 0.000009; // 深度比较容差
+
+        // 使用深度遮罩材质创建遮罩通道
+        this.maskPass = new ShaderPass(this.depthMaskMaterial);
+        this.maskPass.clear = true; // 确保渲染之前清理目标
+
+        // 反转遮罩和忽略背景选项
+        this._inverted = false;
+        this._ignoreBackground = false;
+
+        // normal material
+
+        this.normalMaterial = new MeshNormalMaterial();
+        this.normalMaterial.blending = NoBlending;
+
+        // metalnessOn material
+
+        this.metalnessOnMaterial = new MeshBasicMaterial({
+            color: 'white'
+        });
+
+        // metalnessOff material
+
+        this.metalnessOffMaterial = new MeshBasicMaterial({
+            color: 'black'
+        });
+
+        // blur material
+
+        this.blurMaterial = new ShaderMaterial({
+            defines: Object.assign({}, SSRBlurShader.defines),
+            uniforms: UniformsUtils.clone(SSRBlurShader.uniforms),
+            vertexShader: SSRBlurShader.vertexShader,
+            fragmentShader: SSRBlurShader.fragmentShader
+        });
+        this.blurMaterial.uniforms['tDiffuse'].value = this.ssrRenderTarget.texture;
+        this.blurMaterial.uniforms['resolution'].value.set(this.width, this.height);
+
+        // blur material 2
+
+        this.blurMaterial2 = new ShaderMaterial({
+            defines: Object.assign({}, SSRBlurShader.defines),
+            uniforms: UniformsUtils.clone(SSRBlurShader.uniforms),
+            vertexShader: SSRBlurShader.vertexShader,
+            fragmentShader: SSRBlurShader.fragmentShader
+        });
+        this.blurMaterial2.uniforms['tDiffuse'].value = this.blurRenderTarget.texture;
+        this.blurMaterial2.uniforms['resolution'].value.set(this.width, this.height);
+
+        // // blur material 3
+
+        // this.blurMaterial3 = new ShaderMaterial({
+        //   defines: Object.assign({}, SSRBlurShader.defines),
+        //   uniforms: UniformsUtils.clone(SSRBlurShader.uniforms),
+        //   vertexShader: SSRBlurShader.vertexShader,
+        //   fragmentShader: SSRBlurShader.fragmentShader
+        // });
+        // this.blurMaterial3.uniforms['tDiffuse'].value = this.blurRenderTarget2.texture;
+        // this.blurMaterial3.uniforms['resolution'].value.set(this.width, this.height);
+
+        // material for rendering the depth
+
+        this.depthRenderMaterial = new ShaderMaterial({
+            defines: Object.assign({}, SSRDepthShader.defines),
+            uniforms: UniformsUtils.clone(SSRDepthShader.uniforms),
+            vertexShader: SSRDepthShader.vertexShader,
+            fragmentShader: SSRDepthShader.fragmentShader,
+            blending: NoBlending
+        });
+        this.depthRenderMaterial.uniforms['tDepth'].value = this.beautyRenderTarget.depthTexture;
+        this.depthRenderMaterial.uniforms['cameraNear'].value = this.camera.near;
+        this.depthRenderMaterial.uniforms['cameraFar'].value = this.camera.far;
+
+        // material for rendering the content of a render target
+
+        this.copyMaterial = new ShaderMaterial({
+            uniforms: UniformsUtils.clone(CopyShader.uniforms),
+            vertexShader: CopyShader.vertexShader,
+            fragmentShader: CopyShader.fragmentShader,
+            transparent: true,
+            depthTest: false,
+            depthWrite: false,
+            blendSrc: SrcAlphaFactor,
+            blendDst: OneMinusSrcAlphaFactor,
+            blendEquation: AddEquation,
+            blendSrcAlpha: SrcAlphaFactor,
+            blendDstAlpha: OneMinusSrcAlphaFactor,
+            blendEquationAlpha: AddEquation,
+            // premultipliedAlpha:true,
+        });
+
+        this.fsQuad = new FullScreenQuad(null);
+
+        this.originalClearColor = new Color();
+
     }
 
-    /**
-     * 获取对象的金属度值
-     * @private
-     * @param {Object3D} object - 三维对象
-     * @return {Number} 金属度值
-     */
-    _getObjectMetalness(object) {
-        if (!object.material) return 0;
+    dispose() {
 
-        // 处理数组材质
-        if (Array.isArray(object.material)) {
-            let maxMetalness = 0;
-            for (const material of object.material) {
-                if (material.metalness !== undefined) {
-                    maxMetalness = Math.max(maxMetalness, material.metalness);
-                }
-            }
-            return maxMetalness;
-        }
+        // dispose render targets
 
-        // 处理单个材质
-        return object.material.metalness !== undefined ? object.material.metalness : 0;
+        this.beautyRenderTarget.dispose();
+        this.prevRenderTarget.dispose();
+        this.normalRenderTarget.dispose();
+        this.metalnessRenderTarget.dispose();
+        this.ssrRenderTarget.dispose();
+        this.blurRenderTarget.dispose();
+        this.blurRenderTarget2.dispose();
+        // this.blurRenderTarget3.dispose();
+
+        // dispose materials
+
+        this.normalMaterial.dispose();
+        this.metalnessOnMaterial.dispose();
+        this.metalnessOffMaterial.dispose();
+        this.blurMaterial.dispose();
+        this.blurMaterial2.dispose();
+        this.copyMaterial.dispose();
+        this.depthRenderMaterial.dispose();
+
+        // dipsose full screen quad
+
+        this.fsQuad.dispose();
+
     }
 
-    /**
-     * 存储对象的原始发光颜色
-     * @private
-     * @param {Object3D} object - 三维对象
-     */
-    _storeOriginalEmissive(object) {
-        if (!object.material) return;
+    render(renderer, writeBuffer, inputBuffer, deltaTime, stencilTest, depthPass) {
+        // this.depthMaskMaterial.copyCameraSettings(this.camera);
+        const oldMatrixAutoUpdate = this.scene.matrixAutoUpdate;
+        const oldCameraMatrixAutoUpdate = this.camera.matrixAutoUpdate;
+        const oldShadowUpdate = renderer.shadowMap.needsUpdate;
+        this.scene.matrixAutoUpdate = false
+        this.camera.matrixAutoUpdate = false
+        renderer.shadowMap.needsUpdate = false
+        // 保存当前渲染器设置
+        this.originalClearColor.copy(renderer.getClearColor(this.tempColor));
+        const currentRenderTarget = renderer.getRenderTarget();
 
-        // 处理数组材质
-        if (Array.isArray(object.material)) {
-            for (const material of object.material) {
-                if (material.emissive && !this._originalEmissive.has(material)) {
-                    this._originalEmissive.set(material, material.emissive.clone());
-                }
-            }
-        } else if (object.material.emissive && !this._originalEmissive.has(object.material)) {
-            this._originalEmissive.set(object.material, object.material.emissive.clone());
-        }
-    }
+        // 保存场景背景
+        const background = this.scene.background;
 
-    /**
-     * 设置对象的高亮状态
-     * @private
-     * @param {Object3D} object - 三维对象
-     * @param {Boolean} highlight - 是否高亮
-     */
-    _setObjectHighlight(object, highlight) {
-        if (!object.material) return;
-
-        // 处理数组材质
-        if (Array.isArray(object.material)) {
-            for (const material of object.material) {
-                if (material.emissive) {
-                    if (highlight) {
-                        // 添加微弱发光以指示选中
-                        material.emissive.copy(this.highlightColor);
-                    } else {
-                        // 恢复原始发光
-                        const originalEmissive = this._originalEmissive.get(material);
-                        if (originalEmissive) {
-                            material.emissive.copy(originalEmissive);
-                        }
-                    }
-                }
-            }
-        } else if (object.material.emissive) {
-            if (highlight) {
-                // 添加微弱发光以指示选中
-                object.material.emissive.copy(this.highlightColor);
-            } else {
-                // 恢复原始发光
-                const originalEmissive = this._originalEmissive.get(object.material);
-                if (originalEmissive) {
-                    object.material.emissive.copy(originalEmissive);
-                }
-            }
-        }
-    }
-
-    /**
-     * 覆盖原始渲染方法，添加选择性渲染逻辑
-     * @override
-     */
-    render(renderer, writeBuffer /*, readBuffer, deltaTime, maskActive */) {
-        // 如果启用了对象级金属度阈值检测，且未使用像素级判断
-        // if (this.usePixelMetalnessThreshold) {
-        //     this.updateSelectionBasedOnMetalness();
-        // }
-
-        // 在渲染前准备选择性渲染（仅在使用对象级选择时需要）
-        // if (!this.usePixelMetalnessThreshold) {
-        //     this._prepareSelectionBeforeRender(this.scene);
-        // }
-
-        // render beauty and depth
+        // 渲染beauty和depth
         renderer.setRenderTarget(this.beautyRenderTarget);
         renderer.clear();
         if (this.groundReflector) {
@@ -349,50 +402,73 @@ class SelectiveSSRPass extends SSRPass {
             this.groundReflector.visible = true;
         }
 
-        // 正常渲染场景（保留所有对象）
-        // renderer.render(this.scene, this.camera);
+        // 暂时移除背景以避免与反射混淆
+        this.scene.background = null;
+
         if (this.groundReflector) this.groundReflector.visible = false;
 
-        // render normals
+        // 渲染normals
         this.renderOverride(renderer, this.normalMaterial, this.normalRenderTarget, 0, 0);
+        this.depthMaskMaterial.depthBuffer0 = this.composer.depthTexture;
+        this.depthMaskMaterial.inputBuffer = inputBuffer.texture;
+        const mask = this.camera.layers.mask;
+        this.camera.layers.set(this._selection.layer);
 
-        // 渲染金属度 - 这对像素级判断很重要
-        // this.renderMetalness(renderer, this.metalnessOnMaterial, this.metalnessRenderTarget, 0, 0);
 
-        // 设置SSR材质的金属度相关参数
-        if (this.usePixelMetalnessThreshold) {
-            this.ssrMaterial.uniforms['tMetalness'].value = this.metalnessRenderTarget.texture;
-            this.ssrMaterial.uniforms['metalnessThreshold'].value = this.metalnessThreshold;
-            this.ssrMaterial.uniforms['usePixelMetalnessThreshold'].value = true;
-        } else {
-            // 如果不使用像素级判断，禁用shader中的判断逻辑
-            this.ssrMaterial.uniforms['usePixelMetalnessThreshold'].value = false;
+        // 首先渲染选中对象的深度
+        this.depthPass.render(renderer, inputBuffer);
+        this.ssrMaterial.uniforms.depthPass1 = new Uniform(this.depthPass.renderTarget.texture)
+        this.camera.layers.mask = mask;
+
+        // 更新深度掩码材质，使用beautyRenderTarget的深度作为比较
+
+        // 明确清理遮罩渲染目标
+        renderer.setRenderTarget(this.renderTargetMask);
+        renderer.clear(true, true, true);
+
+        // 使用深度遮罩材质渲染遮罩
+        this.maskPass.render(renderer, inputBuffer, this.renderTargetMask);
+
+        // 恢复场景背景
+        this.scene.background = background;
+
+
+        this.ssrMaterial.uniforms.maskTexture = {
+            value: this.renderTargetMask.texture
         }
+        // 渲染metalnesses（如果需要）
+        // if (this.selective) {
+        //     this.renderMetalness(renderer, this.metalnessOnMaterial, this.metalnessRenderTarget, 0, 0);
+        // }
 
-        // 设置SSR材质的其他参数
+        // 渲染SSR
         this.ssrMaterial.uniforms['opacity'].value = this.opacity;
         this.ssrMaterial.uniforms['maxDistance'].value = this.maxDistance;
         this.ssrMaterial.uniforms['thickness'].value = this.thickness;
+        this.ssrMaterial.uniforms['reflectionStrength'].value = this.reflectionStrength;
+        this.ssrMaterial.uniforms['maskTexture'] = { value: this.renderTargetMask.texture };
+        this.ssrMaterial.uniforms['maskThreshold'] = { value: this.maskThreshold };
+        this.ssrMaterial.defines.SELECTIVE = true;
+        this.ssrMaterial.needsUpdate = true;
 
-        // 设置深度纹理
+        // 如果使用外部深度纹理，则需要确保更新SSR材质
         if (this.useExternalDepth && this.externalDepthTexture) {
             this.ssrMaterial.uniforms['tDepth'].value = this.externalDepthTexture;
         } else {
             this.ssrMaterial.uniforms['tDepth'].value = this.beautyRenderTarget.depthTexture;
         }
 
-        // 渲染SSR
         this.renderPass(renderer, this.ssrMaterial, this.ssrRenderTarget);
 
-        // render blur
+        // 渲染blur
         if (this.blur) {
             this.renderPass(renderer, this.blurMaterial, this.blurRenderTarget);
             this.renderPass(renderer, this.blurMaterial2, this.blurRenderTarget2);
         }
 
-        // output result to screen
+        // 输出结果到屏幕
         switch (this.output) {
-            case SSRPass.OUTPUT.Default:
+            case SelectiveSSRPass.OUTPUT.Default:
                 if (this.bouncing) {
                     this.copyMaterial.uniforms['tDiffuse'].value = this.beautyRenderTarget.texture;
                     this.copyMaterial.blending = NoBlending;
@@ -421,7 +497,8 @@ class SelectiveSSRPass extends SSRPass {
                     this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
                 }
                 break;
-            case SSRPass.OUTPUT.SSR:
+
+            case SelectiveSSRPass.OUTPUT.SSR:
                 if (this.blur)
                     this.copyMaterial.uniforms['tDiffuse'].value = this.blurRenderTarget2.texture;
                 else
@@ -442,38 +519,83 @@ class SelectiveSSRPass extends SSRPass {
                     this.renderPass(renderer, this.copyMaterial, this.prevRenderTarget);
                 }
                 break;
-            case SSRPass.OUTPUT.Beauty:
+
+            case SelectiveSSRPass.OUTPUT.Beauty:
                 this.copyMaterial.uniforms['tDiffuse'].value = this.beautyRenderTarget.texture;
                 this.copyMaterial.blending = NoBlending;
                 this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
                 break;
-            case SSRPass.OUTPUT.Depth:
-                if (this.useExternalDepth && this.externalDepthTexture) {
-                    this.depthRenderMaterial.uniforms['tDepth'].value = this.externalDepthTexture;
-                } else {
-                    this.depthRenderMaterial.uniforms['tDepth'].value = this.beautyRenderTarget.depthTexture;
-                }
+
+            case SelectiveSSRPass.OUTPUT.Depth:
+
+                this.depthRenderMaterial.uniforms['tDepth'].value = this.composer.depthTexture;
                 this.renderPass(renderer, this.depthRenderMaterial, this.renderToScreen ? null : writeBuffer);
                 break;
-            case SSRPass.OUTPUT.Normal:
+
+            case SelectiveSSRPass.OUTPUT.Normal:
                 this.copyMaterial.uniforms['tDiffuse'].value = this.normalRenderTarget.texture;
                 this.copyMaterial.blending = NoBlending;
                 this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
                 break;
-            case SSRPass.OUTPUT.Metalness:
+
+            case SelectiveSSRPass.OUTPUT.Metalness:
                 this.copyMaterial.uniforms['tDiffuse'].value = this.metalnessRenderTarget.texture;
                 this.copyMaterial.blending = NoBlending;
                 this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
                 break;
+
+            case SelectiveSSRPass.OUTPUT.Mask:
+                this.copyMaterial.uniforms['tDiffuse'].value = this.depthPass.renderTarget.texture;
+                this.copyMaterial.blending = NoBlending;
+                this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
+                break;
+
+            case SelectiveSSRPass.OUTPUT.Debug:
+                // 直接使用SSR材质渲染，便于调试着色器
+                // 不使用blur，直接显示ssrMaterial的结果
+                this.renderPass(renderer, this.ssrMaterial, this.renderToScreen ? null : writeBuffer);
+                break;
+
             default:
                 console.warn('THREE.SSRPass: Unknown output type.');
         }
 
-        // 在渲染后恢复对象的原始状态（仅在使用对象级选择时需要）
-        if (!this.usePixelMetalnessThreshold) {
-            this._restoreSelectionAfterRender();
-        }
+        // 恢复原始渲染目标
+        renderer.setRenderTarget(currentRenderTarget);
+        this.scene.matrixAutoUpdate = oldMatrixAutoUpdate;
+        this.camera.matrixAutoUpdate = oldCameraMatrixAutoUpdate;
+        renderer.shadowMap.needsUpdate = oldShadowUpdate;
     }
+
+    renderPass(renderer, passMaterial, renderTarget, clearColor, clearAlpha) {
+
+        // save original state
+        this.originalClearColor.copy(renderer.getClearColor(this.tempColor));
+        const originalClearAlpha = renderer.getClearAlpha(this.tempColor);
+        const originalAutoClear = renderer.autoClear;
+
+        renderer.setRenderTarget(renderTarget);
+
+        // setup pass state
+        renderer.autoClear = false;
+        if ((clearColor !== undefined) && (clearColor !== null)) {
+
+            renderer.setClearColor(clearColor);
+            renderer.setClearAlpha(clearAlpha || 0.0);
+            renderer.clear();
+
+        }
+
+        this.fsQuad.material = passMaterial;
+        this.fsQuad.render(renderer);
+
+        // restore original state
+        renderer.autoClear = originalAutoClear;
+        renderer.setClearColor(this.originalClearColor);
+        renderer.setClearAlpha(originalClearAlpha);
+
+    }
+
     renderOverride(renderer, overrideMaterial, renderTarget, clearColor, clearAlpha) {
 
         this.originalClearColor.copy(renderer.getClearColor(this.tempColor));
@@ -496,9 +618,11 @@ class SelectiveSSRPass extends SSRPass {
 
         this.scene.overrideMaterial = overrideMaterial;
         renderer.shadowMap.autoUpdate = false
-
+        const oldUpdate = this.scene.matrixWorldAutoUpdate
+        this.scene.matrixWorldAutoUpdate = false
         renderer.render(this.scene, this.camera);
         this.scene.overrideMaterial = null;
+        this.scene.matrixWorldAutoUpdate = oldUpdate
 
         // restore original state
 
@@ -508,320 +632,477 @@ class SelectiveSSRPass extends SSRPass {
 
     }
 
-
-    /**
-    * 覆盖SSRPass的renderMetalness方法，考虑选择的对象
-    */
     renderMetalness(renderer, overrideMaterial, renderTarget, clearColor, clearAlpha) {
-        // 确保_selects始终存在，防止undefined错误
-        if (!this._selects) {
-            this._selects = Array.from(this.selection);
-        }
 
-        // 如果使用像素级金属度判断，使用标准方法处理
-        if (this.usePixelMetalnessThreshold) {
-            // 确保scene存在，避免在super.renderMetalness中出错
-            if (!this.scene) {
-                console.warn("SelectiveSSRPass: 场景未设置，无法渲染金属度");
-                return;
-            }
-
-            try {
-                super.renderMetalness(renderer, overrideMaterial, renderTarget, clearColor, clearAlpha);
-            } catch (error) {
-                console.error("SelectiveSSRPass: renderMetalness出错", error);
-            }
-            return;
-        }
-
-        // 以下是对象级金属度判断的逻辑
-        // 保存当前渲染器状态
         this.originalClearColor.copy(renderer.getClearColor(this.tempColor));
         const originalClearAlpha = renderer.getClearAlpha(this.tempColor);
         const originalAutoClear = renderer.autoClear;
 
         renderer.setRenderTarget(renderTarget);
-
-        // 设置Pass状态
         renderer.autoClear = false;
+
+        clearColor = overrideMaterial.clearColor || clearColor;
+        clearAlpha = overrideMaterial.clearAlpha || clearAlpha;
+
         if ((clearColor !== undefined) && (clearColor !== null)) {
+
             renderer.setClearColor(clearColor);
             renderer.setClearAlpha(clearAlpha || 0.0);
             renderer.clear();
+
         }
 
-        // 确保scene存在
-        if (!this.scene) {
-            console.warn("SelectiveSSRPass: 场景未设置，无法渲染金属度");
-            return;
-        }
+        // 使用Selection对象获取选中的对象
+        const selectedObjects = Array.from(this._selection);
 
-        // 临时保存材质和可见性
-        const visibilityCache = new Map();
-        const materialCache = new Map();
+        this.scene.traverseVisible(child => {
 
-        // // 遍历场景，为选中的对象应用金属度材质
-        // this.scene.traverseVisible((child) => {
-        //     if (child.isMesh) {
-        //         // 保存原始信息
-        //         materialCache.set(child, child.material);
-        //         visibilityCache.set(child, child.visible);
-
-        //         // 根据选择确定使用哪种金属度材质
-        //         const isSelected = Array.isArray(this._selects) && this._selects.includes(child);
-        //         child.material = isSelected ? this.metalnessOnMaterial : this.metalnessOffMaterial;
-        //     }
-        // });
-
-        // 渲染金属度
-        // renderer.render(this.scene, this.camera);
-
-        // // 恢复场景状态
-        // this.scene.traverseVisible((child) => {
-        //     if (child.isMesh && materialCache.has(child)) {
-        //         child.material = materialCache.get(child);
-        //         child.visible = visibilityCache.get(child);
-        //     }
-        // });
-
-        // 恢复渲染器状态
-        renderer.setClearColor(this.originalClearColor, originalClearAlpha);
-        renderer.autoClear = originalAutoClear;
-    }
-    /**
-     * 在渲染前准备选择性渲染（对象级选择模式）
-     * @private
-     * @param {Scene} scene - 场景
-     */
-    _prepareSelectionBeforeRender(scene) {
-        // 清除缓存
-        this._originalLayers.clear();
-
-        // 遍历场景中的所有对象
-        scene.traverse((object) => {
-            if (object.isMesh) {
-                // 保存原始图层
-                this._originalLayers.set(object, object.layers.mask);
-
-                // 保存原始可见性
-                this._visibilityCache.set(object, object.visible);
-
-                // 确定对象是否应该被SSR渲染
-                const selected = this.selection.has(object);
-                const include = this.inverted ? !selected : selected;
-
-                if (include) {
-                    // 激活选择层使对象被SSR渲染
-                    object.layers.enable(this.selection.layer);
-                } else if (!this.ignoreBackground) {
-                    // 如果不忽略背景，对未选中对象进行特殊处理
-                    object.layers.enable(this.selection.layer);
-                } else {
-                    // 否则禁用选择层
-                    object.layers.disable(this.selection.layer);
-                    // 在SSR渲染阶段隐藏对象
-                    object.visible = false;
-                }
+            child._SSRPassBackupMaterial = child.material;
+            if (selectedObjects.includes(child)) {
+                child.material = this.metalnessOnMaterial;
+            } else {
+                child.material = this.metalnessOffMaterial;
             }
+
         });
+        renderer.shadowMap.autoUpdate = false
+
+        const oldUpdate = this.scene.matrixWorldAutoUpdate
+        this.scene.matrixWorldAutoUpdate = false
+        renderer.render(this.scene, this.camera);
+        this.scene.matrixWorldAutoUpdate = oldUpdate
+        this.scene.traverseVisible(child => {
+
+            child.material = child._SSRPassBackupMaterial;
+
+        });
+
+        // restore original state
+
+        renderer.autoClear = originalAutoClear;
+        renderer.setClearColor(this.originalClearColor);
+        renderer.setClearAlpha(originalClearAlpha);
+
+    }
+
+    setSize(width, height) {
+
+        this.width = width;
+        this.height = height;
+
+        this.ssrMaterial.defines.MAX_STEP = Math.sqrt(width * width + height * height);
+        this.ssrMaterial.needsUpdate = true;
+        this.beautyRenderTarget.setSize(width, height);
+        this.prevRenderTarget.setSize(width, height);
+        this.ssrRenderTarget.setSize(width, height);
+        this.normalRenderTarget.setSize(width, height);
+        this.metalnessRenderTarget.setSize(width, height);
+        this.blurRenderTarget.setSize(width, height);
+        this.blurRenderTarget2.setSize(width, height);
+
+        // 更新新添加的渲染目标尺寸
+        if (this.renderTargetMask) {
+            this.renderTargetMask.setSize(width, height);
+        }
+
+        // 更新深度通道尺寸
+        if (this.depthPass) {
+            this.depthPass.setSize(width, height);
+        }
+
+        // 更新遮罩通道尺寸
+        if (this.maskPass) {
+            this.maskPass.setSize(width, height);
+        }
+
+        this.ssrMaterial.uniforms['resolution'].value.set(width, height);
+        this.ssrMaterial.uniforms['cameraProjectionMatrix'].value.copy(this.camera.projectionMatrix);
+        this.ssrMaterial.uniforms['cameraInverseProjectionMatrix'].value.copy(this.camera.projectionMatrixInverse);
+
+        this.blurMaterial.uniforms['resolution'].value.set(width, height);
+        this.blurMaterial2.uniforms['resolution'].value.set(width, height);
+
+        console.log('Log-- ', width, height, 'width,height,ssrpass');
     }
 
     /**
-     * 在渲染后恢复对象的原始状态（对象级选择模式）
-     * @private
+     * 设置外部深度纹理
+     * @param {DepthTexture} depthTexture - 外部深度纹理
+     * @param {number} depthPacking - 深度打包格式 (e.g., BasicDepthPacking)
      */
-    _restoreSelectionAfterRender() {
-        // 恢复所有对象的原始图层和可见性
-        for (const [object, mask] of this._originalLayers) {
-            object.layers.mask = mask;
-            object.visible = this._visibilityCache.get(object);
+    setDepthTexture(depthTexture, depthPacking) {
+        if (depthTexture) {
+            this.externalDepthTexture = depthTexture;
+            this.useExternalDepth = true;
+
+            // 更新SSR材质的深度纹理
+            if (this.ssrMaterial) {
+                this.ssrMaterial.uniforms['tDepth'].value = depthTexture;
+            }
+
+            // 更新深度渲染材质的深度纹理
+            if (this.depthRenderMaterial) {
+                this.depthRenderMaterial.uniforms['tDepth'].value = depthTexture;
+            }
+
+            console.log("SSRPass: 使用外部深度纹理");
+        } else {
+            this.useExternalDepth = false;
+
+            // 恢复为内部深度纹理
+            if (this.ssrMaterial && this.beautyRenderTarget) {
+                this.ssrMaterial.uniforms['tDepth'].value = this.beautyRenderTarget.depthTexture;
+            }
+
+            // 恢复深度渲染材质的深度纹理
+            if (this.depthRenderMaterial && this.beautyRenderTarget) {
+                this.depthRenderMaterial.uniforms['tDepth'].value = this.beautyRenderTarget.depthTexture;
+            }
+
+            console.log("SSRPass: 恢复使用内部深度纹理");
         }
     }
 
     /**
-     * 设置场景引用，用于自动更新选择
-     * @param {Scene} scene - 场景对象
+     * 刷新反射效果，适用于修改selects后需要重新计算反射的情况
+     * 临时开启bouncing，渲染一帧，然后自动关闭
+     * @param {WebGLRenderer} renderer - 渲染器
+     * @param {WebGLRenderTarget} writeBuffer - 写入缓冲区
+     * @param {number} [refreshFrames=1] - 刷新帧数，默认为1
+     * @returns {Promise} 返回一个Promise，当刷新完成时解析
      */
-    setScene(scene) {
-        this.scene = scene;
-        if (this.usePixelMetalnessThreshold) {
-            this.updateSelectionBasedOnMetalness();
+    refring = false
+    refreshReflection() {
+        if (this.refring) return;
+        this.refring = true
+        // 保存原始状态
+        const oldBouncing = this._bouncing;
+        this.setBouncing(true);
+        // 强制更新材质
+        setTimeout(() => {
+            this.setBouncing(oldBouncing);
+            this.refring = false
+        })
+        // 渲染指定的帧数
+        // 开始刷新渲染
+    }
+    setBouncing(val) {
+        if (this._bouncing === val) return;
+        this._bouncing = val;
+        if (val) {
+            this.ssrMaterial.uniforms['tDiffuse'].value = this.prevRenderTarget.texture;
+        } else {
+            this.ssrMaterial.uniforms['tDiffuse'].value = this.beautyRenderTarget.texture;
         }
-        // 更新_selects以避免renderMetalness中的错误
-        this._selects = Array.from(this.selection);
     }
 
     /**
-     * 设置选择层
-     * @param {Number} layer - 选择层索引
+     * 指示遮罩是否应该反转（反转选择物体的反射效果）
+     * 
+     * @type {Boolean}
      */
-    setSelectionLayer(layer) {
-        this.selection.layer = layer;
+    get inverted() {
+        return this._inverted;
+    }
+
+    set inverted(value) {
+        this._inverted = value;
+        if (this.depthMaskMaterial) {
+            this.depthMaskMaterial.depthMode = value ? NotEqualDepth : EqualDepth;
+        }
     }
 
     /**
-     * 设置选择反转
-     * @param {Boolean} inverted - 是否反转选择
+     * 指示是否忽略背景（不对背景应用反射效果）
+     * 
+     * @type {Boolean}
      */
-    setInverted(inverted) {
-        this.inverted = inverted;
+    get ignoreBackground() {
+        return this._ignoreBackground;
+    }
+
+    set ignoreBackground(value) {
+        this._ignoreBackground = value;
+        if (this.depthMaskMaterial) {
+            this.depthMaskMaterial.maxDepthStrategy = value ?
+                DepthTestStrategy.DISCARD_MAX_DEPTH :
+                DepthTestStrategy.KEEP_MAX_DEPTH;
+        }
     }
 
     /**
-     * 设置是否忽略背景
-     * @param {Boolean} ignore - 是否忽略背景
+     * 向选择集添加对象
+     * @param {THREE.Object3D} object - 要添加的对象
      */
-    setIgnoreBackground(ignore) {
-        this.ignoreBackground = ignore;
-    }
-
-    /**
-     * 添加对象到选择集
-     * @param {Object3D} object - 要添加的对象
-     */
-    addSelection(object) {
-        this.selection.add(object);
-        // 更新_selects以避免renderMetalness中的错误
-        this._selects = Array.from(this.selection);
-        this._storeOriginalEmissive(object);
-        this._setObjectHighlight(object, true);
-        this._processedObjects.add(object);
+    addToSelection(object) {
+        if (!object) return;
+        if (this._selection && typeof this._selection.add === 'function') {
+            this._selection.add(object);
+            console.log(`已添加对象到SSR选择集: ${object.name || object.uuid}`);
+        } else {
+            console.warn('无法添加对象到选择集，Selection对象不可用');
+        }
     }
 
     /**
      * 从选择集中移除对象
-     * @param {Object3D} object - 要移除的对象
+     * @param {THREE.Object3D} object - 要移除的对象
      */
-    removeSelection(object) {
-        this.selection.delete(object);
-        // 更新_selects以避免renderMetalness中的错误
-        this._selects = Array.from(this.selection);
-        this._setObjectHighlight(object, false);
-        this._processedObjects.delete(object);
-    }
-
-    /**
-     * 切换对象的选择状态
-     * @param {Object3D} object - 要切换的对象
-     */
-    toggleSelection(object) {
-        this.selection.toggle(object);
-        // 更新_selects以避免renderMetalness中的错误
-        this._selects = Array.from(this.selection);
+    removeFromSelection(object) {
+        if (!object) return;
+        if (this._selection && typeof this._selection.delete === 'function') {
+            this._selection.delete(object);
+            console.log(`已从SSR选择集移除对象: ${object.name || object.uuid}`);
+        } else {
+            console.warn('无法从选择集移除对象，Selection对象不可用');
+        }
     }
 
     /**
      * 清空选择集
      */
     clearSelection() {
-        // 恢复所有对象的原始发光
-        for (const object of this._processedObjects) {
-            this._setObjectHighlight(object, false);
+        if (this._selection && typeof this._selection.clear === 'function') {
+            this._selection.clear();
+            console.log('已清空SSR选择集');
+        } else {
+            console.warn('无法清空选择集，Selection对象不可用');
         }
-
-        this.selection.clear();
-        // 更新_selects以避免renderMetalness中的错误
-        this._selects = [];
-        this._processedObjects.clear();
     }
 
     /**
-     * 覆盖SSRPass的renderMetalness方法，考虑选择的对象
+     * 切换对象在选择集中的状态
+     * @param {THREE.Object3D} object - 要切换状态的对象
      */
-    renderMetalness(renderer, overrideMaterial, renderTarget, clearColor, clearAlpha) {
-        // 确保_selects始终存在，防止undefined错误
-        if (!this._selects) {
-            this._selects = Array.from(this.selection);
-        }
-
-        // 如果使用像素级金属度判断，使用标准方法处理
-        if (this.usePixelMetalnessThreshold) {
-            // 确保scene存在，避免在super.renderMetalness中出错
-            if (!this.scene) {
-                console.warn("SelectiveSSRPass: 场景未设置，无法渲染金属度");
-                return;
+    toggleSelection(object) {
+        if (!object) return;
+        if (this._selection) {
+            if (this._selection.has(object)) {
+                this.removeFromSelection(object);
+            } else {
+                this.addToSelection(object);
             }
-
-            try {
-                super.renderMetalness(renderer, overrideMaterial, renderTarget, clearColor, clearAlpha);
-            } catch (error) {
-                console.error("SelectiveSSRPass: renderMetalness出错", error);
-            }
-            return;
         }
-
-        // 以下是对象级金属度判断的逻辑
-        // 保存当前渲染器状态
-        this.originalClearColor.copy(renderer.getClearColor(this.tempColor));
-        const originalClearAlpha = renderer.getClearAlpha(this.tempColor);
-        const originalAutoClear = renderer.autoClear;
-
-        renderer.setRenderTarget(renderTarget);
-
-        // 设置Pass状态
-        renderer.autoClear = false;
-        if ((clearColor !== undefined) && (clearColor !== null)) {
-            renderer.setClearColor(clearColor);
-            renderer.setClearAlpha(clearAlpha || 0.0);
-            renderer.clear();
-        }
-
-        // 确保scene存在
-        if (!this.scene) {
-            console.warn("SelectiveSSRPass: 场景未设置，无法渲染金属度");
-            return;
-        }
-
-        // 临时保存材质和可见性
-        const visibilityCache = new Map();
-        const materialCache = new Map();
-
-        // 遍历场景，为选中的对象应用金属度材质
-        this.scene.traverseVisible((child) => {
-            if (child.isMesh) {
-                // 保存原始信息
-                materialCache.set(child, child.material);
-                visibilityCache.set(child, child.visible);
-
-                // 根据选择确定使用哪种金属度材质
-                const isSelected = Array.isArray(this._selects) && this._selects.includes(child);
-                child.material = isSelected ? this.metalnessOnMaterial : this.metalnessOffMaterial;
-            }
-        });
-
-        // 渲染金属度
-        // renderer.render(this.scene, this.camera);
-
-        // 恢复场景状态
-        this.scene.traverseVisible((child) => {
-            if (child.isMesh && materialCache.has(child)) {
-                child.material = materialCache.get(child);
-                child.visible = visibilityCache.get(child);
-            }
-        });
-
-        // 恢复渲染器状态
-        renderer.setClearColor(this.originalClearColor, originalClearAlpha);
-        renderer.autoClear = originalAutoClear;
     }
 
     /**
-     * 资源释放
-     * @override
+     * 获取当前选择集中的所有对象
+     * @returns {Array} - 选择集中的对象数组
      */
-    dispose() {
-        this._originalLayers.clear();
-        this._visibilityCache = new Map();
-        this._originalEmissive = new Map();
-        this._originalIntensity = new Map();
-        this._processedObjects.clear();
+    getSelectionItems() {
+        if (!this._selection) return [];
 
-        if (this.metalnessDetectionMaterial) {
-            this.metalnessDetectionMaterial.dispose();
+        // 检查各种可能的访问方式
+        if (Array.isArray(this._selection.items)) {
+            return this._selection.items;
         }
 
-        super.dispose();
+        if (Array.isArray(this._selection.objects)) {
+            return this._selection.objects;
+        }
+
+        if (typeof this._selection.getItems === 'function') {
+            return this._selection.getItems();
+        }
+
+        if (typeof this._selection.getSelection === 'function') {
+            return this._selection.getSelection();
+        }
+
+        // 如果Selection是一个可迭代对象
+        if (typeof this._selection[Symbol.iterator] === 'function') {
+            return Array.from(this._selection);
+        }
+
+        console.warn('无法确定Selection API的使用方式');
+        return [];
+    }
+
+    /**
+     * 初始化效果
+     *
+     * @param {WebGLRenderer} renderer - 渲染器
+     * @param {Boolean} alpha - 是否有alpha通道
+     * @param {Number} frameBufferType - 帧缓冲区类型
+     */
+    initialize(renderer, alpha, frameBufferType) {
+        // 确保所有通道和材质正确初始化
+        if (this.depthPass) {
+            this.depthPass.initialize(renderer, alpha, frameBufferType);
+        }
+
+        if (this.maskPass) {
+            this.maskPass.initialize(renderer, alpha, frameBufferType);
+        }
+
+        // 检查渲染器是否支持对数深度缓冲
+        if (renderer.capabilities.logarithmicDepthBuffer) {
+            if (this.depthMaskMaterial) {
+                this.depthMaskMaterial.defines.LOG_DEPTH = "1";
+                this.depthMaskMaterial.needsUpdate = true;
+            }
+        }
+    }
+
+    /**
+     * 基于金属度自动选择对象并添加到selection
+     * @param {Number} threshold - 金属度阈值，超过该值的对象将被选中
+     */
+    updateSelectionBasedOnMetalness(threshold = 0.5) {
+        if (!this._selection || !this.scene) return;
+
+        // 清空当前选择
+        this.clearSelection();
+
+        // 遍历场景中的所有对象
+        this.scene.traverseVisible(object => {
+            // 检查对象是否有材质且是网格
+            if (object.isMesh && object.material) {
+                let metalness = 0;
+
+                // 处理单一材质
+                if (!Array.isArray(object.material)) {
+                    if (object.material.metalness !== undefined) {
+                        metalness = object.material.metalness;
+                    }
+                }
+                // 处理多材质数组
+                else {
+                    let totalMetalness = 0;
+                    let validMaterials = 0;
+
+                    for (const mat of object.material) {
+                        if (mat.metalness !== undefined) {
+                            totalMetalness += mat.metalness;
+                            validMaterials++;
+                        }
+                    }
+
+                    if (validMaterials > 0) {
+                        metalness = totalMetalness / validMaterials;
+                    }
+                }
+
+                // 如果金属度超过阈值，添加到选择中
+                if (metalness >= threshold) {
+                    this.addToSelection(object);
+                }
+            }
+        });
+
+        console.log(`基于金属度 >= ${threshold} 更新选择，共选中 ${this.getSelectionItems().length} 个对象`);
+    }
+
+    /**
+     * 设置金属度阈值，并更新选择
+     * @param {Number} threshold - 金属度阈值
+     */
+    setMetalnessThreshold(threshold) {
+        this.updateSelectionBasedOnMetalness(threshold);
+    }
+
+    /**
+     * 设置是否高亮显示选中的对象
+     * @param {Boolean} highlight - 是否高亮显示
+     * @param {Number} [emissiveValue=2.0] - 高亮的发光值
+     */
+    setHighlightSelected(highlight, emissiveValue = 2.0) {
+        const selectedObjects = this.getSelectionItems();
+
+        // 存储原始材质状态
+        if (!this.originalEmissives) {
+            this.originalEmissives = new Map();
+        }
+
+        selectedObjects.forEach(object => {
+            if (object.isMesh && object.material) {
+                // 存储原始发光值（如果尚未存储）
+                if (!this.originalEmissives.has(object.uuid)) {
+                    if (Array.isArray(object.material)) {
+                        const emissives = [];
+                        object.material.forEach(mat => {
+                            if (mat.emissive) {
+                                emissives.push(mat.emissive.clone());
+                            } else {
+                                emissives.push(null);
+                            }
+                        });
+                        this.originalEmissives.set(object.uuid, emissives);
+                    } else if (object.material.emissive) {
+                        this.originalEmissives.set(object.uuid, object.material.emissive.clone());
+                    }
+                }
+
+                // 应用或恢复发光值
+                if (Array.isArray(object.material)) {
+                    object.material.forEach((mat, index) => {
+                        if (mat.emissive) {
+                            if (highlight) {
+                                mat.emissive.set(emissiveValue, emissiveValue, emissiveValue);
+                            } else {
+                                const original = this.originalEmissives.get(object.uuid);
+                                if (original && original[index]) {
+                                    mat.emissive.copy(original[index]);
+                                }
+                            }
+                        }
+                    });
+                } else if (object.material.emissive) {
+                    if (highlight) {
+                        object.material.emissive.set(emissiveValue, emissiveValue, emissiveValue);
+                    } else {
+                        const original = this.originalEmissives.get(object.uuid);
+                        if (original) {
+                            object.material.emissive.copy(original);
+                        }
+                    }
+                }
+            }
+        });
+
+        console.log(`${highlight ? '启用' : '禁用'}选中对象高亮显示`);
+    }
+
+    /**
+     * 设置掩码阈值
+     * @param {Number} threshold - 掩码阈值
+     */
+    setMaskThreshold(threshold) {
+        if (this.ssrMaterial) {
+            this.ssrMaterial.uniforms.maskThreshold.value = threshold;
+            console.log(`设置掩码阈值为 ${threshold}`);
+        }
     }
 }
 
-export { SelectiveSSRPass }; 
+SelectiveSSRPass.OUTPUT = {
+    'Default': 0,
+    'SSR': 1,
+    'Beauty': 3,
+    'Depth': 4,
+    'Normal': 5,
+    'Metalness': 7,
+    'Mask': 8,
+    'Debug': 9,  // 新增Debug模式用于直接显示着色器效果
+};
+
+/**
+ * 设置输出模式
+ * @param {Number} mode - 输出模式，使用SelectiveSSRPass.OUTPUT枚举
+ */
+SelectiveSSRPass.prototype.setOutputMode = function (mode) {
+    this.output = mode;
+    console.log(`已设置输出模式：${Object.keys(SelectiveSSRPass.OUTPUT).find(key => SelectiveSSRPass.OUTPUT[key] === mode) || '未知'}`);
+};
+
+/**
+ * 循环切换输出模式，便于调试
+ */
+SelectiveSSRPass.prototype.cycleOutputMode = function () {
+    const modes = Object.values(SelectiveSSRPass.OUTPUT);
+    const currentIndex = modes.indexOf(this.output);
+    const nextIndex = (currentIndex + 1) % modes.length;
+    this.setOutputMode(modes[nextIndex]);
+};
+
+export { SelectiveSSRPass };
