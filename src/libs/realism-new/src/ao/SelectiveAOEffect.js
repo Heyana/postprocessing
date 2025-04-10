@@ -6,7 +6,7 @@ import { PoissionDenoisePass } from '../pass/PoissionDenoisePass'
 import { DepthComparisonMaterial, DepthPass, ShaderPass } from "postprocessing"
 import { DepthMaskMaterial } from "postprocessing"
 import { DepthTestStrategy } from "postprocessing"
-
+import * as THREE from 'three';
 const defaultAOOptions = {
     resolutionScale: 1,
     spp: 8,
@@ -30,7 +30,7 @@ const defaultAOOptions = {
     ...PoissionDenoisePass.DefaultOptions
 };
 
-console.log('Log-- ', 0.12, 'SelectiveAOEffect');
+console.log('Log-- ', 0.16, 'SelectiveAOEffect');
 export class SelectiveAOEffect extends Effect {
     constructor(composer, camera, scene, aoPass, options = defaultAOOptions) {
         // 合并选项
@@ -104,14 +104,7 @@ export class SelectiveAOEffect extends Effect {
         this.depthMaskMaterial.depthPacking0 = BasicDepthPacking;
         this.depthMaskMaterial.depthBuffer1 = this.depthPass.texture; // 选中对象深度
         this.depthMaskMaterial.depthPacking1 = RGBADepthPacking;
-        this.depthMaskMaterial.depthMode = EqualDepth;                // 默认使用相等深度模式
-        this.depthMaskMaterial.maxDepthStrategy = DepthTestStrategy.KEEP_MAX_DEPTH; // 默认保留背景
-        this.depthMaskMaterial.epsilon = 0.00001;                     // 降低容差，使深度比较更精确
-        this.depthMaskMaterial.blending = NoBlending;                 // 禁用混合
-        this.depthMaskMaterial.transparent = true;                   // 禁用透明
-        this.depthMaskMaterial.depthTest = true;                     // 禁用深度测试
-        this.depthMaskMaterial.depthWrite = true;                    // 禁用深度写入
-        this.depthMaskMaterial.needsUpdate = true;                    // 确保材质更新
+        this.depthMaskMaterial.depthMode = THREE.EqualDepth;                // 默认使用相等深度模式
 
         // 使用深度遮罩材质创建遮罩通道替代原来的RenderPass
         this.maskPass = new ShaderPass(this.depthMaskMaterial);
@@ -453,7 +446,10 @@ export class SelectiveAOEffect extends Effect {
         }
     }
 
+
     update(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass) {
+        this.depthMaskMaterial.copyCameraSettings(this.camera);
+
         // 准备场景 - 设置高亮对象等
         if (!this.aoPass.fullscreenMaterial.uniforms.inputBuffer) {
             this.aoPass.fullscreenMaterial.uniforms.inputBuffer = {
@@ -512,7 +508,7 @@ export class SelectiveAOEffect extends Effect {
 
 
             this.depthPass.render(renderer, inputBuffer);
-            this.aoPass.fullscreenMaterial.uniforms.depthPass1 = new Uniform(this.depthPass.texture)
+            this.aoPass.fullscreenMaterial.uniforms.depthPass1 = new Uniform(this.depthPass.renderTarget.texture)
 
             // 4. 恢复相机层
             this.camera.layers.mask = mask;

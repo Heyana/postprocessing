@@ -108,6 +108,7 @@ export class DepthMaskMaterial extends ShaderMaterial {
 
 	set depthBuffer1(value) {
 
+		console.log('Log-- ', value, 'value');
 		this.uniforms.depthBuffer1.value = value;
 
 	}
@@ -267,7 +268,7 @@ export class DepthMaskMaterial extends ShaderMaterial {
 		// If the depth test fails, the texel will be discarded.
 		let depthTest;
 
-		switch(value) {
+		switch (value) {
 
 			case NeverDepth:
 				depthTest = "false";
@@ -357,11 +358,11 @@ export class DepthMaskMaterial extends ShaderMaterial {
 
 	copyCameraSettings(camera) {
 
-		if(camera) {
+		if (camera) {
 
 			this.uniforms.cameraNearFar.value.set(camera.near, camera.far);
 
-			if(camera instanceof PerspectiveCamera) {
+			if (camera instanceof PerspectiveCamera) {
 
 				this.defines.PERSPECTIVE_CAMERA = "1";
 
