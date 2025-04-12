@@ -157,7 +157,7 @@ export function createTestObjects() {
     objects.add(coneMesh);
 
     // 添加一组具有不同金属度和粗糙度的球体
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 5000; i++) {
         const sphereGeometry = new SphereGeometry(0.025, 64, 64);
         const sphereMaterial = new MeshStandardMaterial({
             color: new Color().setHSL(i / 5, 0.7, 0.5),

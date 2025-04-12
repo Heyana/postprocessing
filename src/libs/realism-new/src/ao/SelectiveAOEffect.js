@@ -30,7 +30,7 @@ const defaultAOOptions = {
     ...PoissionDenoisePass.DefaultOptions
 };
 
-console.log('Log-- ', 0.18, 'SelectiveAOEffect');
+console.log('Log-- ', 0.22, 'SelectiveAOEffect');
 export class SelectiveAOEffect extends Effect {
     constructor(composer, camera, scene, aoPass, options = defaultAOOptions) {
         // 合并选项
@@ -496,6 +496,8 @@ export class SelectiveAOEffect extends Effect {
 
         // 获取选中对象
         const selection = this._ignoreSelection;
+        const otherModels = []
+
         try {
             // 1. 清理所有渲染目标
             this.clearAllRenderTargets(renderer);
@@ -506,21 +508,45 @@ export class SelectiveAOEffect extends Effect {
 
             // 3. 首先渲染选中对象的深度
             this.camera.layers.set(selection.layer);
+            selection.forEach((model) => {
+                if (model.children.length > 0) {
+                    model.traverse((child) => {
+                        if (child.isMesh && !child.layers.isEnabled(selection.layer) && child.visible) {
+                            otherModels.push({
+                                model: child,
+                                oldLayerMask: child.layers.mask  // 保存原始的完整层掩码
+                            })
+                            child.layers.set(selection.layer)  // 设置为selection.layer
+                        }
+                    })
+                }
+            })
 
-
-            this.depthPass.render(renderer, inputBuffer);
+            this.depthPass.render(renderer, inputBuffer, undefined, undefined, undefined, undefined, {
+                projectObject: true,
+                updateMatrixWorld: false,
+                useProgramCache: false,
+            });
             this.aoPass.fullscreenMaterial.uniforms.depthPass1 = new Uniform(this.depthPass.renderTarget.texture)
 
             // 4. 恢复相机层
             this.camera.layers.mask = mask;
 
+            // 完全恢复子对象的原始层设置
+            otherModels.forEach(({ model, oldLayerMask }) => {
+                model.layers.mask = oldLayerMask;  // 直接恢复整个掩码
+            })
 
             // 5. 明确清理遮罩渲染目标
             renderer.setRenderTarget(this.renderTargetMask);
             renderer.clear(true, true, true);
 
             // 6. 使用深度遮罩材质渲染遮罩到renderTargetMask
-            this.maskPass.render(renderer, inputBuffer, this.renderTargetMask);
+            this.maskPass.render(renderer, inputBuffer, this.renderTargetMask, undefined, undefined, {
+                projectObject: true,
+                updateMatrixWorld: false,
+                useProgramCache: false,
+            });
 
             // 7. 恢复场景背景
             this.scene.background = background;

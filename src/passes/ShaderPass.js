@@ -59,18 +59,18 @@ export class ShaderPass extends Pass {
 	 * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
 	 */
 
-	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest) {
+	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, renderOpts = {}) {
 
 		const uniforms = this.fullscreenMaterial.uniforms;
 
-		if(inputBuffer !== null && uniforms !== undefined && uniforms[this.input] !== undefined) {
+		if (inputBuffer !== null && uniforms !== undefined && uniforms[this.input] !== undefined) {
 
 			uniforms[this.input].value = inputBuffer.texture;
 
 		}
 
 		renderer.setRenderTarget(this.renderToScreen ? null : outputBuffer);
-		renderer.render(this.scene, this.camera);
+		renderer.render(this.scene, this.camera, renderOpts);
 
 	}
 
@@ -84,7 +84,7 @@ export class ShaderPass extends Pass {
 
 	initialize(renderer, alpha, frameBufferType) {
 
-		if(frameBufferType !== undefined && frameBufferType !== UnsignedByteType) {
+		if (frameBufferType !== undefined && frameBufferType !== UnsignedByteType) {
 
 			this.fullscreenMaterial.defines.FRAMEBUFFER_PRECISION_HIGH = "1";
 

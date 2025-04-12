@@ -7,7 +7,10 @@ import {
 	UnsignedInt248Type,
 	UnsignedIntType,
 	Vector2,
-	WebGLRenderTarget
+	WebGLRenderTarget,
+	NearestFilter,
+	RGBAFormat,
+	HalfFloatType,
 } from "three";
 import { Timer } from "./Timer.js";
 
@@ -17,6 +20,7 @@ import { DepthPass } from "../passes/DepthPass.js";
 import { MaskPass } from "../passes/MaskPass.js";
 import { Pass } from "../passes/Pass.js";
 import { timeEndLog, timeLog } from "../utils/PerformanceLogger.js";
+import { effectPassUtils } from "../utils/EffectPassUtils.js";
 /**
  * The EffectComposer may be used in place of a normal WebGLRenderer.
  *
@@ -97,7 +101,7 @@ export class EffectComposer {
 		 */
 
 		this.depthTexture = null;
-
+		this.normalTarget = null;
 		/**
 		 * The passes.
 		 *
@@ -313,6 +317,23 @@ export class EffectComposer {
 
 		return depthTexture;
 
+	}
+
+	createNormalTarget() {
+		if (this.normalTarget) {
+			return this.normalTarget
+		}
+
+		const normalTarget = new WebGLRenderTarget(this.inputBuffer.width, this.inputBuffer.height, {
+			minFilter: NearestFilter,
+			magFilter: NearestFilter,
+			format: RGBAFormat,
+			type: HalfFloatType
+		});
+		this.normalTarget = normalTarget
+		normalTarget.texture.name = "EffectComposer.NormalTarget";
+		normalTarget.texture.generateMipmaps = false;
+		return normalTarget;
 	}
 
 	/**
@@ -616,9 +637,15 @@ export class EffectComposer {
 		// 		object.visible = true
 		// 	}
 		// });
+		const effectPassOpts = effectPassUtils.getRenderOpts()
+
 		const renderPasses = this.passes[0]
 		if (renderPasses.isRenderPass) {
-			renderPasses.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass);
+			const res = renderPasses.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass, {
+				// normalsRenderTarget: this.createNormalTarget(),
+				// renderNormals: true
+			}, effectPassOpts);
+			effectPassOpts.renderPassReault = res
 		}
 
 		// 在所有后期处理之前恢复对象的正确可见性状态
@@ -635,7 +662,7 @@ export class EffectComposer {
 
 
 				// 传递深度通道作为额外参数
-				pass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass);
+				pass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass, effectPassOpts);
 
 
 
@@ -711,6 +738,11 @@ export class EffectComposer {
 		this.inputBuffer.setSize(drawingBufferSize.width, drawingBufferSize.height);
 		this.outputBuffer.setSize(drawingBufferSize.width, drawingBufferSize.height);
 
+		// 调整 normalTarget 的大小
+		if (this.normalTarget !== null) {
+			this.normalTarget.setSize(drawingBufferSize.width, drawingBufferSize.height);
+		}
+
 		for (const pass of this.passes) {
 
 			pass.setSize(drawingBufferSize.width, drawingBufferSize.height);
@@ -757,6 +789,7 @@ export class EffectComposer {
 		}
 
 		this.deleteDepthTexture();
+		this.deleteNormalTarget();
 		this.copyPass.dispose();
 		this.timer.dispose();
 

@@ -72,9 +72,9 @@ class FullScreenQuad {
 
 	}
 
-	render(renderer) {
+	render(renderer, renderOpts) {
 
-		renderer.render(this._mesh, _camera);
+		renderer.render(this._mesh, _camera, renderOpts);
 
 	}
 

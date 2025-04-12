@@ -121,13 +121,13 @@ export class OverrideMaterialManager {
 
 		this.replaceMaterial = (node) => {
 
-			if(node.isMesh) {
+			if (node.isMesh) {
 
 				let materials;
 
-				if(node.material.flatShading) {
+				if (node.material.flatShading) {
 
-					switch(node.material.side) {
+					switch (node.material.side) {
 
 						case DoubleSide:
 							materials = this.materialsFlatShadedDoubleSide;
@@ -145,7 +145,7 @@ export class OverrideMaterialManager {
 
 				} else {
 
-					switch(node.material.side) {
+					switch (node.material.side) {
 
 						case DoubleSide:
 							materials = this.materialsDoubleSide;
@@ -165,11 +165,11 @@ export class OverrideMaterialManager {
 
 				this.originalMaterials.set(node, node.material);
 
-				if(node.isSkinnedMesh) {
+				if (node.isSkinnedMesh) {
 
 					node.material = materials[2];
 
-				} else if(node.isInstancedMesh) {
+				} else if (node.isInstancedMesh) {
 
 					node.material = materials[1];
 
@@ -197,7 +197,7 @@ export class OverrideMaterialManager {
 
 	cloneMaterial(material) {
 
-		if(!(material instanceof ShaderMaterial)) {
+		if (!(material instanceof ShaderMaterial)) {
 
 			// No uniforms.
 			return material.clone();
@@ -207,11 +207,11 @@ export class OverrideMaterialManager {
 		const uniforms = material.uniforms;
 		const textureUniforms = new Map();
 
-		for(const key in uniforms) {
+		for (const key in uniforms) {
 
 			const value = uniforms[key].value;
 
-			if(value.isRenderTargetTexture) {
+			if (value.isRenderTargetTexture) {
 
 				// Three logs warnings about cloning render target textures since r151.
 				uniforms[key].value = null;
@@ -223,7 +223,7 @@ export class OverrideMaterialManager {
 
 		const clone = material.clone();
 
-		for(const entry of textureUniforms) {
+		for (const entry of textureUniforms) {
 
 			// Restore and copy references to textures.
 			uniforms[entry[0]].value = entry[1];
@@ -246,7 +246,7 @@ export class OverrideMaterialManager {
 		this.disposeMaterials();
 		this.material = material;
 
-		if(material !== null) {
+		if (material !== null) {
 
 			// Create materials for simple, instanced and skinned meshes.
 			const materials = this.materials = [
@@ -256,7 +256,7 @@ export class OverrideMaterialManager {
 			];
 
 			// FrontSide
-			for(const m of materials) {
+			for (const m of materials) {
 
 				m.uniforms = Object.assign({}, material.uniforms);
 				m.side = FrontSide;
@@ -330,27 +330,28 @@ export class OverrideMaterialManager {
 	 * @param {Camera} camera - A camera.
 	 */
 
-	render(renderer, scene, camera) {
+	render(renderer, scene, camera, renderOpts = {}) {
 
 		// Ignore shadows.
 		const shadowMapEnabled = renderer.shadowMap.enabled;
 		renderer.shadowMap.enabled = false;
 
-		if(workaroundEnabled) {
+		let renderResult = null
+		if (workaroundEnabled) {
 
 			const originalMaterials = this.originalMaterials;
 
 			this.meshCount = 0;
 			scene.traverse(this.replaceMaterial);
-			renderer.render(scene, camera);
+			renderResult = renderer.render(scene, camera, renderOpts);
 
-			for(const entry of originalMaterials) {
+			for (const entry of originalMaterials) {
 
 				entry[0].material = entry[1];
 
 			}
 
-			if(this.meshCount !== originalMaterials.size) {
+			if (this.meshCount !== originalMaterials.size) {
 
 				originalMaterials.clear();
 
@@ -360,13 +361,13 @@ export class OverrideMaterialManager {
 
 			const overrideMaterial = scene.overrideMaterial;
 			scene.overrideMaterial = this.material;
-			renderer.render(scene, camera);
+			renderResult = renderer.render(scene, camera, renderOpts);
 			scene.overrideMaterial = overrideMaterial;
 
 		}
 
 		renderer.shadowMap.enabled = shadowMapEnabled;
-
+		return renderResult
 	}
 
 	/**
@@ -377,7 +378,7 @@ export class OverrideMaterialManager {
 
 	disposeMaterials() {
 
-		if(this.material !== null) {
+		if (this.material !== null) {
 
 			const materials = this.materials
 				.concat(this.materialsBackSide)
@@ -386,7 +387,7 @@ export class OverrideMaterialManager {
 				.concat(this.materialsFlatShadedBackSide)
 				.concat(this.materialsFlatShadedDoubleSide);
 
-			for(const m of materials) {
+			for (const m of materials) {
 
 				m.dispose();
 

@@ -23,7 +23,7 @@ import {
     TorusKnotGeometry,
     Vector2,
     VSMShadowMap,
-    WebGLRenderer
+    MyWebGLRenderer
 } from "run-scene-core";
 
 // 导入工具函数
@@ -136,7 +136,7 @@ window.addEventListener("load", async () => {
     const assets = await load();
 
     // 渲染器设置
-    const renderer = new WebGLRenderer({
+    const renderer = new MyWebGLRenderer({
         powerPreference: "high-performance",
         // antialias: false,
         // stencil: false,

@@ -574,13 +574,17 @@ export class EffectPass extends Pass {
 
 			timeLog("EffectPass.finalRender");
 			renderer.setRenderTarget(this.renderToScreen ? null : outputBuffer);
-			renderer.render(this.scene, this.camera);
+			renderer.render(this.scene, this.camera, {
+				projectObject: true,
+				updateMatrixWorld: false,
+				useProgramCache: true,
+			});
 			timeEndLog("EffectPass.finalRender");
 		}
 
 	}
 
-	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass) {
+	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass, opts = {}) {
 
 		// this.mainScene.traverse(object => {
 		// 	object.visible = false;

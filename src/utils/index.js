@@ -3,3 +3,4 @@ export * from "./viewZToOrthographicDepth.js";
 
 export * from "./IdManager.js";
 export * from "./PerformanceLogger.js";
+export * from "./RenderUtils.js";

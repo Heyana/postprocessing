@@ -314,7 +314,11 @@ export class SelectiveBloomEffect extends BloomEffect {
 				timeLog("SelectiveBloomEffect.update.depthPass");
 				const mask = camera.layers.mask;
 				camera.layers.set(selection.layer);
-				this.depthPass.render(renderer);
+				this.depthPass.render(renderer, undefined, undefined, undefined, undefined, undefined, {
+					projectObject: true,
+					updateMatrixWorld: false,
+					useProgramCache: false,
+				});
 				camera.layers.mask = mask;
 				timeEndLog("SelectiveBloomEffect.update.depthPass");
 			}
@@ -323,7 +327,11 @@ export class SelectiveBloomEffect extends BloomEffect {
 			timeLog("SelectiveBloomEffect.update.maskRender");
 			renderTarget = this.renderTargetMasked;
 			this.clearPass.render(renderer, renderTarget);
-			this.depthMaskPass.render(renderer, inputBuffer, renderTarget);
+			this.depthMaskPass.render(renderer, inputBuffer, renderTarget, undefined, undefined, {
+				projectObject: true,
+				updateMatrixWorld: false,
+				useProgramCache: false,
+			});
 			timeEndLog("SelectiveBloomEffect.update.maskRender");
 		}
 

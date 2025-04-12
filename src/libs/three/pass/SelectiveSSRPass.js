@@ -29,8 +29,9 @@ import { Selection } from 'postprocessing';
 // 导入DepthMaskMaterial和DepthPass
 import { DepthMaskMaterial, DepthPass, ShaderPass } from 'postprocessing';
 // 导入深度测试策略
+import { renderUtils } from '../../../utils/RenderUtils.js';
 import { DepthTestStrategy } from 'postprocessing';
-console.log('Log-- ', 1.2, 'SSRPass');
+console.log('Log-- ', 1.4, 'SSRPass');
 class SelectiveSSRPass extends Pass {
 
     constructor({ renderer, scene, camera, width, height, selection, bouncing = false, groundReflector, composer }) {
@@ -252,7 +253,7 @@ class SelectiveSSRPass extends Pass {
         this.depthMaskMaterial.depthBuffer1 = this.depthPass.texture; // 选中对象深度
         this.depthMaskMaterial.depthPacking1 = RGBADepthPacking; // RGBADepthPacking
         this.depthMaskMaterial.depthMode = EqualDepth; // 默认使用相等深度模式
-        // this.depthMaskMaterial.epsilon = 0.000009; // 深度比较容差
+        this.depthMaskMaterial.epsilon = 0.000009; // 深度比较容差
 
         // 使用深度遮罩材质创建遮罩通道
         this.maskPass = new ShaderPass(this.depthMaskMaterial);
@@ -377,8 +378,12 @@ class SelectiveSSRPass extends Pass {
         this.fsQuad.dispose();
 
     }
-
-    render(renderer, writeBuffer, inputBuffer, deltaTime, stencilTest, depthPass) {
+    renderOpts = {
+        projectObject: true, // 控制是否执行对象投影
+        updateMatrixWorld: false,
+        useProgramCache: false, // 控制是否使用着色器缓存和快速路径
+    }
+    render(renderer, writeBuffer, inputBuffer, deltaTime, stencilTest, depthPass, effectPassOpts) {
         // this.depthMaskMaterial.copyCameraSettings(this.camera);
         const oldMatrixAutoUpdate = this.scene.matrixAutoUpdate;
         const oldCameraMatrixAutoUpdate = this.camera.matrixAutoUpdate;
@@ -386,6 +391,7 @@ class SelectiveSSRPass extends Pass {
         this.scene.matrixAutoUpdate = false
         this.camera.matrixAutoUpdate = false
         renderer.shadowMap.needsUpdate = false
+        // this.ssrMaterial.uniforms['tNormal'].value = this.composer.normalTarget.texture
         // 保存当前渲染器设置
         this.originalClearColor.copy(renderer.getClearColor(this.tempColor));
         const currentRenderTarget = renderer.getRenderTarget();
@@ -408,17 +414,54 @@ class SelectiveSSRPass extends Pass {
         if (this.groundReflector) this.groundReflector.visible = false;
 
         // 渲染normals
-        this.renderOverride(renderer, this.normalMaterial, this.normalRenderTarget, 0, 0);
+        this.renderOverride(
+            renderer,
+            this.normalMaterial,
+            this.normalRenderTarget,
+            0,
+            0,
+            effectPassOpts);
         this.depthMaskMaterial.depthBuffer0 = this.composer.depthTexture;
         this.depthMaskMaterial.inputBuffer = inputBuffer.texture;
+
+        // 保存相机当前层掩码
         const mask = this.camera.layers.mask;
+
+        // 1. 设置相机仅渲染选中的层
         this.camera.layers.set(this._selection.layer);
 
+        // 2. 处理选中对象的子元素，将它们也设置为选中层
+        const otherModels = [];
+        this._selection.forEach((model) => {
+            if (model.children.length > 0) {
+                model.traverse((child) => {
+                    if (child.isMesh && !child.layers.isEnabled(this._selection.layer) && child.visible) {
+                        otherModels.push({
+                            model: child,
+                            oldLayerMask: child.layers.mask  // 保存原始的完整层掩码
+                        })
+                        child.layers.set(this._selection.layer)  // 设置为selection.layer
+                    }
+                })
+            }
+        })
 
-        // 首先渲染选中对象的深度
-        this.depthPass.render(renderer, inputBuffer);
+        // 3. 渲染选中对象的深度
+        this.depthPass.render(renderer, inputBuffer, undefined, undefined, undefined, undefined, {
+            projectObject: true,
+            updateMatrixWorld: false,
+            useProgramCache: false,
+            ...renderUtils.getSubOpths(false)
+        });
         this.ssrMaterial.uniforms.depthPass1 = new Uniform(this.depthPass.renderTarget.texture)
+
+        // 4. 恢复相机原始层掩码
         this.camera.layers.mask = mask;
+
+        // 5. 恢复子对象的原始层设置
+        otherModels.forEach(({ model, oldLayerMask }) => {
+            model.layers.mask = oldLayerMask;  // 直接恢复整个掩码
+        })
 
         // 更新深度掩码材质，使用beautyRenderTarget的深度作为比较
 
@@ -427,7 +470,12 @@ class SelectiveSSRPass extends Pass {
         renderer.clear(true, true, true);
 
         // 使用深度遮罩材质渲染遮罩
-        this.maskPass.render(renderer, inputBuffer, this.renderTargetMask);
+        this.maskPass.render(renderer, inputBuffer, this.renderTargetMask, undefined, undefined, {
+            projectObject: true,
+            updateMatrixWorld: false,
+            useProgramCache: false,
+            ...renderUtils.getSubOpths(false)
+        });
 
         // 恢复场景背景
         this.scene.background = background;
@@ -561,7 +609,7 @@ class SelectiveSSRPass extends Pass {
         }
 
         // 恢复原始渲染目标
-        renderer.setRenderTarget(currentRenderTarget);
+        renderer.setRenderTarget(this.ssrRenderTarget);
         this.scene.matrixAutoUpdate = oldMatrixAutoUpdate;
         this.camera.matrixAutoUpdate = oldCameraMatrixAutoUpdate;
         renderer.shadowMap.needsUpdate = oldShadowUpdate;
@@ -587,7 +635,11 @@ class SelectiveSSRPass extends Pass {
         }
 
         this.fsQuad.material = passMaterial;
-        this.fsQuad.render(renderer);
+        this.fsQuad.render(renderer, {
+            projectObject: true,
+            updateMatrixWorld: false,
+            useProgramCache: false,
+        });
 
         // restore original state
         renderer.autoClear = originalAutoClear;
@@ -596,7 +648,13 @@ class SelectiveSSRPass extends Pass {
 
     }
 
-    renderOverride(renderer, overrideMaterial, renderTarget, clearColor, clearAlpha) {
+    renderOverride(
+        renderer,
+        overrideMaterial,
+        renderTarget,
+        clearColor,
+        clearAlpha,
+        effectPassOpts) {
 
         this.originalClearColor.copy(renderer.getClearColor(this.tempColor));
         const originalClearAlpha = renderer.getClearAlpha(this.tempColor);
@@ -618,11 +676,17 @@ class SelectiveSSRPass extends Pass {
 
         this.scene.overrideMaterial = overrideMaterial;
         renderer.shadowMap.autoUpdate = false
-        const oldUpdate = this.scene.matrixWorldAutoUpdate
-        this.scene.matrixWorldAutoUpdate = false
-        renderer.render(this.scene, this.camera);
+        renderer.render(this.scene, this.camera,
+            renderUtils.getStandardOpts(
+                {
+                    projectObject: true,
+                    updateMatrixWorld: false,
+                    useProgramCache: false,
+                }, {
+                subOptsState: false
+            }
+            ));
         this.scene.overrideMaterial = null;
-        this.scene.matrixWorldAutoUpdate = oldUpdate
 
         // restore original state
 

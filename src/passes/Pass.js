@@ -137,6 +137,17 @@ export class Pass {
 		this.needsDepthTexture = false;
 
 		/**
+		 * Only relevant for subclassing.
+		 *
+		 * Indicates whether the {@link EffectComposer} should prepare a normal texture for this pass.
+		 * Set this to `true` if this pass relies on normal information from a preceding {@link NormalPass}.
+		 *
+		 * @type {Boolean}
+		 */
+
+		this.needsNormalTexture = false;
+
+		/**
 		 * Indicates whether this pass is enabled.
 		 *
 		 * @type {Boolean}
@@ -301,6 +312,7 @@ export class Pass {
 	/**
 	 * Returns the current depth texture.
 	 *
+	 * @deprecated Use getDepthTexture instead.
 	 * @return {Texture} The current depth texture, or null if there is none.
 	 */
 
@@ -321,6 +333,26 @@ export class Pass {
 	 */
 
 	setDepthTexture(depthTexture, depthPacking = BasicDepthPacking) { }
+
+	/**
+	 * Returns the current normal texture.
+	 *
+	 * @return {Texture} The current normal texture, or null if there is none.
+	 */
+
+	getNormalTexture() {
+
+		return null;
+
+	}
+
+	/**
+	 * Sets the normal texture.
+	 *
+	 * @param {Texture} normalTexture - A normal texture.
+	 */
+
+	setNormalTexture(normalTexture) { }
 
 	/**
 	 * Renders this pass.

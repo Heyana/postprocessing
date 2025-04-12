@@ -280,7 +280,7 @@ export class RenderPass extends Pass {
 	 * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
 	 */
 
-	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest) {
+	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass, renderOpts = {}, effectPassOpts) {
 		timeLog("RenderPass.render");
 		const scene = this.scene;
 		const camera = this.camera;
@@ -290,12 +290,9 @@ export class RenderPass extends Pass {
 		const shadowMapAutoUpdate = renderer.shadowMap.autoUpdate;
 		const renderTarget = this.renderToScreen ? null : inputBuffer;
 
+		let renderResult = null
 		// 获取场景中第一个子对象的类名（如果存在）
-		let childClassName = "无子对象";
-		if (scene && scene.children && scene.children.length > 0) {
-			childClassName = scene.children[0].constructor.name;
-		}
-		log(`RenderPass 渲染场景, 第一个子对象类型: ${childClassName}`);
+
 
 		if (selection !== null) {
 
@@ -325,11 +322,11 @@ export class RenderPass extends Pass {
 
 		if (this.overrideMaterialManager !== null) {
 
-			this.overrideMaterialManager.render(renderer, scene, camera);
+			renderResult = this.overrideMaterialManager.render(renderer, scene, camera, renderOpts);
 
 		} else {
 
-			renderer.render(scene, camera);
+			renderResult = renderer.render(scene, camera, renderOpts);
 
 		}
 
@@ -339,6 +336,7 @@ export class RenderPass extends Pass {
 		renderer.shadowMap.autoUpdate = shadowMapAutoUpdate;
 
 		timeEndLog("RenderPass.render");
+		return renderResult
 	}
 
 }

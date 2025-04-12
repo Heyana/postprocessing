@@ -196,7 +196,7 @@ export class EnhancedThreeCompatPass extends Pass {
      * @param {Boolean} [stencilTest] - 指示模板测试是否处于活动状态
      * @param {DepthPass} [depthPass] - 可选的共享深度Pass，用于优化多个效果
      */
-    render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass) {
+    render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass, effectPassOpts) {
         // 如果Pass被禁用，直接将输入复制到输出
         if (!this.enabled) {
             renderer.setRenderTarget(this.renderToScreen ? null : outputBuffer);
@@ -228,7 +228,7 @@ export class EnhancedThreeCompatPass extends Pass {
 
         // 调用Three.js Pass的render方法
         try {
-            this.threePass.render(renderer, writeBuffer, readBuffer, deltaTime, maskActive);
+            this.threePass.render(renderer, writeBuffer, readBuffer, deltaTime, maskActive, depthPass, effectPassOpts);
         } catch (error) {
             console.error(`渲染 ${this.name} 时出错:`, error);
         }

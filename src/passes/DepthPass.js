@@ -187,7 +187,7 @@ export class DepthPass extends Pass {
 	 * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
 	 */
 
-	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest) {
+	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass, renderOpts = {}) {
 
 		timeLog("DepthPass.render");
 		const renderTarget = this.renderToScreen ? null : this.renderTarget;
@@ -199,7 +199,7 @@ export class DepthPass extends Pass {
 		}
 		log(`DepthPass 渲染场景, 第一个子对象类型: ${childClassName}`);
 
-		this.renderPass.render(renderer, renderTarget);
+		this.renderPass.render(renderer, renderTarget, outputBuffer, deltaTime, stencilTest, depthPass, renderOpts);
 		timeEndLog("DepthPass.render");
 
 	}
