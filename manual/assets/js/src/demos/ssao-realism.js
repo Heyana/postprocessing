@@ -404,7 +404,10 @@ window.addEventListener("load", () => load().then((assets) => {
 		// 忽略列表设置
 		ignoreSelection: new Selection(),
 		highlightValue: 0.8,
-
+		useMultisampling: true,
+		samplingCount: 9,
+		samplingRadius: 2.0,
+		samplingThreshold: 0.5,
 		// 渲染控制
 	});
 

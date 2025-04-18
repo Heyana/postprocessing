@@ -8,6 +8,7 @@ export * from "./DepthComparisonMaterial.js";
 export * from "./DepthCopyMaterial.js";
 export * from "./DepthDownsamplingMaterial.js";
 export * from "./DepthMaskMaterial.js";
+export * from "./MultiSampleDepthMaskMaterial.js";
 export * from "./DownsamplingMaterial.js";
 export * from "./EdgeDetectionMaterial.js";
 export * from "./EdgeDetectionMaterial.js";

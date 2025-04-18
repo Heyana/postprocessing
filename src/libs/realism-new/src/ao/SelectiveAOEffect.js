@@ -4,7 +4,7 @@ import { TRAAEffect } from '../../index'
 import ao_compose from './shader/ao_compose.frag'
 import { PoissionDenoisePass } from '../pass/PoissionDenoisePass'
 import { DepthComparisonMaterial, DepthPass, ShaderPass } from "postprocessing"
-import { DepthMaskMaterial } from "postprocessing"
+import { DepthMaskMaterial, MultiSampleDepthMaskMaterial } from "postprocessing"
 import { DepthTestStrategy } from "postprocessing"
 import * as THREE from 'three';
 const defaultAOOptions = {
@@ -25,6 +25,11 @@ const defaultAOOptions = {
     useNormalPass: false,
     velocityDepthNormalPass: null,
     normalTexture: null,
+    // 添加多采样相关参数
+    useMultisampling: true,     // 是否启用多采样
+    samplingCount: 9,           // 采样数量
+    samplingRadius: 2.0,        // 采样半径
+    samplingThreshold: 0.5,     // 采样匹配阈值
     renderBefore: () => {
     },
     ...PoissionDenoisePass.DefaultOptions
@@ -97,8 +102,13 @@ export class SelectiveAOEffect extends Effect {
         // 创建深度通道
         this.depthPass = new DepthPass(scene, camera);
 
-        // 创建深度遮罩材质
-        this.depthMaskMaterial = new DepthMaskMaterial();
+        console.log('Log-- ', options.useMultisampling, 'options.useMultisampling');
+        // 创建深度遮罩材质（根据配置决定是否使用多采样）
+        if (options.useMultisampling) {
+            this.depthMaskMaterial = new MultiSampleDepthMaskMaterial();
+        } else {
+            this.depthMaskMaterial = new DepthMaskMaterial();
+        }
         this.depthMaskMaterial.copyCameraSettings(camera);
         this.depthMaskMaterial.depthBuffer0 = composer.depthTexture;  // 场景深度
         this.depthMaskMaterial.depthPacking0 = BasicDepthPacking;
@@ -106,6 +116,13 @@ export class SelectiveAOEffect extends Effect {
         this.depthMaskMaterial.depthPacking1 = RGBADepthPacking;
         this.depthMaskMaterial.depthMode = THREE.EqualDepth;                // 默认使用相等深度模式
         this.depthMaskMaterial.epsilon = 0.000009;                // 默认使用相等深度模式
+
+        // 如果使用多采样，设置多采样参数
+        if (options.useMultisampling && this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
+            this.depthMaskMaterial.samplingCount = options.samplingCount || 9;
+            this.depthMaskMaterial.samplingRadius = options.samplingRadius || 2.0;
+            this.depthMaskMaterial.samplingThreshold = options.samplingThreshold || 0.5;
+        }
 
         // 使用深度遮罩材质创建遮罩通道替代原来的RenderPass
         this.maskPass = new ShaderPass(this.depthMaskMaterial);
@@ -270,6 +287,58 @@ export class SelectiveAOEffect extends Effect {
                         case "depthPhi":
                         case "normalPhi":
                             this.poissionDenoisePass.fullscreenMaterial.uniforms[key].value = Math.max(value, 0.0001);
+                            break;
+
+                        case "useMultisampling":
+                            // 切换多采样模式需要重新创建材质
+                            if (value && !(this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial)) {
+                                const oldMaterial = this.depthMaskMaterial;
+                                this.depthMaskMaterial = new MultiSampleDepthMaskMaterial();
+                                this.depthMaskMaterial.copyCameraSettings(this.camera);
+                                this.depthMaskMaterial.depthBuffer0 = oldMaterial.uniforms.depthBuffer0.value;
+                                this.depthMaskMaterial.depthPacking0 = Number(oldMaterial.defines.DEPTH_PACKING_0);
+                                this.depthMaskMaterial.depthBuffer1 = oldMaterial.uniforms.depthBuffer1.value;
+                                this.depthMaskMaterial.depthPacking1 = Number(oldMaterial.defines.DEPTH_PACKING_1);
+                                this.depthMaskMaterial.depthMode = oldMaterial.depthMode;
+                                this.depthMaskMaterial.epsilon = oldMaterial.epsilon;
+                                this.depthMaskMaterial.samplingCount = this.samplingCount;
+                                this.depthMaskMaterial.samplingRadius = this.samplingRadius;
+                                this.depthMaskMaterial.samplingThreshold = this.samplingThreshold;
+
+                                // 更新遮罩通道的材质
+                                this.maskPass.fullscreenMaterial = this.depthMaskMaterial;
+                            } else if (!value && this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
+                                const oldMaterial = this.depthMaskMaterial;
+                                this.depthMaskMaterial = new DepthMaskMaterial();
+                                this.depthMaskMaterial.copyCameraSettings(this.camera);
+                                this.depthMaskMaterial.depthBuffer0 = oldMaterial.uniforms.depthBuffer0.value;
+                                this.depthMaskMaterial.depthPacking0 = Number(oldMaterial.defines.DEPTH_PACKING_0);
+                                this.depthMaskMaterial.depthBuffer1 = oldMaterial.uniforms.depthBuffer1.value;
+                                this.depthMaskMaterial.depthPacking1 = Number(oldMaterial.defines.DEPTH_PACKING_1);
+                                this.depthMaskMaterial.depthMode = oldMaterial.depthMode;
+                                this.depthMaskMaterial.epsilon = oldMaterial.epsilon;
+
+                                // 更新遮罩通道的材质
+                                this.maskPass.fullscreenMaterial = this.depthMaskMaterial;
+                            }
+                            break;
+
+                        case "samplingCount":
+                            if (this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
+                                this.depthMaskMaterial.samplingCount = value;
+                            }
+                            break;
+
+                        case "samplingRadius":
+                            if (this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
+                                this.depthMaskMaterial.samplingRadius = value;
+                            }
+                            break;
+
+                        case "samplingThreshold":
+                            if (this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
+                                this.depthMaskMaterial.samplingThreshold = value;
+                            }
                             break;
 
                         default:
@@ -450,6 +519,32 @@ export class SelectiveAOEffect extends Effect {
 
     update(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass) {
         this.depthMaskMaterial.copyCameraSettings(this.camera);
+
+        // 更新多采样深度掩码材质的分辨率
+        if (this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
+            const size = renderer.getSize(new THREE.Vector2());
+            this.depthMaskMaterial.setResolution(size.x, size.y);
+
+            // 视角自适应逻辑 - 当视角接近平行时增加采样
+            if (this.camera) {
+                const cameraForward = new THREE.Vector3(0, 0, -1);
+                cameraForward.applyQuaternion(this.camera.quaternion);
+
+                // 假设Y轴向上的场景，计算视线与地面的夹角
+                const groundNormal = new THREE.Vector3(0, 1, 0);
+                const angleFactor = Math.abs(cameraForward.dot(groundNormal));
+
+                // 在接近平行视角时增加采样数量和半径
+                if (angleFactor < 0.3) { // 视线接近平行于地面
+                    this.depthMaskMaterial.samplingCount = Math.max(9, this.samplingCount);
+                    this.depthMaskMaterial.samplingRadius = Math.max(2.0, this.samplingRadius);
+                } else {
+                    // 恢复用户设置的值
+                    this.depthMaskMaterial.samplingCount = this.samplingCount;
+                    this.depthMaskMaterial.samplingRadius = this.samplingRadius;
+                }
+            }
+        }
 
         // 准备场景 - 设置高亮对象等
         if (!this.aoPass.fullscreenMaterial.uniforms.inputBuffer) {

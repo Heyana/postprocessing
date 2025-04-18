@@ -24,6 +24,7 @@ export class EnhancedThreeCompatPass extends Pass {
      * @param {String} [name="EnhancedThreeCompatPass"] - Pass的名称
      * @param {String} [passType="generic"] - Pass的类型，用于特殊处理（可选值："ssr", "bloom", "generic"）
      */
+    effects = []
     constructor(threePass, name = "EnhancedThreeCompatPass", passType = "generic") {
         super(name);
 
@@ -34,7 +35,7 @@ export class EnhancedThreeCompatPass extends Pass {
          * @private
          */
         this.threePass = threePass;
-
+        this.effects.push(threePass)
         /**
          * Pass类型，用于特殊处理
          * 

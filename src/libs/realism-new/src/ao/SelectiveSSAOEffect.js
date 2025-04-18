@@ -25,7 +25,8 @@ export class SelectiveSSAOEffect extends SelectiveAOEffect {
                 spp: 16,
                 distance: 1,
                 distancePower: 0.25,
-                power: 2
+                power: 2,
+
             }
         };
         options = {
