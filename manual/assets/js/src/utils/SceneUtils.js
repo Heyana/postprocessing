@@ -359,3 +359,19 @@ export function getObjectsByGeometryType(group, geometryType) {
 
     return result;
 }
+
+export const sceneUtils = {
+    loadEnvironmentMap,
+    createBasicScene,
+    createTestObjects,
+    createMaskRenderTarget,
+    updateEnvMapIntensity,
+    optimizeSphereReflections,
+    optimizeCurvedSurfaceReflections,
+    getObjectsByGeometryType,
+    selectObjectsByMetalness,
+    setMatrixAutoUpdate: (object, state) => {
+        object.matrixAutoUpdate = state;
+    },
+
+}

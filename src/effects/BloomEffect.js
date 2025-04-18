@@ -1,4 +1,4 @@
-import { SRGBColorSpace, Uniform, WebGLRenderTarget } from "three";
+import { SRGBColorSpace, Uniform, WebGLRenderTarget, Vector3, Color } from "three";
 import { Resolution } from "../core/Resolution.js";
 import { BlendFunction } from "../enums/BlendFunction.js";
 import { KernelSize } from "../enums/KernelSize.js";
@@ -29,6 +29,7 @@ export class BloomEffect extends Effect {
 	 * @param {Number} [options.intensity=1.0] - The bloom intensity.
 	 * @param {Number} [options.radius=0.85] - The blur radius. Only applies to mipmap blur.
 	 * @param {Number} [options.levels=8] - The amount of MIP levels. Only applies to mipmap blur.
+	 * @param {Color|String|Number} [options.bloomColor=0xffffff] - The color of the bloom effect.
 	 * @param {KernelSize} [options.kernelSize=KernelSize.LARGE] - Deprecated. Use mipmapBlur instead.
 	 * @param {Number} [options.resolutionScale=0.5] - Deprecated. Use mipmapBlur instead.
 	 * @param {Number} [options.resolutionX=Resolution.AUTO_SIZE] - Deprecated. Use mipmapBlur instead.
@@ -45,6 +46,7 @@ export class BloomEffect extends Effect {
 		intensity = 1.0,
 		radius = 0.85,
 		levels = 8,
+		bloomColor = 0xffffff,
 		kernelSize = KernelSize.LARGE,
 		resolutionScale = 0.5,
 		width = Resolution.AUTO_SIZE,
@@ -57,7 +59,8 @@ export class BloomEffect extends Effect {
 			blendFunction,
 			uniforms: new Map([
 				["map", new Uniform(null)],
-				["intensity", new Uniform(intensity)]
+				["intensity", new Uniform(intensity)],
+				["bloomColor", new Uniform(new Color(bloomColor))]
 			])
 		});
 
@@ -386,11 +389,11 @@ export class BloomEffect extends Effect {
 		const renderTarget = this.renderTarget;
 		const luminancePass = this.luminancePass;
 
-		if(luminancePass.enabled) {
+		if (luminancePass.enabled) {
 
 			luminancePass.render(renderer, inputBuffer);
 
-			if(this.mipmapBlurPass.enabled) {
+			if (this.mipmapBlurPass.enabled) {
 
 				this.mipmapBlurPass.render(renderer, luminancePass.renderTarget);
 
@@ -402,7 +405,7 @@ export class BloomEffect extends Effect {
 
 		} else {
 
-			if(this.mipmapBlurPass.enabled) {
+			if (this.mipmapBlurPass.enabled) {
 
 				this.mipmapBlurPass.render(renderer, inputBuffer);
 
@@ -449,11 +452,11 @@ export class BloomEffect extends Effect {
 		this.luminancePass.initialize(renderer, alpha, frameBufferType);
 		this.mipmapBlurPass.initialize(renderer, alpha, frameBufferType);
 
-		if(frameBufferType !== undefined) {
+		if (frameBufferType !== undefined) {
 
 			this.renderTarget.texture.type = frameBufferType;
 
-			if(renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
+			if (renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
 
 				this.renderTarget.texture.colorSpace = SRGBColorSpace;
 
@@ -461,6 +464,40 @@ export class BloomEffect extends Effect {
 
 		}
 
+	}
+
+	/**
+	 * The bloom color.
+	 *
+	 * @type {Color}
+	 */
+
+	get bloomColor() {
+		return this.uniforms.get("bloomColor").value;
+	}
+
+	set bloomColor(value) {
+		this.uniforms.get("bloomColor").value.copy(new Color(value));
+	}
+
+	/**
+	 * Returns the bloom color.
+	 *
+	 * @return {Color} The color.
+	 */
+
+	getBloomColor() {
+		return this.bloomColor;
+	}
+
+	/**
+	 * Sets the bloom color.
+	 *
+	 * @param {Color|String|Number} value - The color.
+	 */
+
+	setBloomColor(value) {
+		this.bloomColor = value;
 	}
 
 }

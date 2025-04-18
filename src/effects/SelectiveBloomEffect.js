@@ -17,6 +17,7 @@ import { DepthPass } from "../passes/DepthPass.js";
 import { ShaderPass } from "../passes/ShaderPass.js";
 import { BloomEffect } from "./BloomEffect.js";
 import { timeLog, timeEndLog, log } from "../utils/PerformanceLogger.js";
+import { renderUtils } from "../utils/RenderUtils.js";
 
 /**
  * A selective bloom effect.
@@ -46,7 +47,7 @@ export class SelectiveBloomEffect extends BloomEffect {
 		 * @type {Camera}
 		 * @private
 		 */
-
+		this.scene = scene;
 		this.camera = camera;
 
 		/**
@@ -82,6 +83,7 @@ export class SelectiveBloomEffect extends BloomEffect {
 		depthMaskMaterial.depthBuffer1 = this.depthPass.texture;
 		depthMaskMaterial.depthPacking1 = RGBADepthPacking;
 		depthMaskMaterial.depthMode = EqualDepth;
+		this.depthMaskMaterial.epsilon = 0.000009; // 深度比较容差
 
 		/**
 		 * A render target.
@@ -278,6 +280,12 @@ export class SelectiveBloomEffect extends BloomEffect {
 	 */
 
 	update(renderer, inputBuffer, deltaTime, depthPass) {
+
+		// const renderState = renderUtils.setRenderState({
+		// 	renderer,
+		// 	scene: this.scene,
+		// 	forceState: false
+		// })
 		//准备修改
 		// if (this.scene) {
 		// 	const oldMatrixAutoUpdate = this.scene.matrixWorldAutoUpdate;
@@ -333,6 +341,7 @@ export class SelectiveBloomEffect extends BloomEffect {
 				useProgramCache: false,
 			});
 			timeEndLog("SelectiveBloomEffect.update.maskRender");
+
 		}
 
 		// 正常渲染泛光纹理

@@ -21,6 +21,7 @@ import { MaskPass } from "../passes/MaskPass.js";
 import { Pass } from "../passes/Pass.js";
 import { timeEndLog, timeLog } from "../utils/PerformanceLogger.js";
 import { effectPassUtils } from "../utils/EffectPassUtils.js";
+import { renderUtils } from "../utils/RenderUtils.js";
 /**
  * The EffectComposer may be used in place of a normal WebGLRenderer.
  *
@@ -647,6 +648,11 @@ export class EffectComposer {
 			}, effectPassOpts);
 			effectPassOpts.renderPassReault = res
 		}
+		const renderState = renderUtils.setRenderState({
+			renderer,
+			scene: this.scene,
+			forceState: false
+		})
 
 		// 在所有后期处理之前恢复对象的正确可见性状态
 		// this.scene.traverse(object => {
@@ -700,7 +706,11 @@ export class EffectComposer {
 			}
 
 		}
-
+		renderUtils.setRenderState({
+			renderer,
+			scene: this.scene,
+			renderState
+		})
 
 
 		timeEndLog("EffectComposer.render");

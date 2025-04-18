@@ -125,6 +125,7 @@
     "typescript": "5.8.x"
   },
   "dependencies": {
+    "@dgreenheck/ez-tree": "^1.0.0",
     "postprocessing": "^6.37.1",
     "three": "0.165.0"
   }

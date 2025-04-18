@@ -32,6 +32,8 @@ export * from "./SelectiveBloomEffect.js";
 export * from "./SepiaEffect.js";
 export * from "./SharedOutlineEffect.js";
 export * from "./SMAAEffect.js";
+export * from "./SnowOverlayEffect.js";
+export * from "./SnowfallEffect.js";
 export * from "./SSAOEffect.js";
 export * from "./TextureEffect.js";
 export * from "./TiltShiftEffect.js";

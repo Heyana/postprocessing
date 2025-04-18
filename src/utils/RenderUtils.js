@@ -40,5 +40,31 @@ export const renderUtils = {
             ...opts,
             ...subOpts
         }
-    }
+    }, setRenderState: ({
+        renderer, renderState, scene, forceState
+    },) => {
+        const oldState = renderUtils.keepRenderState({
+            renderer, scene
+        })
+
+        renderer.shadowMap.needsUpdate = renderState ? renderState.renderer.shadowMap.needsUpdate : forceState
+        if (scene) {
+            scene.matrixWorldAutoUpdate = renderState ? renderState.scene.matrixWorldAutoUpdate : forceState
+        }
+        return oldState
+    },
+    keepRenderState: ({
+        renderer, scene, state
+    },) => {
+        return {
+            renderer: {
+                shadowMap: {
+                    needsUpdate: state === undefined ? renderer.shadowMap.needsUpdate : state
+                }
+            },
+            scene: scene ? {
+                matrixWorldAutoUpdate: state === undefined ? scene.matrixWorldAutoUpdate : state
+            } : {}
+        }
+    },
 }
