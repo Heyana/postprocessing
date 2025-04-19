@@ -84,13 +84,16 @@ export class SelectiveAOEffect extends Effect {
             minFilter: LinearFilter,
             magFilter: LinearFilter,
             type: HalfFloatType,
-            depthBuffer: true
+            depthBuffer: true,
+            stencilBuffer: true  // 启用模板缓冲
         });
         this.renderTargetMask.texture.name = "AO.Mask";
         this.uniforms.get("maskTexture").value = this.renderTargetMask.texture;
 
         // 存储原始材质状态的映射
         this.originalMaterials = new Map();
+        this.originalStencilSettings = new Map();
+        this.renderer = null;
 
         // 创建专用于AO的渲染目标
         this.createRenderTargets();
@@ -204,16 +207,26 @@ export class SelectiveAOEffect extends Effect {
 
     // 创建渲染目标
     createRenderTargets() {
-        // 创建AO专用渲染目标，确保包含深度纹理
+        // 创建AO专用渲染目标，确保包含深度纹理和模板缓冲
         this.renderTargetAO = new WebGLRenderTarget(1, 1, {
             minFilter: LinearFilter,
             magFilter: LinearFilter,
             type: HalfFloatType,
             depthBuffer: true,
+            stencilBuffer: true,  // 启用模板缓冲
             depthTexture: new DepthTexture() // 关键：添加深度纹理
         });
         this.renderTargetAO.texture.name = "AO.Target";
         this.renderTargetAO.depthTexture.name = "AO.Depth";
+
+        // 创建模板缓冲可视化纹理
+        this.stencilVisualizationTarget = new WebGLRenderTarget(1, 1, {
+            minFilter: LinearFilter,
+            magFilter: LinearFilter,
+            type: HalfFloatType,
+            depthBuffer: false
+        });
+        this.stencilVisualizationTarget.texture.name = "AO.StencilVisualization";
     }
 
     makeOptionsReactive(options) {
@@ -378,6 +391,11 @@ export class SelectiveAOEffect extends Effect {
             this.renderTargetMask.setSize(width * this.resolutionScale, height * this.resolutionScale);
         }
 
+        // 更新模板可视化渲染目标尺寸
+        if (this.stencilVisualizationTarget) {
+            this.stencilVisualizationTarget.setSize(width, height);
+        }
+
         // 更新降噪通道尺寸
         if (this.poissionDenoisePass) {
             try {
@@ -518,35 +536,13 @@ export class SelectiveAOEffect extends Effect {
 
 
     update(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass) {
+        // 保存渲染器引用以便在beforeRender和afterRender中使用
+        this.renderer = renderer;
+
+        // 更新相机设置
         this.depthMaskMaterial.copyCameraSettings(this.camera);
 
-        // 更新多采样深度掩码材质的分辨率
-        if (this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
-            const size = renderer.getSize(new THREE.Vector2());
-            this.depthMaskMaterial.setResolution(size.x, size.y);
-
-            // 视角自适应逻辑 - 当视角接近平行时增加采样
-            if (this.camera) {
-                const cameraForward = new THREE.Vector3(0, 0, -1);
-                cameraForward.applyQuaternion(this.camera.quaternion);
-
-                // 假设Y轴向上的场景，计算视线与地面的夹角
-                const groundNormal = new THREE.Vector3(0, 1, 0);
-                const angleFactor = Math.abs(cameraForward.dot(groundNormal));
-
-                // 在接近平行视角时增加采样数量和半径
-                if (angleFactor < 0.3) { // 视线接近平行于地面
-                    this.depthMaskMaterial.samplingCount = Math.max(9, this.samplingCount);
-                    this.depthMaskMaterial.samplingRadius = Math.max(2.0, this.samplingRadius);
-                } else {
-                    // 恢复用户设置的值
-                    this.depthMaskMaterial.samplingCount = this.samplingCount;
-                    this.depthMaskMaterial.samplingRadius = this.samplingRadius;
-                }
-            }
-        }
-
-        // 准备场景 - 设置高亮对象等
+        // 准备场景 - AO效果的输入设置
         if (!this.aoPass.fullscreenMaterial.uniforms.inputBuffer) {
             this.aoPass.fullscreenMaterial.uniforms.inputBuffer = {
                 value: null
@@ -582,95 +578,49 @@ export class SelectiveAOEffect extends Effect {
         // 保存当前渲染目标以便恢复
         const currentRenderTarget = renderer.getRenderTarget();
 
-        // 保存场景背景和相机层
-        const background = this.scene.background;
-        const mask = this.camera.layers.mask;
-
-        // 暂时移除背景
-        this.scene.background = null;
-
-        // 获取选中对象
-        const selection = this._ignoreSelection;
-        const otherModels = []
-
         try {
             // 1. 清理所有渲染目标
             this.clearAllRenderTargets(renderer);
 
-            // 2. 设置DepthMaskMaterial的场景深度纹理（来自composer）
-            this.depthMaskMaterial.depthBuffer0 = this.composer.depthTexture;
-            this.depthMaskMaterial.inputBuffer = inputBuffer.texture;
+            // 2. 启用模板测试 - 使用辅助方法
+            this.setStencilTestMode(renderer, this._inverted);
 
-            // 3. 首先渲染选中对象的深度
-            this.camera.layers.set(selection.layer);
-            selection.forEach((model) => {
-                if (model.children.length > 0) {
-                    model.traverse((child) => {
-                        if (child.isMesh && !child.layers.isEnabled(selection.layer) && child.visible) {
-                            otherModels.push({
-                                model: child,
-                                oldLayerMask: child.layers.mask  // 保存原始的完整层掩码
-                            })
-                            child.layers.set(selection.layer)  // 设置为selection.layer
-                        }
-                    })
+            // 如果处于模板调试模式，生成模板可视化纹理
+            if (this.debugMode === 8 || this.debugMode === 9) {
+                // 更新模板可视化纹理大小
+                if (this.stencilVisualizationTarget) {
+                    const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+                    if (this.stencilVisualizationTarget.width !== size.width ||
+                        this.stencilVisualizationTarget.height !== size.height) {
+                        this.stencilVisualizationTarget.setSize(size.width, size.height);
+                    }
                 }
-            })
 
-            this.depthPass.render(renderer, inputBuffer, undefined, undefined, undefined, undefined, {
-                projectObject: true,
-                updateMatrixWorld: false,
-                useProgramCache: false,
-            });
-            this.aoPass.fullscreenMaterial.uniforms.depthPass1 = new Uniform(this.depthPass.renderTarget.texture)
-
-            // 4. 恢复相机层
-            this.camera.layers.mask = mask;
-
-            // 完全恢复子对象的原始层设置
-            otherModels.forEach(({ model, oldLayerMask }) => {
-                model.layers.mask = oldLayerMask;  // 直接恢复整个掩码
-            })
-
-            // 5. 明确清理遮罩渲染目标
-            renderer.setRenderTarget(this.renderTargetMask);
-            renderer.clear(true, true, true);
-
-            // 6. 使用深度遮罩材质渲染遮罩到renderTargetMask
-            this.maskPass.render(renderer, inputBuffer, this.renderTargetMask, undefined, undefined, {
-                projectObject: true,
-                updateMatrixWorld: false,
-                useProgramCache: false,
-            });
-
-            // 7. 恢复场景背景
-            this.scene.background = background;
-
-
-            // 8. 设置AO效果的遮罩纹理
-            this.aoPass.fullscreenMaterial.uniforms.maskTexture = {
-                value: this.renderTargetMask.texture
+                // 捕获模板缓冲内容到纹理
+                this.captureStencilBuffer(renderer);
             }
 
-            // 9. 渲染AO效果
+            // 3. 渲染AO效果
             renderer.setRenderTarget(this.aoPass.renderTarget);
             renderer.clear(true, true, true);
             this.aoPass.render(renderer);
 
-            // 10. 对AO结果进行降噪
+            // 4. 对AO结果进行降噪
             renderer.setRenderTarget(this.poissionDenoisePass.renderTarget);
             this.poissionDenoisePass.render(renderer);
 
-            // 11. 设置最终AO纹理
+            // 5. 设置最终AO纹理
             this.uniforms.get("inputTexture").value = this.poissionDenoisePass.texture;
             this.uniforms.get("inputBuffer").value = inputBuffer.texture;
+
+            // 6. 禁用模板测试
+            this.disableStencilTest(renderer);
+
         } catch (error) {
             console.error("渲染AO效果时出错:", error);
         } finally {
             // 恢复原始渲染目标
             renderer.setRenderTarget(currentRenderTarget);
-
-            // 恢复场景状态
         }
     }
 
@@ -684,6 +634,7 @@ export class SelectiveAOEffect extends Effect {
             const targets = [
                 this.renderTargetAO,
                 this.renderTargetMask,
+                this.stencilVisualizationTarget,
                 this.aoPass?.renderTarget,
                 this.poissionDenoisePass?.renderTarget
             ];
@@ -726,6 +677,17 @@ export class SelectiveAOEffect extends Effect {
                 this.depthMaskMaterial.defines.LOG_DEPTH = "1";
                 this.depthMaskMaterial.needsUpdate = true;
             }
+        }
+
+        // 初始化模板可视化相关对象的大小
+        if (this.stencilVisualizationTarget) {
+            const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+            this.stencilVisualizationTarget.setSize(size.width, size.height);
+        }
+
+        // 确保渲染器启用了模板缓冲
+        if (renderer.capabilities.stencil === false) {
+            console.warn("渲染器不支持模板缓冲，选择性SSAO将无法正常工作");
         }
     }
 
@@ -847,11 +809,11 @@ export class SelectiveAOEffect extends Effect {
 
     // 设置调试模式的方法
     setDebugMode(mode) {
-        if (mode >= 0 && mode <= 7) {
+        if (mode >= 0 && mode <= 9) {
             this.debugMode = mode;
             console.log(`AO调试模式已切换到: ${this.getDebugModeName(mode)}`);
         } else {
-            console.warn(`无效的调试模式: ${mode}，有效范围: 0-7`);
+            console.warn(`无效的调试模式: ${mode}，有效范围: 0-9`);
         }
     }
 
@@ -865,14 +827,16 @@ export class SelectiveAOEffect extends Effect {
             "遮罩",
             "深度(灰度)",
             "深度(彩色)",
-            "遮罩和深度对比"
+            "遮罩和深度对比",
+            "模板缓冲",
+            "模板叠加"
         ];
         return modes[mode] || "未知";
     }
 
     // 循环切换调试模式
     cycleDebugMode() {
-        const newMode = (this.debugMode + 1) % 8; // 8是调试模式总数
+        const newMode = (this.debugMode + 1) % 10; // 10是调试模式总数
         this.setDebugMode(newMode);
         return newMode;
     }
@@ -880,7 +844,7 @@ export class SelectiveAOEffect extends Effect {
     // 显示所有调试模式
     listDebugModes() {
         console.log("可用的AO调试模式:");
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < 10; i++) {
             console.log(`${i}: ${this.getDebugModeName(i)}`);
         }
     }
@@ -896,7 +860,12 @@ export class SelectiveAOEffect extends Effect {
 
     set inverted(value) {
         this._inverted = value;
-        this.depthMaskMaterial.depthMode = value ? NotEqualDepth : EqualDepth;
+        // 适用于模板测试时，不再需要修改depthMaskMaterial
+        // 改变将在update方法中使用不同的模板测试函数实现
+        // 保留下面的代码是为了兼容
+        if (this.depthMaskMaterial) {
+            this.depthMaskMaterial.depthMode = value ? NotEqualDepth : EqualDepth;
+        }
     }
 
     /**
@@ -913,5 +882,230 @@ export class SelectiveAOEffect extends Effect {
         this.depthMaskMaterial.maxDepthStrategy = value ?
             DepthTestStrategy.DISCARD_MAX_DEPTH :
             DepthTestStrategy.KEEP_MAX_DEPTH;
+    }
+    beforeRender() {
+        if (!this.renderer) {
+            this.renderer = this.composer.renderer;
+        }
+
+        if (!this.renderer || !this.scene || !this.camera) return;
+
+        // 保存当前渲染状态
+        this.currentStencilTest = this.renderer.state.buffers.stencil.test;
+
+        // 清除模板缓冲
+        this.renderer.clearStencil();
+
+        // 获取选中对象
+        const selectedObjects = this.getSelectionItems();
+
+        // 保存原始模板设置
+        this.originalStencilSettings = new Map();
+
+        // 为选中对象设置模板写入
+        selectedObjects.forEach(object => {
+            this.setupStencilForObject(object);
+        });
+
+        console.log('已为SSAO设置模板缓冲，处理对象数量:', selectedObjects.length);
+    }
+
+    // 为对象设置模板写入
+    setupStencilForObject(object) {
+        if (!object) return;
+
+        if (object.isMesh) {
+            // 处理单个网格对象
+            this.setupStencilForMaterial(object, object.material);
+        } else if (object.children && object.children.length > 0) {
+            // 递归处理子对象
+            object.traverse(child => {
+                if (child.isMesh) {
+                    this.setupStencilForMaterial(child, child.material);
+                }
+            });
+        }
+    }
+
+    // 为材质设置模板写入
+    setupStencilForMaterial(object, material) {
+        const materials = Array.isArray(material) ? material : [material];
+
+        materials.forEach(mat => {
+            if (!mat) return;
+
+            // 保存原始设置
+            this.originalStencilSettings.set(mat, {
+                stencilWrite: mat.stencilWrite || false,
+                stencilRef: mat.stencilRef || 0,
+                stencilFunc: mat.stencilFunc || THREE.AlwaysStencilFunc,
+                stencilFuncBack: mat.stencilFuncBack,
+                stencilRefBack: mat.stencilRefBack,
+                stencilFailBack: mat.stencilFailBack,
+                stencilZFailBack: mat.stencilZFailBack,
+                stencilZPassBack: mat.stencilZPassBack,
+                stencilWriteMask: mat.stencilWriteMask,
+                stencilFail: mat.stencilFail,
+                stencilZFail: mat.stencilZFail,
+                stencilZPass: mat.stencilZPass
+            });
+
+            // 设置模板写入
+            mat.stencilWrite = true;
+            mat.stencilRef = 1;  // 用1标记选中对象
+            mat.stencilFunc = THREE.AlwaysStencilFunc;
+            mat.stencilZPass = THREE.ReplaceStencilOp;
+        });
+    }
+
+    afterRender() {
+        // 恢复所有材质的原始模板设置
+        if (this.originalStencilSettings) {
+            for (const [material, settings] of this.originalStencilSettings.entries()) {
+                // 恢复所有保存的属性
+                Object.assign(material, settings);
+            }
+            this.originalStencilSettings.clear();
+        }
+
+        // 恢复渲染器的模板测试状态
+        if (this.renderer && this.currentStencilTest !== undefined) {
+            this.renderer.state.buffers.stencil.setTest(this.currentStencilTest);
+        }
+
+        console.log('已恢复SSAO的原始模板设置');
+    }
+
+    // 辅助方法，设置模板测试
+    setStencilTestMode(renderer, inverted = false) {
+        if (!renderer) return;
+
+        renderer.state.buffers.stencil.setTest(true);
+        renderer.state.buffers.stencil.setFunc(
+            inverted ? THREE.NotEqualStencilFunc : THREE.EqualStencilFunc,
+            1,  // 引用值
+            0xff  // 掩码
+        );
+        renderer.state.buffers.stencil.setOp(
+            THREE.KeepStencilOp,
+            THREE.KeepStencilOp,
+            THREE.KeepStencilOp
+        );
+    }
+
+    // 辅助方法，禁用模板测试
+    disableStencilTest(renderer) {
+        if (!renderer) return;
+
+        renderer.state.buffers.stencil.setTest(false);
+    }
+
+    // 将模板缓冲内容捕获到纹理中用于调试
+    captureStencilBuffer(renderer) {
+        if (!this.stencilVisualizationTarget || !renderer) return;
+
+        // 保存当前状态
+        const currentRenderTarget = renderer.getRenderTarget();
+        const currentAutoClear = renderer.autoClear;
+        const currentClearColor = renderer.getClearColor(new THREE.Color());
+        const currentClearAlpha = renderer.getClearAlpha();
+        const currentStencilTest = renderer.state.buffers.stencil.test;
+
+        try {
+            // 创建一个特殊的材质，用于可视化模板缓冲
+            if (!this.stencilCaptureMaterial) {
+                this.stencilCaptureMaterial = new THREE.ShaderMaterial({
+                    uniforms: {
+                        stencilRef: { value: 1 },  // 我们标记的参考值
+                        inputBuffer: { value: null } // 用于混合场景颜色
+                    },
+                    vertexShader: `
+                        varying vec2 vUv;
+                        void main() {
+                            vUv = uv;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        uniform float stencilRef;
+                        uniform sampler2D inputBuffer;
+                        varying vec2 vUv;
+                        void main() {
+                            // 读取原始场景颜色用于混合
+                            vec4 sceneColor = texture2D(inputBuffer, vUv);
+                            
+                            // 亮红色表示模板值为1的区域
+                            vec3 highlightColor = vec3(1.0, 0.2, 0.2);
+                            
+                            // 设置一定透明度让场景内容部分可见
+                            gl_FragColor = vec4(highlightColor, 0.7);
+                        }
+                    `,
+                    stencilWrite: false, // 我们只读取模板，不写入
+                    colorWrite: true,
+                    transparent: true,
+                    depthTest: false,
+                    depthWrite: false
+                });
+
+                // 创建一个全屏四边形
+                this.stencilCaptureMesh = new THREE.Mesh(
+                    new THREE.PlaneGeometry(2, 2),
+                    this.stencilCaptureMaterial
+                );
+
+                // 创建一个简单的场景和相机
+                this.stencilCaptureScene = new THREE.Scene();
+                this.stencilCaptureCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+                this.stencilCaptureScene.add(this.stencilCaptureMesh);
+            }
+
+            // 更新材质中的输入缓冲
+            this.stencilCaptureMaterial.uniforms.inputBuffer.value = this.composer.inputBuffer.texture;
+
+            // 先清除可视化目标
+            renderer.setRenderTarget(this.stencilVisualizationTarget);
+            renderer.setClearColor(0x000000, 0);  // 黑色透明背景
+            renderer.clear(true, true, true);
+
+            // 禁用模板测试 - 先绘制背景
+            renderer.state.buffers.stencil.setTest(false);
+            // 绘制背景 - 使用原始场景颜色
+            const backgroundMaterial = new THREE.MeshBasicMaterial({
+                map: this.composer.inputBuffer.texture,
+                depthTest: false
+            });
+            const tempMesh = this.stencilCaptureMesh.clone();
+            tempMesh.material = backgroundMaterial;
+            renderer.render(tempMesh, this.stencilCaptureCamera);
+
+            // 启用模板测试 - 然后只在模板区域绘制高亮色
+            renderer.state.buffers.stencil.setTest(true);
+            renderer.state.buffers.stencil.setFunc(
+                THREE.EqualStencilFunc,
+                1,   // 查找模板值为1的区域
+                0xFF // 完整掩码
+            );
+
+            // 渲染到纹理 - 只在模板值等于1的区域绘制
+            renderer.render(this.stencilCaptureScene, this.stencilCaptureCamera);
+
+            // 获取纹理结果
+            const stencilTexture = this.stencilVisualizationTarget.texture;
+
+            // 更新着色器中的maskTexture
+            if (this.debugMode === 8 || this.debugMode === 9) {
+                this.uniforms.get("maskTexture").value = stencilTexture;
+            }
+
+        } catch (error) {
+            console.error("捕获模板缓冲时出错:", error);
+        } finally {
+            // 恢复原始状态
+            renderer.setRenderTarget(currentRenderTarget);
+            renderer.state.buffers.stencil.setTest(currentStencilTest);
+            renderer.autoClear = currentAutoClear;
+            renderer.setClearColor(currentClearColor, currentClearAlpha);
+        }
     }
 }
