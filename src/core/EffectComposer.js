@@ -640,11 +640,6 @@ export class EffectComposer {
 		// });
 		const effectPassOpts = effectPassUtils.getRenderOpts()
 
-		for (const pass of this.passes) {
-			pass.effects?.map((effect) => {
-				effect.beforeRender?.()
-			})
-		}
 		const renderPasses = this.passes[0]
 		if (renderPasses.isRenderPass) {
 			const res = renderPasses.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass, {
@@ -717,11 +712,6 @@ export class EffectComposer {
 			renderState
 		})
 
-		for (const pass of this.passes) {
-			pass.effects?.map((effect) => {
-				effect.afterRender?.()
-			})
-		}
 
 		timeEndLog("EffectComposer.render");
 	}

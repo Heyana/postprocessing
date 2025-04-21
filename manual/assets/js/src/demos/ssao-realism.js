@@ -278,7 +278,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	const renderer = new WebGLRenderer({
 		powerPreference: "high-performance",
 		antialias: false,
-		stencil: true,
+		stencil: false,
 		depth: false
 	});
 
@@ -359,7 +359,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	// 后处理
 	const multisampling = Math.min(4, renderer.capabilities.maxSamples);
-	const composer = new EffectComposer(renderer, { multisampling, stencilBuffer: true });
+	const composer = new EffectComposer(renderer, { multisampling, });
 	composer.setMainScene(scene)
 
 	console.log('Log-- ', composer, 'composer');
@@ -867,8 +867,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			"深度(灰度)": 5,
 			"深度(彩色)": 6,
 			"遮罩和深度对比": 7,
-			"模板缓冲": 8,
-			"模板叠加": 9
+			"模型ID可视化": 8
 		},
 		label: "调试显示模式"
 	}).on("change", (e) => {

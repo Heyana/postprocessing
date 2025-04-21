@@ -71,41 +71,6 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
     vec3 maskColor = vec3(maskValue);
     outputColor = vec4(mix(depthColor, maskColor, 0.5), 1.0);
     return;
-  } else if (debugMode == 8) {
-    // 模板缓冲可视化 - 直接显示从模板缓冲捕获的纹理
-    // 不再需要复杂的处理，直接显示从captureStencilBuffer生成的纹理
-    outputColor = texture2D(maskTexture, uv);
-    return;
-  } else if (debugMode == 9) {
-    // 模板缓冲叠加模式 - 在正常渲染中显示模板区域
-    // 首先从正常渲染获取结果
-    float ao = 1.0;
-    if (depth < 1.0) {
-      vec4 aoSample = texture2D(inputTexture, uv);
-      ao = aoSample.a;
-      ao = pow(ao, power);
-    }
-    
-    // 调整基于亮度的AO强度
-    vec3 colorForBrightness = sceneColor.rgb;
-    float perceptualBrightness = dot(colorForBrightness, vec3(0.299, 0.587, 0.114));
-    float aoStrength = clamp(1.0 - pow(perceptualBrightness / max(brightnessThreshold, 0.001), 0.5), 0.0, 1.0);
-    ao = mix(1.0, ao, aoStrength);
-    
-    // 计算最终AO颜色
-    vec3 aoColor = mix(color, vec3(1.0), ao);
-    aoColor *= inputColor.rgb;
-    
-    // 叠加模板可视化效果
-    vec4 stencilColor = texture2D(maskTexture, uv);
-    if (stencilColor.a > 0.0) {
-      // 在有模板内容的地方混合
-      outputColor = vec4(mix(aoColor, stencilColor.rgb, stencilColor.a * 0.7), 1.0);
-    } else {
-      // 无模板内容的地方正常显示
-      outputColor = vec4(aoColor, 1.0);
-    }
-    return;
   }
   
   // 正常渲染模式
