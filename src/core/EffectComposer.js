@@ -389,7 +389,11 @@ export class EffectComposer {
 		};
 
 		const renderTarget = new WebGLRenderTarget(size.width, size.height, options);
+		console.log('Log-- ', renderTarget, 'renderTarget');
 
+		if (!renderTarget.textures) {
+			renderTarget.textures = []
+		}
 		if (multisampling > 0) {
 
 			renderTarget.ignoreDepthForMultisampleCopy = false;
