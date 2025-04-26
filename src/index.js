@@ -33,5 +33,3 @@ export { SharpenEffect } from "./effects/SharpenEffect.js";
 export { AdaptiveSharpenEffect } from "./effects/AdaptiveSharpenEffect.js";
 export { DenoiseEffect } from "./effects/DenoiseEffect.js";
 
-// 添加SkyAtmosphereEffect到导出列表
-export { SkyAtmosphereEffect } from "./effects/SkyAtmosphereEffect.js";

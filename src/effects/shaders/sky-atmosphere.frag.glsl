@@ -14,6 +14,26 @@ uniform float skyBlueness; // 添加天空蓝度参数
 uniform float cloudAmount; // 添加云层数量参数
 uniform float cloudScale; // 添加云层尺度参数
 uniform float cloudThreshold; // 添加云层阈值参数
+// 添加采样步数uniform变量
+uniform int volumetricCloudStepsUniform;
+uniform int volumetricLightStepsUniform;
+uniform int cloudShadowingStepsUniform;
+uniform int volumetricLightShadowStepsUniform;
+
+// 添加夜空相关参数
+uniform int enableStars;
+uniform float starIntensity;
+uniform float starDensity;
+uniform float starSize; // 星星大小参数
+uniform float starMovementSpeed; // 星星移动速度参数
+uniform int enableMoon;
+uniform vec3 moonPosition;
+uniform float moonSize;
+uniform float moonIntensity;
+uniform int enableAurora;
+uniform float auroraIntensity;
+uniform vec3 auroraColor;
+uniform float nightIntensity;
 
 // 配置选项
 #define VOLUMETRIC_LIGHT
@@ -27,11 +47,22 @@ uniform float cloudThreshold; // 添加云层阈值参数
 // 雾配置参数
 #define fogDensity 0.00003
 
-// 步进参数
-#define volumetricCloudSteps 16
-#define volumetricLightSteps 8
-#define cloudShadowingSteps 12
-#define volumetricLightShadowSteps 4
+// 步进参数 - 使用默认值，但实际在运行时会使用uniform变量值
+#define volumetricCloudSteps (volumetricCloudStepsUniform > 0 ? volumetricCloudStepsUniform : 16)
+#define volumetricLightSteps (volumetricLightStepsUniform > 0 ? volumetricLightStepsUniform : 8)
+#define cloudShadowingSteps (cloudShadowingStepsUniform > 0 ? cloudShadowingStepsUniform : 12)
+#define volumetricLightShadowSteps (volumetricLightShadowStepsUniform > 0 ? volumetricLightShadowStepsUniform : 4)
+
+// 星空配置参数
+#define STAR_BRIGHTNESS 1.5
+#define STAR_FLICKER_SPEED 0.75
+#define STAR_LAYERS 4  // 定义星星的噪声层数，类似云层
+
+// 极光配置参数
+#define AURORA_STEPS 50
+#define AURORA_SPEED 0.02      // 降低动画速度
+#define AURORA_HEIGHT 0.03    // 大幅降低高度移动速度
+#define AURORA_OFFSET 0.006
 
 // 散射参数
 const float sunBrightness = 3.0;
@@ -225,7 +256,15 @@ vec3 calcAtmosphericScatter(positionStruct pos, out vec3 absorbLight){
     
     vec3 sunSpot = smoothstep(0.9999, 0.99993, lDotW) * absorbView * sunBrightness;
     
-    return (scatterSun * absorbSun + sunSpot) * sunBrightness * intensity;
+    // 使用太阳高度调整散射强度，当太阳位于地平线以下时，减弱散射
+    float dayFactor = smoothstep(-0.15, 0.15, lDotU);
+    vec3 finalScatter = (scatterSun * absorbSun + sunSpot) * sunBrightness * intensity;
+    
+    // 当太阳在地平线下，根据nightIntensity调整夜空亮度
+    float nightFactor = (1.0 - dayFactor) * nightIntensity;
+    finalScatter = mix(finalScatter * dayFactor, vec3(nightFactor * 0.02), 1.0 - dayFactor);
+    
+    return finalScatter;
 }
 
 vec3 calcAtmosphericScatterTop(positionStruct pos){
@@ -249,7 +288,15 @@ vec3 calcAtmosphericScatterTop(positionStruct pos){
     
     vec3 scatterSun = mieScatter + rayleighScatter;
     
-    return (scatterSun * absorbSun) * sunBrightness * intensity;
+    // 使用太阳高度调整散射强度
+    float dayFactor = smoothstep(-0.15, 0.15, lDotU);
+    vec3 finalScatter = (scatterSun * absorbSun) * sunBrightness * intensity;
+    
+    // 当太阳在地平线下，根据nightIntensity调整夜空亮度
+    float nightFactor = (1.0 - dayFactor) * nightIntensity;
+    finalScatter = mix(finalScatter * dayFactor, vec3(nightFactor * 0.02), 1.0 - dayFactor);
+    
+    return finalScatter;
 }
 
 // 3D噪声函数
@@ -300,15 +347,14 @@ float getClouds(vec3 p) {
 
 // 云阴影
 float getCloudShadow(vec3 p, positionStruct pos) {
-    const int steps = volumetricLightShadowSteps;
-    float rSteps = cloudThickness / float(steps) / abs(pos.sunVector.y);
+    float rSteps = cloudThickness / float(volumetricLightShadowSteps) / abs(pos.sunVector.y);
     
     vec3 increment = pos.sunVector * rSteps;
     vec3 position = pos.sunVector * (cloudHeight - p.y) / pos.sunVector.y + p;
     
     float transmittance = 0.0;
     
-    for (int i = 0; i < steps; i++, position += increment) {
+    for (int i = 0; i < volumetricLightShadowSteps; i++, position += increment) {
         transmittance += getClouds(position);
     }
     
@@ -317,15 +363,14 @@ float getCloudShadow(vec3 p, positionStruct pos) {
 
 // 太阳可见性
 float getSunVisibility(vec3 p, positionStruct pos) {
-    const int steps = cloudShadowingSteps;
-    const float rSteps = cloudThickness / float(steps);
+    float rSteps = cloudThickness / float(cloudShadowingSteps);
     
     vec3 increment = pos.sunVector * rSteps;
     vec3 position = increment * 0.5 + p;
     
     float transmittance = 0.0;
     
-    for (int i = 0; i < steps; i++, position += increment) {
+    for (int i = 0; i < cloudShadowingSteps; i++, position += increment) {
         transmittance += getClouds(position);
     }
     
@@ -379,8 +424,7 @@ vec3 calculateVolumetricLight(positionStruct pos, vec3 color, float dither, vec3
         return color;
     #endif
     
-    const int steps = volumetricLightSteps;
-    const float iSteps = 1.0 / float(steps);
+    float iSteps = 1.0 / float(volumetricLightSteps);
     
     vec3 increment = pos.worldVector * cloudHeight / clamp(pos.worldVector.y, 0.1, 1.0) * iSteps;
     vec3 rayPosition = increment * dither;
@@ -395,7 +439,7 @@ vec3 calculateVolumetricLight(positionStruct pos, vec3 color, float dither, vec3
     
     vec3 skyLight = calcAtmosphericScatterTop(pos);
     
-    for (int i = 0; i < steps; i++, rayPosition += increment) {
+    for (int i = 0; i < volumetricLightSteps; i++, rayPosition += increment) {
         float opticalDepth = getHeightFogOD(rayPosition.y) * stepLength;
         
         if (opticalDepth <= 0.0)
@@ -413,8 +457,7 @@ vec3 calculateVolumetricClouds(positionStruct pos, vec3 color, float dither, vec
     if (pos.worldVector.y < 0.0)
         return color;
     
-    const int steps = volumetricCloudSteps;
-    const float iSteps = 1.0 / float(steps);
+    float iSteps = 1.0 / float(volumetricCloudSteps);
     
     float bottomSphere = rsi(vec3(0.0, 1.0, 0.0) * earthRadius, pos.worldVector, earthRadius + cloudHeight).y;
     float topSphere = rsi(vec3(0.0, 1.0, 0.0) * earthRadius, pos.worldVector, earthRadius + cloudHeight + cloudThickness).y;
@@ -438,7 +481,7 @@ vec3 calculateVolumetricClouds(positionStruct pos, vec3 color, float dither, vec
     
     vec3 skyLight = calcAtmosphericScatterTop(pos);
     
-    for (int i = 0; i < steps; i++, cloudPosition += increment) {
+    for (int i = 0; i < volumetricCloudSteps; i++, cloudPosition += increment) {
         float opticalDepth = getClouds(cloudPosition) * stepLength;
         
         if (opticalDepth <= 0.0)
@@ -449,6 +492,249 @@ vec3 calculateVolumetricClouds(positionStruct pos, vec3 color, float dither, vec
     }
     
     return mix(color * transmittance + scattering, color, clamp(length(startPosition) * 0.00001, 0.0, 1.0));
+}
+
+// 哈希函数用于星空生成
+float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 233.53));
+    p += dot(p, p + 23.234);
+    return fract(p.x * p.y);
+}
+
+// 改进的哈希函数，用于点状星星生成
+float hash21Better(vec2 p) {
+    p = fract(p * vec2(123.34, 345.67));
+    p += dot(p, p + 34.56);
+    return fract(p.x * p.y);
+}
+
+// 辅助函数 - 三角噪声
+float tri(float x) {
+    return clamp(abs(fract(x) - 0.5), 0.01, 0.49);
+}
+
+// 二维三角噪声
+vec2 tri2(vec2 p) {
+    return vec2(tri(p.x) + tri(p.y), tri(p.y + tri(p.x)));
+}
+
+// 点状星星函数 - 创建一个单一的星星点
+float star(vec2 uv, float flare) {
+    float d = length(uv);
+    float m = 0.05 / d;
+    
+    // 中心亮点
+    float rays = max(0.0, 1.0 - abs(uv.x * uv.y * 1000.0));
+    m += rays * flare;
+    
+    // 星星大小衰减
+    m *= smoothstep(0.3, 0.0, d);
+    
+    return m;
+}
+
+// 星空生成函数 - 重新设计为使用点状星星
+vec3 generateStars(vec3 dir, float time) {
+    if (enableStars == 0) return vec3(0.0);
+    
+    // 确保只在天空上部生成星星
+    if (dir.y < 0.02) return vec3(0.0);
+    
+    // 使用方向向量生成球面UV坐标
+    vec2 uv = vec2(
+        atan(dir.z, dir.x) / (2.0 * pi) + 0.5,
+        asin(dir.y) / pi + 0.5
+    );
+    
+    // 计算云层移动偏移量，与云层使用相同的移动速度，确保有效移动
+    float timeOffset = time * cloudSpeed * float(animateClouds);
+    vec2 movement = vec2(timeOffset, timeOffset * 0.5) * starMovementSpeed;
+    
+    // 将天空分割成网格，每个单元生成一个星星
+    float cellSize = 0.02 * (1.0 / starDensity); // 控制星星密度
+    vec2 cellUV = fract(uv / cellSize);          // 单元内坐标 [0,1]
+    vec2 cellID = floor(uv / cellSize);          // 单元ID
+    
+    vec3 starColor = vec3(0.0);
+    
+    // 遍历当前单元周围的单元，以确保边界附近的星星也能看到
+    for(int y = -1; y <= 1; y++) {
+        for(int x = -1; x <= 1; x++) {
+            // 当前检查的单元格ID
+            vec2 offset = vec2(x, y);
+            vec2 neighborCellID = cellID + offset;
+            
+            // 将timeOffset加入哈希输入，使星星移动
+            vec2 hashInput = neighborCellID + movement;
+            
+            // 使用改进的哈希函数来决定是否在该单元格中放置星星
+            float starRandom = hash21Better(hashInput); 
+            
+            // 星星的概率 - 降低阈值使星星更容易出现
+            if(starRandom > (1.0 - 0.015 * starDensity)) {
+                // 根据单元格和随机值决定星星在单元格内的位置
+                vec2 starPosition = offset + vec2(
+                    hash21(neighborCellID + 2.45),
+                    hash21(neighborCellID + 1.68)
+                );
+                
+                // 计算当前像素到星星的距离
+                vec2 fragToStar = starPosition - cellUV;
+                
+                // 星星亮度和大小因子
+                float brightness = starRandom * 0.6 + 0.4; // 确保某些星星更亮
+                
+                // 星星大小 - 由starSize控制
+                float starScale = (0.006 + starRandom * 0.004) * starSize;
+                
+                // 星星闪烁
+                float flicker = sin(time * STAR_FLICKER_SPEED * starRandom) * 0.15 + 0.85;
+                
+                // 渲染点状星星
+                float s = star(fragToStar / starScale, starRandom * 1.5) * brightness * flicker;
+                
+                // 根据随机值决定星星颜色
+                vec3 color = mix(
+                    vec3(0.9, 0.9, 1.0),  // 白色/蓝色星星
+                    vec3(1.0, 0.8, 0.6),  // 黄色/红色星星
+                    hash21(neighborCellID + 7.89)
+                );
+                
+                // 添加一些特殊颜色的星星
+                if(starRandom > 0.995) {
+                    // 红色恒星
+                    color = vec3(1.0, 0.5, 0.5);
+                } else if(starRandom < 0.005) {
+                    // 蓝色恒星
+                    color = vec3(0.5, 0.7, 1.0);
+                }
+                
+                // 累加星星颜色
+                starColor += color * s * starIntensity * STAR_BRIGHTNESS;
+            }
+        }
+    }
+    
+    return starColor;
+}
+
+// 月亮生成函数
+vec3 generateMoon(positionStruct pos) {
+    if (enableMoon == 0) return vec3(0.0);
+    
+    // 月亮方向
+    vec3 moonDir = normalize(moonPosition);
+    
+    // 计算视线方向与月亮方向的夹角余弦值
+    float cosAngle = dot(pos.worldVector, moonDir);
+    
+    // 月亮的大小和亮度
+    float moonRadius = moonSize;
+    float moonGlow = smoothstep(0.9995, 0.9999, cosAngle) * moonIntensity;
+    
+    // 月亮的主体
+    float moonDisk = smoothstep(cos(moonRadius), cos(moonRadius * 0.98), cosAngle);
+    
+    // 月球表面细节
+    vec3 moonColor = vec3(1.0, 0.98, 0.9);  // 略带黄色的月亮
+    
+    // 月晕效果
+    float halo = 0.5 * pow(max(0.0, cosAngle), 64.0) * moonIntensity;
+    vec3 haloColor = vec3(0.8, 0.9, 1.0);  // 蓝白色月晕
+    
+    return moonColor * moonDisk * moonIntensity + haloColor * halo;
+}
+
+// 极光生成函数 - 从shadertoy移植
+float triNoise2d(vec2 p, float spd) {
+    float z = 1.8;
+    float z2 = 2.5;
+    float rz = 0.0;
+    
+    // 创建一个简单的2x2旋转矩阵
+    float angle = 0.3;  // 约17°
+    float c = cos(angle);
+    float s = sin(angle);
+    mat2 m2 = mat2(c, s, -s, c);
+    
+    // 创建旋转矩阵
+    angle = p.x * 0.06;
+    c = cos(angle);
+    s = sin(angle);
+    mat2 mm2 = mat2(c, s, -s, c);
+    
+    p *= mm2;
+    vec2 bp = p;
+    
+    for (float i = 0.0; i < 5.0; i++) {
+        vec2 dg = tri2(bp * 1.85) * 0.75;
+        dg *= m2;
+        p -= dg / z2;
+        
+        bp *= 1.3;
+        z2 *= 0.45;
+        z *= 0.42;
+        p *= 1.21 + (rz - 1.0) * 0.02;
+        
+        rz += tri(p.x + tri(p.y)) * z;
+        p *= -m2;
+    }
+    
+    return clamp(1.0 / pow(rz * 29.0, 1.3), 0.0, 0.55);
+}
+
+vec3 generateAurora(positionStruct pos) {
+    if (enableAurora == 0) return vec3(0.0);
+    
+    // 视线向量
+    vec3 dir = pos.worldVector;
+    
+    // 确保极光只在天空上部/北部区域生成
+    if (dir.y < 0.0) return vec3(0.0);
+    
+    // 对视线向量进行旋转，改善极光形状和位置
+    mat3 rotX = rotationMatrix(vec3(1.0, 0.0, 0.0), -0.2);
+    mat3 rotZ = rotationMatrix(vec3(0.0, 0.0, 1.0), 0.1);
+    dir = rotZ * rotX * dir;
+    dir.y *= 2.0;  // 拉伸垂直方向，使极光看起来更像"帘子"
+    
+    // 计算光线位置 - 降低动画速度
+    vec3 rayOrigin = vec3(0.0, 0.0, 0.0);
+    rayOrigin.z += time * AURORA_HEIGHT; // 极大降低z方向移动速度
+    
+    vec4 aurora = vec4(0.0);
+    vec4 avgCol = vec4(0.0);
+    
+    // 极光生成步进循环 - 调整参数让形状更自然
+    for (int i = 0; i < AURORA_STEPS; i++) {
+        float offset = AURORA_OFFSET * hash21(gl_FragCoord.xy) * smoothstep(0.0, 15.0, float(i) * 1.0);
+        float pt = ((0.6 + pow(float(i), 1.3) * 0.004) - rayOrigin.y) / (dir.y * 1.5 + 0.4);
+        pt -= offset;
+        
+        vec3 rayPos = rayOrigin + pt * dir;
+        // 调整波动参数
+        vec2 p = rayPos.zx + sin(time * 0.1 + rayPos.z * 0.2) * 0.5;
+        
+        float noise = triNoise2d(p, AURORA_SPEED);
+        vec4 col2 = vec4(0.0, 0.0, 0.0, noise);
+        
+        // 使用极光颜色参数 - 改善色彩效果
+        col2.rgb = (sin(1.0 - auroraColor + (float(i) * 1.0) * 0.03) * 0.5 + 0.5) * noise;
+        
+        avgCol = mix(avgCol, col2, 0.6);
+        aurora += avgCol * exp2((-float(i) * 0.8) * 0.05 - 2.0) * smoothstep(0.0, 8.0, float(i) * 0.8);
+    }
+    
+    // 根据视线向上的比例调整极光强度 - 改进形状
+    aurora *= clamp(dir.y * 8.0 + 0.4, 0.0, 1.0);
+    
+    // 应用极光强度参数
+    aurora *= auroraIntensity;
+    
+    // 添加光晕效果，使极光更有层次感
+    aurora.rgb += aurora.rgb * aurora.a * 0.5;
+    
+    return aurora.rgb;
 }
 
 // 色调映射
@@ -477,6 +763,54 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
     
     vec3 color = vec3(0.0);
     color = calcAtmosphericScatter(pos, lightAbsorb);
+    
+    // 检测是否应该渲染夜空场景
+    float sunHeight = dot(pos.sunVector, vec3(0.0, 1.0, 0.0));
+    float isNight = smoothstep(0.1, -0.1, sunHeight);
+    
+    // 计算云层遮挡效果（预计算）
+    float cloudOcclusion = 1.0;
+    if (pos.worldVector.y > 0.0) {
+        float bottomSphere = rsi(vec3(0.0, 1.0, 0.0) * earthRadius, pos.worldVector, earthRadius + cloudHeight).y;
+        float topSphere = rsi(vec3(0.0, 1.0, 0.0) * earthRadius, pos.worldVector, earthRadius + cloudHeight + cloudThickness).y;
+        
+        if (bottomSphere > 0.0 && topSphere > 0.0) {
+            vec3 startPosition = pos.worldVector * bottomSphere;
+            vec3 endPosition = pos.worldVector * topSphere;
+            vec3 cloudPosition = startPosition;
+            
+            float stepLength = length(endPosition - startPosition) / 8.0; // 使用较少的步数检测云
+            vec3 increment = pos.worldVector * stepLength;
+            
+            for (int i = 0; i < 8; i++, cloudPosition += increment) {
+                float cloudDensity = getClouds(cloudPosition);
+                if (cloudDensity > 0.01) {
+                    cloudOcclusion = 0.0;
+                    break;
+                }
+            }
+        }
+    }
+    
+    // 添加星空 - 考虑云层遮挡
+    if (enableStars == 1) {
+        vec3 stars = generateStars(pos.worldVector, time);
+        color += stars * isNight * cloudOcclusion;  // 在有云的地方不显示星星
+    }
+    
+    // 添加月亮 - 也考虑云层遮挡
+    if (enableMoon == 1) {
+        vec3 moon = generateMoon(pos);
+        color += moon * isNight * cloudOcclusion;  // 月亮也受云层遮挡
+    }
+    
+    // 添加极光 - 极光应该在云层之下
+    if (enableAurora == 1) {
+        vec3 aurora = generateAurora(pos);
+        color += aurora * isNight;  // 极光不受云层遮挡
+    }
+    
+    // 继续处理云层和体积光
     color = calculateVolumetricClouds(pos, color, dither, lightAbsorb);
     color = calculateVolumetricLight(pos, color, dither, lightAbsorb);
     

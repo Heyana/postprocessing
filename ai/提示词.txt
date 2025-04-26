@@ -1,0 +1,3 @@
+1. 参考shadertoy实现
+重做我们的weather-system.frag.glsl吧 差距太大 我把需要实现的shader 代码放在了src\effects\shaders\shadertoy\weather-system.frag.shadertoy这个路径 你参考这个代码
+和我们现有的weather-system.frag.glsl 的结构 把shadertoy的效果搬运过来 weather-system.frag.glsl 的结构不变 因为结构是对的 只是效果不好

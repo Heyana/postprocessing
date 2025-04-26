@@ -28,6 +28,23 @@ export class SkyAtmosphereEffect extends Effect {
      * @param {Number} [options.cloudAmount=1.0] - 云层数量
      * @param {Number} [options.cloudScale=1.0] - 云层尺度
      * @param {Number} [options.cloudThreshold=0.0] - 云层阈值
+     * @param {Number} [options.volumetricCloudSteps=16] - 体积云采样步数
+     * @param {Number} [options.volumetricLightSteps=8] - 体积光采样步数
+     * @param {Number} [options.cloudShadowingSteps=12] - 云阴影采样步数
+     * @param {Number} [options.volumetricLightShadowSteps=4] - 体积光阴影采样步数
+     * @param {Boolean} [options.enableStars=false] - 是否启用星空
+     * @param {Number} [options.starIntensity=1.0] - 星星亮度
+     * @param {Number} [options.starDensity=0.5] - 星星密度
+     * @param {Number} [options.starSize=1.0] - 星星大小
+     * @param {Number} [options.starMovementSpeed=1.0] - 星星随云层移动的速度
+     * @param {Boolean} [options.enableMoon=false] - 是否启用月亮
+     * @param {Vector3} [options.moonPosition=new Vector3(-0.1, 0.05, -1).normalize()] - 月亮位置（方向向量）
+     * @param {Number} [options.moonSize=0.02] - 月亮大小
+     * @param {Number} [options.moonIntensity=1.0] - 月亮亮度
+     * @param {Boolean} [options.enableAurora=false] - 是否启用极光
+     * @param {Number} [options.auroraIntensity=1.5] - 极光强度
+     * @param {Vector3} [options.auroraColor=new Vector3(2.15, -1.0, 1.0)] - 极光颜色 (R,G,B)系数
+     * @param {Number} [options.nightIntensity=0.2] - 夜晚强度（值越小，夜空越暗）
      */
     constructor({
         blendFunction = BlendFunction.SCREEN,
@@ -42,7 +59,24 @@ export class SkyAtmosphereEffect extends Effect {
         skyBlueness = 0.5,
         cloudAmount = 1.0,
         cloudScale = 1.0,
-        cloudThreshold = 0.0
+        cloudThreshold = 0.0,
+        volumetricCloudSteps = 16,
+        volumetricLightSteps = 8,
+        cloudShadowingSteps = 12,
+        volumetricLightShadowSteps = 4,
+        enableStars = false,
+        starIntensity = 1.0,
+        starDensity = 0.5,
+        starSize = 1.0,
+        starMovementSpeed = 1.0,
+        enableMoon = false,
+        moonPosition = new Vector3(-0.1, 0.05, -1).normalize(),
+        moonSize = 0.02,
+        moonIntensity = 1.0,
+        enableAurora = false,
+        auroraIntensity = 1.5,
+        auroraColor = new Vector3(2.15, -1.0, 1.0),
+        nightIntensity = 0.2
     } = {}) {
         super("SkyAtmosphereEffect", fragmentShader, {
             blendFunction,
@@ -66,7 +100,24 @@ export class SkyAtmosphereEffect extends Effect {
                 ["skyBlueness", new Uniform(skyBlueness)],
                 ["cloudAmount", new Uniform(cloudAmount)],
                 ["cloudScale", new Uniform(cloudScale)],
-                ["cloudThreshold", new Uniform(cloudThreshold)]
+                ["cloudThreshold", new Uniform(cloudThreshold)],
+                ["volumetricCloudStepsUniform", new Uniform(volumetricCloudSteps)],
+                ["volumetricLightStepsUniform", new Uniform(volumetricLightSteps)],
+                ["cloudShadowingStepsUniform", new Uniform(cloudShadowingSteps)],
+                ["volumetricLightShadowStepsUniform", new Uniform(volumetricLightShadowSteps)],
+                ["enableStars", new Uniform(enableStars ? 1 : 0)],
+                ["starIntensity", new Uniform(starIntensity)],
+                ["starDensity", new Uniform(starDensity)],
+                ["starSize", new Uniform(starSize)],
+                ["starMovementSpeed", new Uniform(starMovementSpeed)],
+                ["enableMoon", new Uniform(enableMoon ? 1 : 0)],
+                ["moonPosition", new Uniform(moonPosition)],
+                ["moonSize", new Uniform(moonSize)],
+                ["moonIntensity", new Uniform(moonIntensity)],
+                ["enableAurora", new Uniform(enableAurora ? 1 : 0)],
+                ["auroraIntensity", new Uniform(auroraIntensity)],
+                ["auroraColor", new Uniform(auroraColor)],
+                ["nightIntensity", new Uniform(nightIntensity)]
             ])
         });
 
@@ -143,11 +194,118 @@ export class SkyAtmosphereEffect extends Effect {
         this._cloudThreshold = cloudThreshold;
 
         /**
+         * 体积云采样步数
+         * @type {Number}
+         * @private
+         */
+        this._volumetricCloudSteps = volumetricCloudSteps;
+
+        /**
+         * 体积光采样步数
+         * @type {Number}
+         * @private
+         */
+        this._volumetricLightSteps = volumetricLightSteps;
+
+        /**
+         * 云阴影采样步数
+         * @type {Number}
+         * @private
+         */
+        this._cloudShadowingSteps = cloudShadowingSteps;
+
+        /**
+         * 体积光阴影采样步数
+         * @type {Number}
+         * @private
+         */
+        this._volumetricLightShadowSteps = volumetricLightShadowSteps;
+
+        /**
          * 相机对象，用于获取视图矩阵
          * @type {Camera}
          * @private
          */
         this._camera = null;
+
+        // 新增夜空、星空和极光相关属性
+        /**
+         * 是否启用星空
+         * @type {Boolean}
+         */
+        this._enableStars = enableStars;
+
+        /**
+         * 星星亮度
+         * @type {Number}
+         */
+        this._starIntensity = starIntensity;
+
+        /**
+         * 星星密度
+         * @type {Number}
+         */
+        this._starDensity = starDensity;
+
+        /**
+         * 星星大小
+         * @type {Number}
+         */
+        this._starSize = starSize;
+
+        /**
+         * 星星随云层移动的速度
+         * @type {Number}
+         */
+        this._starMovementSpeed = starMovementSpeed;
+
+        /**
+         * 是否启用月亮
+         * @type {Boolean}
+         */
+        this._enableMoon = enableMoon;
+
+        /**
+         * 月亮位置
+         * @type {Vector3}
+         */
+        this.moonPosition = moonPosition;
+
+        /**
+         * 月亮大小
+         * @type {Number}
+         */
+        this._moonSize = moonSize;
+
+        /**
+         * 月亮亮度
+         * @type {Number}
+         */
+        this._moonIntensity = moonIntensity;
+
+        /**
+         * 是否启用极光
+         * @type {Boolean}
+         */
+        this._enableAurora = enableAurora;
+
+        /**
+         * 极光强度
+         * @type {Number}
+         */
+        this._auroraIntensity = auroraIntensity;
+
+        /**
+         * 极光颜色 (R,G,B系数)
+         * @type {Vector3}
+         */
+        this.auroraColor = auroraColor;
+
+        /**
+         * 夜晚强度（值越小，夜空越暗）
+         * @type {Number}
+         */
+        this._nightIntensity = nightIntensity;
 
         // 创建默认噪声纹理
         this.createDefaultNoiseTexture();
@@ -239,6 +397,261 @@ export class SkyAtmosphereEffect extends Effect {
     }
 
     /**
+     * 获取体积云采样步数
+     * @return {Number} 体积云采样步数
+     */
+    get volumetricCloudSteps() {
+        return this._volumetricCloudSteps;
+    }
+
+    /**
+     * 设置体积云采样步数
+     * @param {Number} value - 体积云采样步数
+     */
+    set volumetricCloudSteps(value) {
+        this._volumetricCloudSteps = Math.max(1, Math.floor(value));
+        this.uniforms.get("volumetricCloudStepsUniform").value = this._volumetricCloudSteps;
+    }
+
+    /**
+     * 获取体积光采样步数
+     * @return {Number} 体积光采样步数
+     */
+    get volumetricLightSteps() {
+        return this._volumetricLightSteps;
+    }
+
+    /**
+     * 设置体积光采样步数
+     * @param {Number} value - 体积光采样步数
+     */
+    set volumetricLightSteps(value) {
+        this._volumetricLightSteps = Math.max(1, Math.floor(value));
+        this.uniforms.get("volumetricLightStepsUniform").value = this._volumetricLightSteps;
+    }
+
+    /**
+     * 获取云阴影采样步数
+     * @return {Number} 云阴影采样步数
+     */
+    get cloudShadowingSteps() {
+        return this._cloudShadowingSteps;
+    }
+
+    /**
+     * 设置云阴影采样步数
+     * @param {Number} value - 云阴影采样步数
+     */
+    set cloudShadowingSteps(value) {
+        this._cloudShadowingSteps = Math.max(1, Math.floor(value));
+        this.uniforms.get("cloudShadowingStepsUniform").value = this._cloudShadowingSteps;
+    }
+
+    /**
+     * 获取体积光阴影采样步数
+     * @return {Number} 体积光阴影采样步数
+     */
+    get volumetricLightShadowSteps() {
+        return this._volumetricLightShadowSteps;
+    }
+
+    /**
+     * 设置体积光阴影采样步数
+     * @param {Number} value - 体积光阴影采样步数
+     */
+    set volumetricLightShadowSteps(value) {
+        this._volumetricLightShadowSteps = Math.max(1, Math.floor(value));
+        this.uniforms.get("volumetricLightShadowStepsUniform").value = this._volumetricLightShadowSteps;
+    }
+
+    /**
+     * 获取星空启用状态
+     * @return {Boolean} 是否启用星空
+     */
+    get enableStars() {
+        return this._enableStars;
+    }
+
+    /**
+     * 设置星空启用状态
+     * @param {Boolean} value - 是否启用星空
+     */
+    set enableStars(value) {
+        this._enableStars = value;
+        this.uniforms.get("enableStars").value = value ? 1 : 0;
+    }
+
+    /**
+     * 获取星星亮度
+     * @return {Number} 星星亮度
+     */
+    get starIntensity() {
+        return this._starIntensity;
+    }
+
+    /**
+     * 设置星星亮度
+     * @param {Number} value - 星星亮度
+     */
+    set starIntensity(value) {
+        this._starIntensity = value;
+        this.uniforms.get("starIntensity").value = value;
+    }
+
+    /**
+     * 获取星星密度
+     * @return {Number} 星星密度
+     */
+    get starDensity() {
+        return this._starDensity;
+    }
+
+    /**
+     * 设置星星密度
+     * @param {Number} value - 星星密度
+     */
+    set starDensity(value) {
+        this._starDensity = value;
+        this.uniforms.get("starDensity").value = value;
+    }
+
+    /**
+     * 获取星星大小
+     * @return {Number} 星星大小
+     */
+    get starSize() {
+        return this._starSize;
+    }
+
+    /**
+     * 设置星星大小
+     * @param {Number} value - 星星大小
+     */
+    set starSize(value) {
+        this._starSize = value;
+        this.uniforms.get("starSize").value = value;
+    }
+
+    /**
+     * 获取星星移动速度
+     * @return {Number} 星星移动速度
+     */
+    get starMovementSpeed() {
+        return this._starMovementSpeed;
+    }
+
+    /**
+     * 设置星星移动速度
+     * @param {Number} value - 星星移动速度
+     */
+    set starMovementSpeed(value) {
+        this._starMovementSpeed = value;
+        this.uniforms.get("starMovementSpeed").value = value;
+    }
+
+    /**
+     * 获取月亮启用状态
+     * @return {Boolean} 是否启用月亮
+     */
+    get enableMoon() {
+        return this._enableMoon;
+    }
+
+    /**
+     * 设置月亮启用状态
+     * @param {Boolean} value - 是否启用月亮
+     */
+    set enableMoon(value) {
+        this._enableMoon = value;
+        this.uniforms.get("enableMoon").value = value ? 1 : 0;
+    }
+
+    /**
+     * 获取月亮大小
+     * @return {Number} 月亮大小
+     */
+    get moonSize() {
+        return this._moonSize;
+    }
+
+    /**
+     * 设置月亮大小
+     * @param {Number} value - 月亮大小
+     */
+    set moonSize(value) {
+        this._moonSize = value;
+        this.uniforms.get("moonSize").value = value;
+    }
+
+    /**
+     * 获取月亮亮度
+     * @return {Number} 月亮亮度
+     */
+    get moonIntensity() {
+        return this._moonIntensity;
+    }
+
+    /**
+     * 设置月亮亮度
+     * @param {Number} value - 月亮亮度
+     */
+    set moonIntensity(value) {
+        this._moonIntensity = value;
+        this.uniforms.get("moonIntensity").value = value;
+    }
+
+    /**
+     * 获取极光启用状态
+     * @return {Boolean} 是否启用极光
+     */
+    get enableAurora() {
+        return this._enableAurora;
+    }
+
+    /**
+     * 设置极光启用状态
+     * @param {Boolean} value - 是否启用极光
+     */
+    set enableAurora(value) {
+        this._enableAurora = value;
+        this.uniforms.get("enableAurora").value = value ? 1 : 0;
+    }
+
+    /**
+     * 获取极光强度
+     * @return {Number} 极光强度
+     */
+    get auroraIntensity() {
+        return this._auroraIntensity;
+    }
+
+    /**
+     * 设置极光强度
+     * @param {Number} value - 极光强度
+     */
+    set auroraIntensity(value) {
+        this._auroraIntensity = value;
+        this.uniforms.get("auroraIntensity").value = value;
+    }
+
+    /**
+     * 获取夜晚强度
+     * @return {Number} 夜晚强度
+     */
+    get nightIntensity() {
+        return this._nightIntensity;
+    }
+
+    /**
+     * 设置夜晚强度
+     * @param {Number} value - 夜晚强度
+     */
+    set nightIntensity(value) {
+        this._nightIntensity = value;
+        this.uniforms.get("nightIntensity").value = value;
+    }
+
+    /**
      * 创建默认噪声纹理
      * 用于在没有设置纹理时提供基本云噪声
      * @private
@@ -305,6 +718,27 @@ export class SkyAtmosphereEffect extends Effect {
         this.uniforms.get("cloudAmount").value = this._cloudAmount;
         this.uniforms.get("cloudScale").value = this._cloudScale;
         this.uniforms.get("cloudThreshold").value = this._cloudThreshold;
+
+        // 更新采样步数参数
+        this.uniforms.get("volumetricCloudStepsUniform").value = this._volumetricCloudSteps;
+        this.uniforms.get("volumetricLightStepsUniform").value = this._volumetricLightSteps;
+        this.uniforms.get("cloudShadowingStepsUniform").value = this._cloudShadowingSteps;
+        this.uniforms.get("volumetricLightShadowStepsUniform").value = this._volumetricLightShadowSteps;
+
+        // 更新夜空、星空和极光相关参数
+        this.uniforms.get("enableStars").value = this._enableStars ? 1 : 0;
+        this.uniforms.get("starIntensity").value = this._starIntensity;
+        this.uniforms.get("starDensity").value = this._starDensity;
+        this.uniforms.get("starSize").value = this._starSize;
+        this.uniforms.get("starMovementSpeed").value = this._starMovementSpeed;
+        this.uniforms.get("enableMoon").value = this._enableMoon ? 1 : 0;
+        this.uniforms.get("moonPosition").value.copy(this.moonPosition);
+        this.uniforms.get("moonSize").value = this._moonSize;
+        this.uniforms.get("moonIntensity").value = this._moonIntensity;
+        this.uniforms.get("enableAurora").value = this._enableAurora ? 1 : 0;
+        this.uniforms.get("auroraIntensity").value = this._auroraIntensity;
+        this.uniforms.get("auroraColor").value.copy(this.auroraColor);
+        this.uniforms.get("nightIntensity").value = this._nightIntensity;
 
         // 更新相机视图矩阵
         if (this._camera) {
