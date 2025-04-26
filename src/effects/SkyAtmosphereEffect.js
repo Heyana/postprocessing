@@ -19,6 +19,7 @@ export class SkyAtmosphereEffect extends Effect {
      * @param {Vector3} [options.sunPosition=new Vector3(0.1, 0.05, -1).normalize()] - 太阳位置（方向向量）
      * @param {Boolean} [options.animateClouds=true] - 是否启用云层动画
      * @param {Number} [options.intensity=12.0] - 散射强度
+     * @param {Number} [options.sunBrightness=3.0] - 太阳亮度
      * @param {Number} [options.rayleighCoefficient=1.0] - 瑞利散射系数
      * @param {Number} [options.mieCoefficient=0.8] - 米氏散射系数
      * @param {Number} [options.mieDirectionalG=0.8] - 米氏散射方向性参数（0-1）
@@ -36,13 +37,13 @@ export class SkyAtmosphereEffect extends Effect {
      * @param {Number} [options.starIntensity=1.0] - 星星亮度
      * @param {Number} [options.starDensity=0.5] - 星星密度
      * @param {Number} [options.starSize=1.0] - 星星大小
-     * @param {Number} [options.starMovementSpeed=1.0] - 星星随云层移动的速度
      * @param {Boolean} [options.enableMoon=false] - 是否启用月亮
      * @param {Vector3} [options.moonPosition=new Vector3(-0.1, 0.05, -1).normalize()] - 月亮位置（方向向量）
      * @param {Number} [options.moonSize=0.02] - 月亮大小
      * @param {Number} [options.moonIntensity=1.0] - 月亮亮度
      * @param {Boolean} [options.enableAurora=false] - 是否启用极光
      * @param {Number} [options.auroraIntensity=1.5] - 极光强度
+     * @param {Number} [options.auroraDensity=1.0] - 极光密度
      * @param {Vector3} [options.auroraColor=new Vector3(2.15, -1.0, 1.0)] - 极光颜色 (R,G,B)系数
      * @param {Number} [options.nightIntensity=0.2] - 夜晚强度（值越小，夜空越暗）
      */
@@ -51,6 +52,7 @@ export class SkyAtmosphereEffect extends Effect {
         sunPosition = new Vector3(0.1, 0.05, -1).normalize(),
         animateClouds = true,
         intensity = 12.0,
+        sunBrightness = 3.0,
         rayleighCoefficient = 1.0,
         mieCoefficient = 0.8,
         mieDirectionalG = 0.8,
@@ -60,21 +62,21 @@ export class SkyAtmosphereEffect extends Effect {
         cloudAmount = 1.0,
         cloudScale = 1.0,
         cloudThreshold = 0.0,
-        volumetricCloudSteps = 16,
-        volumetricLightSteps = 8,
-        cloudShadowingSteps = 12,
+        volumetricCloudSteps = 4,
+        volumetricLightSteps = 4,
+        cloudShadowingSteps = 4,
         volumetricLightShadowSteps = 4,
         enableStars = false,
         starIntensity = 1.0,
         starDensity = 0.5,
         starSize = 1.0,
-        starMovementSpeed = 1.0,
         enableMoon = false,
         moonPosition = new Vector3(-0.1, 0.05, -1).normalize(),
         moonSize = 0.02,
         moonIntensity = 1.0,
         enableAurora = false,
         auroraIntensity = 1.5,
+        auroraDensity = 1.0,
         auroraColor = new Vector3(2.15, -1.0, 1.0),
         nightIntensity = 0.2
     } = {}) {
@@ -87,6 +89,7 @@ export class SkyAtmosphereEffect extends Effect {
             uniforms: new Map([
                 ["sunPosition", new Uniform(sunPosition)],
                 ["intensity", new Uniform(intensity)],
+                ["sunBrightness", new Uniform(sunBrightness)],
                 ["animateClouds", new Uniform(animateClouds ? 1 : 0)],
                 ["time", new Uniform(0.0)],
                 ["resolution", new Uniform(new Vector2(1, 1))],
@@ -109,13 +112,13 @@ export class SkyAtmosphereEffect extends Effect {
                 ["starIntensity", new Uniform(starIntensity)],
                 ["starDensity", new Uniform(starDensity)],
                 ["starSize", new Uniform(starSize)],
-                ["starMovementSpeed", new Uniform(starMovementSpeed)],
                 ["enableMoon", new Uniform(enableMoon ? 1 : 0)],
                 ["moonPosition", new Uniform(moonPosition)],
                 ["moonSize", new Uniform(moonSize)],
                 ["moonIntensity", new Uniform(moonIntensity)],
                 ["enableAurora", new Uniform(enableAurora ? 1 : 0)],
                 ["auroraIntensity", new Uniform(auroraIntensity)],
+                ["auroraDensity", new Uniform(auroraDensity)],
                 ["auroraColor", new Uniform(auroraColor)],
                 ["nightIntensity", new Uniform(nightIntensity)]
             ])
@@ -138,6 +141,12 @@ export class SkyAtmosphereEffect extends Effect {
          * @type {Number}
          */
         this.intensity = intensity;
+
+        /**
+         * 太阳亮度
+         * @type {Number}
+         */
+        this._sunBrightness = sunBrightness;
 
         /**
          * 瑞利散射系数
@@ -254,12 +263,6 @@ export class SkyAtmosphereEffect extends Effect {
         this._starSize = starSize;
 
         /**
-         * 星星随云层移动的速度
-         * @type {Number}
-         */
-        this._starMovementSpeed = starMovementSpeed;
-
-        /**
          * 是否启用月亮
          * @type {Boolean}
          */
@@ -306,6 +309,12 @@ export class SkyAtmosphereEffect extends Effect {
          * @type {Number}
          */
         this._nightIntensity = nightIntensity;
+
+        /**
+         * 极光密度
+         * @type {Number}
+         */
+        this._auroraDensity = auroraDensity;
 
         // 创建默认噪声纹理
         this.createDefaultNoiseTexture();
@@ -533,23 +542,6 @@ export class SkyAtmosphereEffect extends Effect {
     }
 
     /**
-     * 获取星星移动速度
-     * @return {Number} 星星移动速度
-     */
-    get starMovementSpeed() {
-        return this._starMovementSpeed;
-    }
-
-    /**
-     * 设置星星移动速度
-     * @param {Number} value - 星星移动速度
-     */
-    set starMovementSpeed(value) {
-        this._starMovementSpeed = value;
-        this.uniforms.get("starMovementSpeed").value = value;
-    }
-
-    /**
      * 获取月亮启用状态
      * @return {Boolean} 是否启用月亮
      */
@@ -652,6 +644,40 @@ export class SkyAtmosphereEffect extends Effect {
     }
 
     /**
+     * 获取极光密度
+     * @return {Number} 极光密度
+     */
+    get auroraDensity() {
+        return this._auroraDensity;
+    }
+
+    /**
+     * 设置极光密度
+     * @param {Number} value - 极光密度
+     */
+    set auroraDensity(value) {
+        this._auroraDensity = value;
+        this.uniforms.get("auroraDensity").value = value;
+    }
+
+    /**
+     * 获取太阳亮度
+     * @return {Number} 太阳亮度
+     */
+    get sunBrightness() {
+        return this._sunBrightness;
+    }
+
+    /**
+     * 设置太阳亮度
+     * @param {Number} value - 太阳亮度
+     */
+    set sunBrightness(value) {
+        this._sunBrightness = value;
+        this.uniforms.get("sunBrightness").value = value;
+    }
+
+    /**
      * 创建默认噪声纹理
      * 用于在没有设置纹理时提供基本云噪声
      * @private
@@ -708,6 +734,7 @@ export class SkyAtmosphereEffect extends Effect {
 
         // 更新强度和散射参数
         this.uniforms.get("intensity").value = this.intensity;
+        this.uniforms.get("sunBrightness").value = this._sunBrightness;
         this.uniforms.get("rayleighCoefficient").value = this.rayleighCoefficient;
         this.uniforms.get("mieCoefficient").value = this.mieCoefficient;
         this.uniforms.get("mieDirectionalG").value = this.mieDirectionalG;
@@ -730,13 +757,13 @@ export class SkyAtmosphereEffect extends Effect {
         this.uniforms.get("starIntensity").value = this._starIntensity;
         this.uniforms.get("starDensity").value = this._starDensity;
         this.uniforms.get("starSize").value = this._starSize;
-        this.uniforms.get("starMovementSpeed").value = this._starMovementSpeed;
         this.uniforms.get("enableMoon").value = this._enableMoon ? 1 : 0;
         this.uniforms.get("moonPosition").value.copy(this.moonPosition);
         this.uniforms.get("moonSize").value = this._moonSize;
         this.uniforms.get("moonIntensity").value = this._moonIntensity;
         this.uniforms.get("enableAurora").value = this._enableAurora ? 1 : 0;
         this.uniforms.get("auroraIntensity").value = this._auroraIntensity;
+        this.uniforms.get("auroraDensity").value = this._auroraDensity;
         this.uniforms.get("auroraColor").value.copy(this.auroraColor);
         this.uniforms.get("nightIntensity").value = this._nightIntensity;
 

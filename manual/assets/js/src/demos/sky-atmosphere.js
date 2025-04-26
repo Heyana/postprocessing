@@ -331,14 +331,6 @@ window.addEventListener("load", () => load().then((assets) => {
         step: 0.1
     });
 
-    // 添加星星移动速度控制
-    starFolder.addBinding(skyAtmosphereEffect, "starMovementSpeed", {
-        label: "星星移动速度",
-        min: 0.0,  // 0表示星星不随云层移动
-        max: 3.0,  // 3表示星星移动速度是云层的3倍
-        step: 0.1
-    });
-
     // 月亮控制
     const moonFolder = nightSkyFolder.addFolder({ title: "月亮" });
 
@@ -487,6 +479,14 @@ window.addEventListener("load", () => load().then((assets) => {
         step: 0.1
     });
 
+    // 添加极光密度控制
+    auroraFolder.addBinding(skyAtmosphereEffect, "auroraDensity", {
+        label: "极光密度",
+        min: 0.1,
+        max: 3.0,
+        step: 0.1
+    });
+
     // 极光颜色控制
     const auroraColorParams = {
         red: 2.15,
@@ -524,37 +524,6 @@ window.addEventListener("load", () => load().then((assets) => {
         step: 0.05
     }).on("change", updateAuroraColor);
 
-    // 添加采样步数控制
-    const samplingFolder = skyFolder.addFolder({ title: "高级渲染设置" });
-
-    samplingFolder.addBinding(skyAtmosphereEffect, "volumetricCloudSteps", {
-        label: "体积云采样步数",
-        min: 8,
-        max: 64,
-        step: 1
-    });
-
-    samplingFolder.addBinding(skyAtmosphereEffect, "volumetricLightSteps", {
-        label: "体积光采样步数",
-        min: 4,
-        max: 32,
-        step: 1
-    });
-
-    samplingFolder.addBinding(skyAtmosphereEffect, "cloudShadowingSteps", {
-        label: "云阴影采样步数",
-        min: 4,
-        max: 32,
-        step: 1
-    });
-
-    samplingFolder.addBinding(skyAtmosphereEffect, "volumetricLightShadowSteps", {
-        label: "体积光阴影采样步数",
-        min: 2,
-        max: 16,
-        step: 1
-    });
-
     // 太阳位置控制
     const sunFolder = skyFolder.addFolder({ title: "太阳位置" });
 
@@ -572,6 +541,14 @@ window.addEventListener("load", () => load().then((assets) => {
         step: 1
     }).on("change", updateSunPosition);
 
+    // 添加太阳亮度控制
+    sunFolder.addBinding(skyAtmosphereEffect, "sunBrightness", {
+        label: "太阳亮度",
+        min: 0.5,
+        max: 10.0,
+        step: 0.1
+    });
+
     // 初始化太阳位置
     updateSunPosition();
 
@@ -588,6 +565,7 @@ window.addEventListener("load", () => load().then((assets) => {
             skyAtmosphereEffect.enableAurora = false;
             skyAtmosphereEffect.intensity = 12.0;
             skyAtmosphereEffect.skyBlueness = 0.5;
+            skyAtmosphereEffect.sunBrightness = 3.0;
         },
         sunset: function () {
             sunParams.elevation = 2;
@@ -598,6 +576,7 @@ window.addEventListener("load", () => load().then((assets) => {
             skyAtmosphereEffect.enableAurora = false;
             skyAtmosphereEffect.intensity = 15.0;
             skyAtmosphereEffect.skyBlueness = 0.3;
+            skyAtmosphereEffect.sunBrightness = 4.5;
         },
         night: function () {
             sunParams.elevation = -5;
@@ -608,12 +587,9 @@ window.addEventListener("load", () => load().then((assets) => {
             skyAtmosphereEffect.enableAurora = false;
             skyAtmosphereEffect.intensity = 12.0;
             skyAtmosphereEffect.nightIntensity = 0.2;
-            // 更新星星参数为更自然的值
-            skyAtmosphereEffect.starIntensity = 1.0;
-            skyAtmosphereEffect.starDensity = 0.4;
-            skyAtmosphereEffect.starSize = 1.5;
-            skyAtmosphereEffect.starMovementSpeed = 0.3;
+            skyAtmosphereEffect.starIntensity = 1.5;
             skyAtmosphereEffect.moonIntensity = 1.2;
+            skyAtmosphereEffect.sunBrightness = 2.0;
             moonPosParams.elevation = 30;
             moonPosParams.azimuth = 45;
             updateMoonPositionOpposite();
@@ -627,13 +603,11 @@ window.addEventListener("load", () => load().then((assets) => {
             skyAtmosphereEffect.enableAurora = true;
             skyAtmosphereEffect.intensity = 12.0;
             skyAtmosphereEffect.nightIntensity = 0.15;
-            // 更新星星参数为更自然的值
-            skyAtmosphereEffect.starIntensity = 0.8;
-            skyAtmosphereEffect.starDensity = 0.5;
-            skyAtmosphereEffect.starSize = 1.2;
-            skyAtmosphereEffect.starMovementSpeed = 0.5;
+            skyAtmosphereEffect.starIntensity = 1.2;
             skyAtmosphereEffect.moonIntensity = 0.8;
             skyAtmosphereEffect.auroraIntensity = 1.5;
+            skyAtmosphereEffect.auroraDensity = 1.0;  // 设置默认极光密度
+            skyAtmosphereEffect.sunBrightness = 1.5;
             auroraColorParams.red = 2.15;
             auroraColorParams.green = -1.0;
             auroraColorParams.blue = 1.0;

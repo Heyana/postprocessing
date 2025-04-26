@@ -2,21 +2,33 @@
 // 基于László Matuska (@BitOfGold)的Shadertoy代码
 // 原始着色器: https://www.shadertoy.com/view/ltlSWB
 
-// 注意：不需要重新定义以下变量，它们已经由Effect基类定义
-// uniform sampler2D inputBuffer;
-// uniform sampler2D depthBuffer;
-// varying vec2 vUv;
-
+// uniform sampler2D inputBuffer; // 已由Effect基类定义
+// uniform sampler2D depthBuffer; // 已由Effect基类定义
 uniform sampler2D noiseTexture; // 噪声纹理
+uniform vec2 resolution; // 分辨率
 uniform float time; // 时间
+uniform vec3 sunPosition; // 太阳位置
+uniform vec3 moonPosition; // 月亮位置
+uniform int animateClouds; // 云动画开关
+uniform float cloudy; // 云密度
+uniform float height; // 观察者高度
+uniform float haze; // 雾霾程度
+uniform float cloudyhigh; // 高层云密度
+uniform int enableStars; // 启用星空
+uniform float starThreshold; // 星星密度阈值
+uniform float skyMaskThreshold; // 天空深度阈值
+uniform mat4 viewMatrix; // 视图矩阵
+uniform float fov; // 视场角
+
+// varying vec2 vUv; // 已由Effect基类定义
 
 // 常量定义
 const float M_PI = 3.1415926535;
 const float DEGRAD = M_PI / 180.0;
 
-// 渲染质量参数 - 降低以提高性能
-const int steps = 16; // 采样步数
-const int stepss = 6; // 光线采样步数
+// 渲染质量参数
+const int steps = 32; // 采样步数，原来是80，降低以提高性能
+const int stepss = 6; // 光线采样步数，原来是12，降低以提高性能
 
 // 云层参数
 const float cloudnear = 1.0; // 云层最近距离
@@ -39,16 +51,6 @@ const float Hm = 1000.0; // 米氏散射顶层高度
 const float R0 = 6360e3; // 星球半径
 const float Ra = 6380e3; // 大气层半径
 const vec3 C = vec3(0.0, -R0, 0.0); // 星球中心
-
-// 初始化默认参数
-float height = 500.0; // 观察者高度
-float cloudy = 0.6; // 云层密度
-float haze = 0.1; // 雾霾程度
-float cloudyhigh = 0.05; // 高层云密度
-float startreshold = 0.99; // 星星密度阈值
-
-// 太阳方向
-vec3 Ds = normalize(vec3(0.0, 0.09, -1.0)); // 默认太阳方向
 
 //--------------------------------------------------------------------------
 // 星空随机函数
@@ -166,9 +168,11 @@ float escape(in vec3 p, in vec3 d, in float R) {
     return (t1 >= 0.0) ? t1 : t2;
 }
 
-// 大气散射函数 - 核心函数
-void scatter(vec3 o, vec3 d, out vec3 col, out float scat, in float t) {
+// 大气散射函数
+void scatter(vec3 o, vec3 d, out vec3 col, out float scatteringFactor, in float t) {
     float L = escape(o, d, Ra);
+    // 计算太阳方向
+    vec3 Ds = normalize(sunPosition);
     float mu = dot(d, Ds);
     float opmu2 = 1.0 + mu * mu;
     float phaseR = 0.0596831 * opmu2;
@@ -208,69 +212,101 @@ void scatter(vec3 o, vec3 d, out vec3 col, out float scat, in float t) {
         }
     }
     
-    col = I * (R * bR * phaseR + M * bM * phaseM);
-    scat = 1.0 - clamp(depthM * 1e-5, 0.0, 1.0);
+    // 添加月亮光照
+    vec3 Dm = normalize(moonPosition);
+    float muM = dot(d, Dm);
+    float moonPhase = 0.1193662 * (1.0 - g2) * (1.0 + muM * muM) / ((2.0 + g2) * pow(1.0 + g2 - 2.0 * g * muM, 1.5));
+    float moonLight = 0.2 * smoothstep(0.9985, 0.9995, muM); // 月亮光斑
+    
+    // 直接计算最终颜色和散射系数
+    vec3 moonCol = vec3(0.8, 0.8, 1.0) * moonPhase * 0.05; // 月光颜色
+    col = (R * bR) + (M * bM) + moonCol; // 确保使用标量-向量乘法
+    scatteringFactor = (1.0 - exp(-length(bM) * depthM)) - (moonLight * 2.0); // 使用bM的长度确保是标量计算
 }
-
-//--------------------------------------------------------------------------
-// 旋转函数
-
-vec3 rotate_y(vec3 v, float angle) {
-    float ca = cos(angle); float sa = sin(angle);
-    return v * mat3(
-        +ca, +.0, -sa,
-        +.0, +1.0, +.0,
-        +sa, +.0, +ca);
-}
-
-vec3 rotate_x(vec3 v, float angle) {
-    float ca = cos(angle); float sa = sin(angle);
-    return v * mat3(
-        +1.0, +.0, +.0,
-        +.0, +ca, -sa,
-        +.0, +sa, +ca);
-}
-
-//--------------------------------------------------------------------------
-// 主函数 - 适配为后处理效果格式
 
 void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
-    // 调整UV为[-1,1]范围
+    // 读取深度缓冲区
+    float depth = texture(depthBuffer, uv).r;
+    
+    // 计算UV方向
     vec2 q = uv * 2.0 - 1.0;
+    q.x *= resolution.x / resolution.y;
     
-    // 观察者位置
-    vec3 O = vec3(0.0, height, 0.0);
+    // 计算视图方向 - 修复天空方向
+    // 注意我们使用相机的世界矩阵，所以需要反转方向
+    vec3 vuv = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+    vec3 vrgt = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+    vec3 vfwd = vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]); // 移除了负号
     
-    // 视线方向 - 基于UV坐标
-    // 使用旋转函数创建天空圆顶
-    vec3 D = normalize(rotate_y(rotate_x(vec3(0.0, 0.0, 1.0), -q.y * M_PI / 2.0), -q.x * M_PI));
+    // 根据FOV计算视线方向
+    float rad = fov * DEGRAD / 2.0;
+    float vtan = tan(rad);
+    vec3 dir = normalize(vfwd + q.x * vrgt * vtan + q.y * vuv * vtan);
     
-    // 防止视线方向过低
-    if (D.y <= -0.15) {
-        D.y = -0.3 - D.y;
+    // 计算观察者位置（加上高度）
+    vec3 ro = vec3(0.0, height, 0.0);
+    
+    // 天空渲染
+    vec3 sky = vec3(0.0);
+    float scatteringFactor = 0.0;
+    float t = time * 0.04 * float(animateClouds); // 云动画时间
+    
+    // 确保天空在上方而不是下方 - 如果dir.y为负，我们可能需要翻转
+    if (dir.y < -0.02) {
+        // 如果视线朝下，使用地面颜色
+        sky = mix(
+            vec3(0.1, 0.2, 0.4) * 0.2, // 地面颜色
+            vec3(0.3, 0.4, 0.6) * 0.3, // 地平线颜色
+            smoothstep(-0.1, -0.03, dir.y)
+        );
+    } else {
+        // 大气散射计算
+        scatter(ro, dir, sky, scatteringFactor, t);
+        
+        // 星空计算
+        if (enableStars == 1) {
+            // 计算夜空比例（根据太阳高度）
+            float nightSky = smoothstep(-0.15, 0.05, -sunPosition.y);
+            
+            // 星空计算
+            if (nightSky > 0.0) {
+                // 使用球面投影扭曲坐标，使星星分布在球形天空上
+                vec2 starCoord = vec2(
+                    atan(dir.z, dir.x) / (2.0 * M_PI),
+                    acos(dir.y) / M_PI
+                );
+                
+                // 添加缓慢移动（跟随云层）
+                starCoord.x += t * 0.002;
+                starCoord.y += t * 0.001;
+                
+                // 计算星空密度
+                float stars = StableStarField(starCoord * 500.0, starThreshold);
+                
+                // 只在天空较暗的部分显示星星
+                float starsMask = 1.0 - min(1.0, length(sky * 25.0));
+                starsMask *= smoothstep(0.0, 0.5, dir.y); // 靠近地平线减少星星
+                
+                // 添加星星到天空颜色
+                sky += stars * vec3(0.8, 0.9, 1.0) * starsMask * nightSky;
+            }
+        }
     }
     
-    // 太阳方向 - 使用固定方向
-    Ds = normalize(vec3(0.2, 0.3, -1.0)); // 简化为固定方向
+    // 添加月亮
+    float moonDot = dot(dir, normalize(moonPosition));
+    float moonSize = 0.004;
+    float moonMask = smoothstep(0.9988 - moonSize, 0.9999 - moonSize * 0.5, moonDot);
+    // 月亮只在夜晚可见（基于太阳位置）
+    float moonVisibility = smoothstep(-0.1, -0.2, sunPosition.y);
+    sky = mix(sky, vec3(0.9, 0.95, 1.0), moonMask * moonVisibility);
     
-    // 渲染天空
-    float scat = 0.0;
-    vec3 color = vec3(0.0);
-    float t = time / 2.0; // 时间缩放
+    // 根据深度混合天空和原始图像
+    // 当深度值接近1.0（远处）时，使用天空颜色；否则使用原始图像颜色
+    float skyMask = smoothstep(skyMaskThreshold, skyMaskThreshold + 0.0005, depth);
     
-    // 计算大气散射
-    scatter(O, D, color, scat, t);
-    
-    // 添加星星
-    float starcolor = StableStarField(uv * 500.0, startreshold);
-    color += vec3(scat * starcolor * 0.5); // 添加星星
-    
-    // 调整颜色曝光
-    float env = 0.9;
-    color = env * pow(color, vec3(0.4));
-    
-    // 输出颜色
-    outputColor = vec4(color, 1.0);
+    // 输出结果：混合原始颜色和天空颜色
+    outputColor = mix(inputColor, vec4(sky, 1.0), skyMask);
 }
 
 void main() {
@@ -280,4 +316,4 @@ void main() {
     mainImage(inputColor, vUv, outputColor);
     
     gl_FragColor = outputColor;
-}
+} 

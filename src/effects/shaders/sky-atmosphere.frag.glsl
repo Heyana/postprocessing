@@ -4,6 +4,7 @@ uniform float time;
 uniform int animateClouds;
 uniform vec3 sunPosition;
 uniform float intensity;
+uniform float sunBrightness;
 uniform float rayleighCoefficient;
 uniform float mieCoefficient;
 uniform float mieDirectionalG;
@@ -24,14 +25,14 @@ uniform int volumetricLightShadowStepsUniform;
 uniform int enableStars;
 uniform float starIntensity;
 uniform float starDensity;
-uniform float starSize; // 星星大小参数
-uniform float starMovementSpeed; // 星星移动速度参数
+uniform float starSize; // 新增：星星大小参数
 uniform int enableMoon;
 uniform vec3 moonPosition;
 uniform float moonSize;
 uniform float moonIntensity;
 uniform int enableAurora;
 uniform float auroraIntensity;
+uniform float auroraDensity; // 新增：极光密度参数
 uniform vec3 auroraColor;
 uniform float nightIntensity;
 
@@ -56,7 +57,6 @@ uniform float nightIntensity;
 // 星空配置参数
 #define STAR_BRIGHTNESS 1.5
 #define STAR_FLICKER_SPEED 0.75
-#define STAR_LAYERS 4  // 定义星星的噪声层数，类似云层
 
 // 极光配置参数
 #define AURORA_STEPS 50
@@ -65,7 +65,6 @@ uniform float nightIntensity;
 #define AURORA_OFFSET 0.006
 
 // 散射参数
-const float sunBrightness = 3.0;
 #define earthRadius 6371000.0
 const float pi = 3.1415926535897932384626433832795;
 const float rPi = 1.0 / pi;
@@ -494,131 +493,139 @@ vec3 calculateVolumetricClouds(positionStruct pos, vec3 color, float dither, vec
     return mix(color * transmittance + scattering, color, clamp(length(startPosition) * 0.00001, 0.0, 1.0));
 }
 
-// 哈希函数用于星空生成
-float hash21(vec2 p) {
-    p = fract(p * vec2(123.34, 233.53));
-    p += dot(p, p + 23.234);
-    return fract(p.x * p.y);
+// -------- Shadertoy Aurora & Stars 实现 --------
+// 以下代码直接从shadertoy移植，保持原始实现以确保视觉效果一致
+
+// 从shadertoy移植的矩阵函数
+mat2 mm2(in float a){
+    float c = cos(a), s = sin(a);
+    return mat2(c,s,-s,c);
+}
+mat2 m2 = mat2(0.95534, 0.29552, -0.29552, 0.95534);
+
+// 三角波函数
+float tri(in float x){
+    return clamp(abs(fract(x)-.5),0.01,0.49);
 }
 
-// 改进的哈希函数，用于点状星星生成
-float hash21Better(vec2 p) {
-    p = fract(p * vec2(123.34, 345.67));
-    p += dot(p, p + 34.56);
-    return fract(p.x * p.y);
+// 二维三角波
+vec2 tri2(in vec2 p){
+    return vec2(tri(p.x)+tri(p.y),tri(p.y+tri(p.x)));
 }
 
-// 辅助函数 - 三角噪声
-float tri(float x) {
-    return clamp(abs(fract(x) - 0.5), 0.01, 0.49);
+// 三角噪声2D - 从shadertoy直接移植
+float triNoise2d(in vec2 p, float spd)
+{
+    float z=1.8;
+    float z2=2.5;
+    float rz = 0.;
+    p *= mm2(p.x*0.06);
+    vec2 bp = p;
+    for (float i=0.; i<5.; i++ )
+    {
+        vec2 dg = tri2(bp*1.85)*.75;
+        dg *= mm2(time*spd);
+        p -= dg/z2;
+
+        bp *= 1.3;
+        z2 *= .45;
+        z *= .42;
+        p *= 1.21 + (rz-1.0)*.02;
+        
+        rz += tri(p.x+tri(p.y))*z;
+        p*= -m2;
+    }
+    return clamp(1./pow(rz*29., 1.3),0.,.55);
 }
 
-// 二维三角噪声
-vec2 tri2(vec2 p) {
-    return vec2(tri(p.x) + tri(p.y), tri(p.y + tri(p.x)));
+// 更好的哈希函数 - 从shadertoy移植
+float hash21(in vec2 n){ 
+    return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453); 
 }
 
-// 点状星星函数 - 创建一个单一的星星点
-float star(vec2 uv, float flare) {
-    float d = length(uv);
-    float m = 0.05 / d;
-    
-    // 中心亮点
-    float rays = max(0.0, 1.0 - abs(uv.x * uv.y * 1000.0));
-    m += rays * flare;
-    
-    // 星星大小衰减
-    m *= smoothstep(0.3, 0.0, d);
-    
-    return m;
+vec3 nmzHash33(vec3 q)
+{
+    uvec3 p = uvec3(ivec3(q));
+    p = p*uvec3(374761393U, 1103515245U, 668265263U) + p.zxy + p.yzx;
+    p = p.yzx*(p.zxy^(p >> 3U));
+    return vec3(p^(p >> 16U))*(1.0/vec3(0xffffffffU));
 }
 
-// 星空生成函数 - 重新设计为使用点状星星
-vec3 generateStars(vec3 dir, float time) {
-    if (enableStars == 0) return vec3(0.0);
+// 星星生成 - 从shadertoy移植，添加与云层一致的移动
+vec3 stars(in vec3 p)
+{
+    // 获取与云层一致的移动参数 - 添加较慢的移动给星星
+    float timeOffset = time * cloudSpeed * 0.2 * float(animateClouds);
+    vec3 starMovement = vec3(timeOffset, 0.0, timeOffset);
     
-    // 确保只在天空上部生成星星
-    if (dir.y < 0.02) return vec3(0.0);
+    vec3 c = vec3(0.);
+    float res = resolution.x;
     
-    // 使用方向向量生成球面UV坐标
-    vec2 uv = vec2(
-        atan(dir.z, dir.x) / (2.0 * pi) + 0.5,
-        asin(dir.y) / pi + 0.5
-    );
-    
-    // 计算云层移动偏移量，与云层使用相同的移动速度，确保有效移动
+    for (float i=0.;i<4.;i++)
+    {
+        // 添加移动到星星位置
+        vec3 adjustedP = p + starMovement * (i + 1.0) * 0.02;
+        
+        vec3 q = fract(adjustedP*(.15*res*starDensity))-0.5;
+        vec3 id = floor(adjustedP*(.15*res*starDensity));
+        vec2 rn = nmzHash33(id).xy;
+        float c2 = 1.-smoothstep(0.,.6*starSize,length(q));
+        c2 *= step(rn.x,.0005+i*i*0.001*starDensity);
+        c += c2*(mix(vec3(1.0,0.49,0.1),vec3(0.75,0.9,1.),rn.y)*0.1+0.9)*starIntensity;
+        p *= 1.3;
+    }
+    return c*c*.8;
+}
+
+// 天空背景 - 从shadertoy移植
+vec3 bg(in vec3 rd)
+{
+    float sd = dot(normalize(vec3(-0.5, -0.6, 0.9)), rd)*0.5+0.5;
+    sd = pow(sd, 5.);
+    vec3 col = mix(vec3(0.05,0.1,0.2), vec3(0.1,0.05,0.2), sd);
+    return col*.63*nightIntensity;
+}
+
+// 极光生成 - 从shadertoy直接移植，增加密度控制
+vec4 aurora(vec3 ro, vec3 rd)
+{
+    // 获取与云层一致的移动参数
     float timeOffset = time * cloudSpeed * float(animateClouds);
-    vec2 movement = vec2(timeOffset, timeOffset * 0.5) * starMovementSpeed;
+    vec2 cloudMovement = vec2(timeOffset, timeOffset);
     
-    // 将天空分割成网格，每个单元生成一个星星
-    float cellSize = 0.02 * (1.0 / starDensity); // 控制星星密度
-    vec2 cellUV = fract(uv / cellSize);          // 单元内坐标 [0,1]
-    vec2 cellID = floor(uv / cellSize);          // 单元ID
+    vec4 col = vec4(0);
+    vec4 avgCol = vec4(0);
     
-    vec3 starColor = vec3(0.0);
+    // 调整步进数量基于密度
+    float stepCount = 50.0 * auroraDensity;
     
-    // 遍历当前单元周围的单元，以确保边界附近的星星也能看到
-    for(int y = -1; y <= 1; y++) {
-        for(int x = -1; x <= 1; x++) {
-            // 当前检查的单元格ID
-            vec2 offset = vec2(x, y);
-            vec2 neighborCellID = cellID + offset;
-            
-            // 将timeOffset加入哈希输入，使星星移动
-            vec2 hashInput = neighborCellID + movement;
-            
-            // 使用改进的哈希函数来决定是否在该单元格中放置星星
-            float starRandom = hash21Better(hashInput); 
-            
-            // 星星的概率 - 降低阈值使星星更容易出现
-            if(starRandom > (1.0 - 0.015 * starDensity)) {
-                // 根据单元格和随机值决定星星在单元格内的位置
-                vec2 starPosition = offset + vec2(
-                    hash21(neighborCellID + 2.45),
-                    hash21(neighborCellID + 1.68)
-                );
-                
-                // 计算当前像素到星星的距离
-                vec2 fragToStar = starPosition - cellUV;
-                
-                // 星星亮度和大小因子
-                float brightness = starRandom * 0.6 + 0.4; // 确保某些星星更亮
-                
-                // 星星大小 - 由starSize控制
-                float starScale = (0.006 + starRandom * 0.004) * starSize;
-                
-                // 星星闪烁
-                float flicker = sin(time * STAR_FLICKER_SPEED * starRandom) * 0.15 + 0.85;
-                
-                // 渲染点状星星
-                float s = star(fragToStar / starScale, starRandom * 1.5) * brightness * flicker;
-                
-                // 根据随机值决定星星颜色
-                vec3 color = mix(
-                    vec3(0.9, 0.9, 1.0),  // 白色/蓝色星星
-                    vec3(1.0, 0.8, 0.6),  // 黄色/红色星星
-                    hash21(neighborCellID + 7.89)
-                );
-                
-                // 添加一些特殊颜色的星星
-                if(starRandom > 0.995) {
-                    // 红色恒星
-                    color = vec3(1.0, 0.5, 0.5);
-                } else if(starRandom < 0.005) {
-                    // 蓝色恒星
-                    color = vec3(0.5, 0.7, 1.0);
-                }
-                
-                // 累加星星颜色
-                starColor += color * s * starIntensity * STAR_BRIGHTNESS;
-            }
-        }
+    for(float i=0.;i<stepCount;i++)
+    {
+        float of = 0.006*hash21(gl_FragCoord.xy)*smoothstep(0.,15., i);
+        float pt = ((.8+pow(i,1.4)*.002)-ro.y)/(rd.y*2.+0.4);
+        pt -= of;
+        vec3 bpos = ro + pt*rd;
+        
+        // 添加云层一致的移动
+        vec2 p = bpos.zx + cloudMovement;
+        
+        float rzt = triNoise2d(p, 0.06);
+        vec4 col2 = vec4(0,0,0, rzt);
+        col2.rgb = (sin(1.-auroraColor+i*0.043)*0.5+0.5)*rzt;
+        avgCol =  mix(avgCol, col2, .5);
+        col += avgCol*exp2(-i*0.065 - 2.5)*smoothstep(0.,5., i);
     }
     
-    return starColor;
+    col *= (clamp(rd.y*15.+.4,0.,1.));
+    
+    // 应用密度调整
+    float densityFactor = 1.0 / max(auroraDensity, 0.1);
+    col *= 1.8 * auroraIntensity * densityFactor;
+    
+    return col;
 }
 
-// 月亮生成函数
+// 从shadertoy移植的月亮生成函数
 vec3 generateMoon(positionStruct pos) {
     if (enableMoon == 0) return vec3(0.0);
     
@@ -643,98 +650,6 @@ vec3 generateMoon(positionStruct pos) {
     vec3 haloColor = vec3(0.8, 0.9, 1.0);  // 蓝白色月晕
     
     return moonColor * moonDisk * moonIntensity + haloColor * halo;
-}
-
-// 极光生成函数 - 从shadertoy移植
-float triNoise2d(vec2 p, float spd) {
-    float z = 1.8;
-    float z2 = 2.5;
-    float rz = 0.0;
-    
-    // 创建一个简单的2x2旋转矩阵
-    float angle = 0.3;  // 约17°
-    float c = cos(angle);
-    float s = sin(angle);
-    mat2 m2 = mat2(c, s, -s, c);
-    
-    // 创建旋转矩阵
-    angle = p.x * 0.06;
-    c = cos(angle);
-    s = sin(angle);
-    mat2 mm2 = mat2(c, s, -s, c);
-    
-    p *= mm2;
-    vec2 bp = p;
-    
-    for (float i = 0.0; i < 5.0; i++) {
-        vec2 dg = tri2(bp * 1.85) * 0.75;
-        dg *= m2;
-        p -= dg / z2;
-        
-        bp *= 1.3;
-        z2 *= 0.45;
-        z *= 0.42;
-        p *= 1.21 + (rz - 1.0) * 0.02;
-        
-        rz += tri(p.x + tri(p.y)) * z;
-        p *= -m2;
-    }
-    
-    return clamp(1.0 / pow(rz * 29.0, 1.3), 0.0, 0.55);
-}
-
-vec3 generateAurora(positionStruct pos) {
-    if (enableAurora == 0) return vec3(0.0);
-    
-    // 视线向量
-    vec3 dir = pos.worldVector;
-    
-    // 确保极光只在天空上部/北部区域生成
-    if (dir.y < 0.0) return vec3(0.0);
-    
-    // 对视线向量进行旋转，改善极光形状和位置
-    mat3 rotX = rotationMatrix(vec3(1.0, 0.0, 0.0), -0.2);
-    mat3 rotZ = rotationMatrix(vec3(0.0, 0.0, 1.0), 0.1);
-    dir = rotZ * rotX * dir;
-    dir.y *= 2.0;  // 拉伸垂直方向，使极光看起来更像"帘子"
-    
-    // 计算光线位置 - 降低动画速度
-    vec3 rayOrigin = vec3(0.0, 0.0, 0.0);
-    rayOrigin.z += time * AURORA_HEIGHT; // 极大降低z方向移动速度
-    
-    vec4 aurora = vec4(0.0);
-    vec4 avgCol = vec4(0.0);
-    
-    // 极光生成步进循环 - 调整参数让形状更自然
-    for (int i = 0; i < AURORA_STEPS; i++) {
-        float offset = AURORA_OFFSET * hash21(gl_FragCoord.xy) * smoothstep(0.0, 15.0, float(i) * 1.0);
-        float pt = ((0.6 + pow(float(i), 1.3) * 0.004) - rayOrigin.y) / (dir.y * 1.5 + 0.4);
-        pt -= offset;
-        
-        vec3 rayPos = rayOrigin + pt * dir;
-        // 调整波动参数
-        vec2 p = rayPos.zx + sin(time * 0.1 + rayPos.z * 0.2) * 0.5;
-        
-        float noise = triNoise2d(p, AURORA_SPEED);
-        vec4 col2 = vec4(0.0, 0.0, 0.0, noise);
-        
-        // 使用极光颜色参数 - 改善色彩效果
-        col2.rgb = (sin(1.0 - auroraColor + (float(i) * 1.0) * 0.03) * 0.5 + 0.5) * noise;
-        
-        avgCol = mix(avgCol, col2, 0.6);
-        aurora += avgCol * exp2((-float(i) * 0.8) * 0.05 - 2.0) * smoothstep(0.0, 8.0, float(i) * 0.8);
-    }
-    
-    // 根据视线向上的比例调整极光强度 - 改进形状
-    aurora *= clamp(dir.y * 8.0 + 0.4, 0.0, 1.0);
-    
-    // 应用极光强度参数
-    aurora *= auroraIntensity;
-    
-    // 添加光晕效果，使极光更有层次感
-    aurora.rgb += aurora.rgb * aurora.a * 0.5;
-    
-    return aurora.rgb;
 }
 
 // 色调映射
@@ -792,22 +707,66 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
         }
     }
     
-    // 添加星空 - 考虑云层遮挡
-    if (enableStars == 1) {
-        vec3 stars = generateStars(pos.worldVector, time);
-        color += stars * isNight * cloudOcclusion;  // 在有云的地方不显示星星
-    }
-    
-    // 添加月亮 - 也考虑云层遮挡
-    if (enableMoon == 1) {
-        vec3 moon = generateMoon(pos);
-        color += moon * isNight * cloudOcclusion;  // 月亮也受云层遮挡
-    }
-    
-    // 添加极光 - 极光应该在云层之下
-    if (enableAurora == 1) {
-        vec3 aurora = generateAurora(pos);
-        color += aurora * isNight;  // 极光不受云层遮挡
+    // 夜空渲染 - 完全按照原始Shadertoy实现
+    if (isNight > 0.0) {
+        // 准备光线参数 - 完全匹配Shadertoy
+        vec3 ro = vec3(0.0, 0.0, -6.7); // 光线原点
+        vec3 rd = pos.worldVector;       // 光线方向
+        
+        // 应用与Shadertoy相同的视角旋转
+        vec2 mo = vec2(-0.1, 0.1);      // 模拟Shadertoy中的默认鼠标位置
+        rd.yz *= mm2(mo.y);              // 旋转Y-Z平面
+        rd.xz *= mm2(mo.x + sin(time*0.05)*0.2); // 旋转X-Z平面并添加随时间变化的偏移
+        
+        vec3 col = vec3(0.0);
+        vec3 brd = rd;
+        float fade = smoothstep(0.0, 0.01, abs(brd.y))*0.1+0.9;
+        
+        // 计算背景
+        col = bg(rd)*fade;
+        
+        // 仅对向上的视线应用极光效果
+        if (rd.y > 0.0) {
+            // 极光效果仅当启用时计算
+            if (enableAurora == 1) {
+                vec4 aur = smoothstep(0.0, 1.5, aurora(ro, rd))*fade;
+                // 混合极光 - 注意这里使用的是aur.a
+                col = col*(1.0-aur.a) + aur.rgb;
+            }
+            
+            // 添加星星
+            if (enableStars == 1) {
+                col += stars(rd)*cloudOcclusion;
+            }
+            
+            // 添加月亮
+            if (enableMoon == 1) {
+                col += generateMoon(pos)*cloudOcclusion;
+            }
+        }
+        else { // 处理反射 - 这是Shadertoy中的关键部分
+            // 对视线方向取绝对值来模拟水面反射
+            rd.y = abs(rd.y);
+            col = bg(rd)*fade*0.6;
+            
+            // 极光效果仅当启用时计算
+            if (enableAurora == 1) {
+                vec4 aur = smoothstep(0.0, 2.5, aurora(ro, rd));
+                col = col*(1.0-aur.a) + aur.rgb;
+            }
+            
+            if (enableStars == 1) {
+                col += stars(rd)*0.1*cloudOcclusion;
+            }
+            
+            // 添加额外的水面效果
+            vec3 pos = ro + ((0.5-ro.y)/rd.y)*rd;
+            float nz2 = triNoise2d(pos.xz*vec2(.5,.7), 0.);
+            col += mix(vec3(0.2,0.25,0.5)*0.08, vec3(0.3,0.3,0.5)*0.7, nz2*0.4);
+        }
+        
+        // 混合夜空和白天天空
+        color = mix(color, col, isNight);
     }
     
     // 继续处理云层和体积光
