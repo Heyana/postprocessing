@@ -618,7 +618,7 @@ vec4 aurora(vec3 ro, vec3 rd)
     
     col *= (clamp(rd.y*15.+.4,0.,1.));
     
-    // 应用密度调整
+    // 应用密度调整和亮度控制，但不包括nightIntensity，我们会在应用极光时加入nightIntensity
     float densityFactor = 1.0 / max(auroraDensity, 0.1);
     col *= 1.8 * auroraIntensity * densityFactor;
     
@@ -725,44 +725,23 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
         // 计算背景
         col = bg(rd)*fade;
         
-        // 仅对向上的视线应用极光效果
-        if (rd.y > 0.0) {
-            // 极光效果仅当启用时计算
-            if (enableAurora == 1) {
-                vec4 aur = smoothstep(0.0, 1.5, aurora(ro, rd))*fade;
-                // 混合极光 - 注意这里使用的是aur.a
-                col = col*(1.0-aur.a) + aur.rgb;
-            }
-            
-            // 添加星星
-            if (enableStars == 1) {
-                col += stars(rd)*cloudOcclusion;
-            }
-            
-            // 添加月亮
-            if (enableMoon == 1) {
-                col += generateMoon(pos)*cloudOcclusion;
-            }
+        // 移除水面反射，所有方向都使用相同的天空渲染
+        // 极光效果仅当启用时计算
+        if (enableAurora == 1) {
+            // 应用极光，并将nightIntensity应用到极光亮度上
+            vec4 aur = smoothstep(0.0, 1.5, aurora(ro, rd))*fade*nightIntensity;
+            // 混合极光 - 注意这里使用的是aur.a
+            col = col*(1.0-aur.a) + aur.rgb;
         }
-        else { // 处理反射 - 这是Shadertoy中的关键部分
-            // 对视线方向取绝对值来模拟水面反射
-            rd.y = abs(rd.y);
-            col = bg(rd)*fade*0.6;
-            
-            // 极光效果仅当启用时计算
-            if (enableAurora == 1) {
-                vec4 aur = smoothstep(0.0, 2.5, aurora(ro, rd));
-                col = col*(1.0-aur.a) + aur.rgb;
-            }
-            
-            if (enableStars == 1) {
-                col += stars(rd)*0.1*cloudOcclusion;
-            }
-            
-            // 添加额外的水面效果
-            vec3 pos = ro + ((0.5-ro.y)/rd.y)*rd;
-            float nz2 = triNoise2d(pos.xz*vec2(.5,.7), 0.);
-            col += mix(vec3(0.2,0.25,0.5)*0.08, vec3(0.3,0.3,0.5)*0.7, nz2*0.4);
+        
+        // 添加星星
+        if (enableStars == 1) {
+            col += stars(rd)*cloudOcclusion;
+        }
+        
+        // 添加月亮
+        if (enableMoon == 1) {
+            col += generateMoon(pos)*cloudOcclusion;
         }
         
         // 混合夜空和白天天空

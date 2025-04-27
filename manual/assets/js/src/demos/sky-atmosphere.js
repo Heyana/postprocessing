@@ -30,6 +30,9 @@ import {
     SkyAtmosphereEffect
 } from "postprocessing";
 
+// 导入工具类
+import { SkyAtmosphereUtils } from "../../../../../src/effects/utils/SkyAtmosphereUtils.js";
+
 import { ControlMode, SpatialControls } from "spatial-controls";
 import { Pane } from "tweakpane";
 import { calculateVerticalFoV, FPSMeter } from "../utils";
@@ -340,55 +343,20 @@ window.addEventListener("load", () => load().then((assets) => {
         azimuth: 35
     };
 
-    // 太阳位置参数（提前定义，避免顺序问题）
+    // 太阳位置参数
     const sunParams = {
         elevation: 5,
         azimuth: 175
     };
 
-    // 更新太阳位置的函数（提前定义）
-    function updateSunPosition() {
-        const phi = THREE.MathUtils.degToRad(90 - sunParams.elevation);
-        const theta = THREE.MathUtils.degToRad(sunParams.azimuth);
+    // 月亮偏移参数
+    const moonOffsetParams = {
+        x: 0,
+        y: 0,
+        z: 0
+    };
 
-        const x = Math.sin(phi) * Math.cos(theta);
-        const y = Math.cos(phi);
-        const z = Math.sin(phi) * Math.sin(theta);
-
-        skyAtmosphereEffect.sunPosition.set(x, y, z).normalize();
-        directionalLight.position.copy(skyAtmosphereEffect.sunPosition.clone().multiplyScalar(10));
-
-        // 同时更新月亮位置，使其与太阳位置相反
-        updateMoonPositionOpposite();
-    }
-
-    // 计算月亮位置为太阳的反方向（提前定义）
-    function updateMoonPositionOpposite() {
-        // 计算月亮的高度角和方位角（与太阳相反）
-        const moonElevation = sunParams.elevation > 0 ? -sunParams.elevation : Math.abs(sunParams.elevation) + 5;
-        const moonAzimuth = (sunParams.azimuth + 180) % 360;
-
-        // 更新UI控件值
-        if (moonPosParams.elevation !== moonElevation) {
-            moonPosParams.elevation = moonElevation;
-        }
-
-        if (moonPosParams.azimuth !== moonAzimuth) {
-            moonPosParams.azimuth = moonAzimuth;
-        }
-
-        // 计算月亮位置
-        const phi = THREE.MathUtils.degToRad(90 - moonElevation);
-        const theta = THREE.MathUtils.degToRad(moonAzimuth);
-
-        const x = Math.sin(phi) * Math.cos(theta);
-        const y = Math.cos(phi);
-        const z = Math.sin(phi) * Math.sin(theta);
-
-        skyAtmosphereEffect.moonPosition.set(x, y, z).normalize();
-    }
-
-    // 添加月亮锁定选项
+    // 月亮锁定参数
     const moonLockParams = {
         lockToSun: true  // 默认锁定
     };
@@ -398,7 +366,7 @@ window.addEventListener("load", () => load().then((assets) => {
     }).on("change", (e) => {
         // 如果重新锁定，立即更新月亮位置
         if (e.value) {
-            updateMoonPositionOpposite();
+            updateMoonPosition();
         }
     });
 
@@ -428,19 +396,12 @@ window.addEventListener("load", () => load().then((assets) => {
 
     moonPosFolder.addBinding(moonPosParams, "elevation", {
         label: "月亮高度角",
-        min: -10,
-        max: 90,
+        min: -180,
+        max: 180,
         step: 1
     }).on("change", (e) => {
         if (!moonLockParams.lockToSun) {
-            const phi = THREE.MathUtils.degToRad(90 - moonPosParams.elevation);
-            const theta = THREE.MathUtils.degToRad(moonPosParams.azimuth);
-
-            const x = Math.sin(phi) * Math.cos(theta);
-            const y = Math.cos(phi);
-            const z = Math.sin(phi) * Math.sin(theta);
-
-            skyAtmosphereEffect.moonPosition.set(x, y, z).normalize();
+            updateMoonPosition();
         }
     });
 
@@ -451,19 +412,12 @@ window.addEventListener("load", () => load().then((assets) => {
         step: 1
     }).on("change", (e) => {
         if (!moonLockParams.lockToSun) {
-            const phi = THREE.MathUtils.degToRad(90 - moonPosParams.elevation);
-            const theta = THREE.MathUtils.degToRad(moonPosParams.azimuth);
-
-            const x = Math.sin(phi) * Math.cos(theta);
-            const y = Math.cos(phi);
-            const z = Math.sin(phi) * Math.sin(theta);
-
-            skyAtmosphereEffect.moonPosition.set(x, y, z).normalize();
+            updateMoonPosition();
         }
     });
 
     // 初始化月亮位置为太阳的反方向
-    updateMoonPositionOpposite();
+    updateMoonPosition();
 
     // 极光控制
     const auroraFolder = nightSkyFolder.addFolder({ title: "极光" });
@@ -529,8 +483,8 @@ window.addEventListener("load", () => load().then((assets) => {
 
     sunFolder.addBinding(sunParams, "elevation", {
         label: "高度角",
-        min: -10,
-        max: 90,
+        min: -180,
+        max: 180,
         step: 1
     }).on("change", updateSunPosition);
 
@@ -555,66 +509,287 @@ window.addEventListener("load", () => load().then((assets) => {
     // 添加快速预设按钮
     const presetFolder = folder.addFolder({ title: "场景预设" });
 
-    const presets = {
-        daytime: function () {
-            sunParams.elevation = 45;
-            sunParams.azimuth = 180;
-            updateSunPosition();
-            skyAtmosphereEffect.enableStars = false;
-            skyAtmosphereEffect.enableMoon = false;
-            skyAtmosphereEffect.enableAurora = false;
-            skyAtmosphereEffect.intensity = 12.0;
-            skyAtmosphereEffect.skyBlueness = 0.5;
-            skyAtmosphereEffect.sunBrightness = 3.0;
+    // 添加时间控制文件夹
+    const timeFolder = folder.addFolder({ title: "时间控制" });
+
+    // 时间控制参数
+    const timeParams = {
+        useTimeOfDay: false,
+        time: new Date(),
+        hours: new Date().getHours(),
+        minutes: new Date().getMinutes(),
+        latitude: 35,
+        longitude: 139,
+        autoUpdate: false,
+        updateInterval: 60, // 60秒更新一次
+        lastUpdateTime: 0
+    };
+
+    // 自动更新太阳/月亮位置
+    function updateTimeBasedPosition() {
+        // 根据UI中的小时和分钟创建日期对象
+        const date = new Date();
+        date.setHours(timeParams.hours);
+        date.setMinutes(timeParams.minutes);
+
+        // 更新太阳位置（这会同时更新月亮位置）
+        skyAtmosphereEffect.updateSunPositionFromDate(date, timeParams.latitude, timeParams.longitude);
+
+        // 更新UI控制面板中的太阳位置参数（保持UI同步）
+        // 使用工具类获取太阳角度
+        const angles = SkyAtmosphereUtils.getSunAngles(skyAtmosphereEffect.sunPosition);
+
+        // 更新UI
+        sunParams.elevation = Math.round(angles.elevation);
+        sunParams.azimuth = Math.round(angles.azimuth);
+
+        // 更新定向光源位置
+        directionalLight.position.copy(skyAtmosphereEffect.sunPosition.clone().multiplyScalar(10));
+    }
+
+    // 启用/禁用时间控制
+    timeFolder.addBinding(timeParams, "useTimeOfDay", {
+        label: "使用时间控制"
+    }).on("change", (e) => {
+        if (e.value) {
+            // 启用时间控制，进行初始更新
+            updateTimeBasedPosition();
+        } else {
+            // 保持当前手动设置的太阳位置
+        }
+    });
+
+    // 添加时间控制
+    timeFolder.addBinding(timeParams, "hours", {
+        label: "小时",
+        min: 0,
+        max: 23,
+        step: 1
+    }).on("change", (e) => {
+        if (timeParams.useTimeOfDay) {
+            updateTimeBasedPosition();
+        }
+    });
+
+    timeFolder.addBinding(timeParams, "minutes", {
+        label: "分钟",
+        min: 0,
+        max: 59,
+        step: 1
+    }).on("change", (e) => {
+        if (timeParams.useTimeOfDay) {
+            updateTimeBasedPosition();
+        }
+    });
+
+    // 添加自动实时更新选项
+    timeFolder.addBinding(timeParams, "autoUpdate", {
+        label: "实时更新"
+    }).on("change", (e) => {
+        if (e.value) {
+            // 启用实时更新时，立即使用当前真实时间更新
+            const now = new Date();
+            timeParams.hours = now.getHours();
+            timeParams.minutes = now.getMinutes();
+            timeParams.useTimeOfDay = true;
+            updateTimeBasedPosition();
+        }
+    });
+
+    // 添加位置设置
+    const locationFolder = timeFolder.addFolder({
+        title: "位置设置",
+        expanded: false
+    });
+
+    locationFolder.addBinding(timeParams, "latitude", {
+        label: "纬度",
+        min: -90,
+        max: 90,
+        step: 1
+    }).on("change", (e) => {
+        if (timeParams.useTimeOfDay) {
+            updateTimeBasedPosition();
+        }
+    });
+
+    locationFolder.addBinding(timeParams, "longitude", {
+        label: "经度",
+        min: -180,
+        max: 180,
+        step: 1
+    }).on("change", (e) => {
+        if (timeParams.useTimeOfDay) {
+            updateTimeBasedPosition();
+        }
+    });
+
+    // 快速位置预设
+    const locations = {
+        tokyo: function () {
+            timeParams.latitude = 35;
+            timeParams.longitude = 139;
+            if (timeParams.useTimeOfDay) updateTimeBasedPosition();
+        },
+        newYork: function () {
+            timeParams.latitude = 40;
+            timeParams.longitude = -74;
+            if (timeParams.useTimeOfDay) updateTimeBasedPosition();
+        },
+        london: function () {
+            timeParams.latitude = 51;
+            timeParams.longitude = 0;
+            if (timeParams.useTimeOfDay) updateTimeBasedPosition();
+        },
+        sydney: function () {
+            timeParams.latitude = -33;
+            timeParams.longitude = 151;
+            if (timeParams.useTimeOfDay) updateTimeBasedPosition();
+        }
+    };
+
+    locationFolder.addButton({ title: "东京" }).on("click", locations.tokyo);
+    locationFolder.addButton({ title: "纽约" }).on("click", locations.newYork);
+    locationFolder.addButton({ title: "伦敦" }).on("click", locations.london);
+    locationFolder.addButton({ title: "悉尼" }).on("click", locations.sydney);
+
+    // 快速时间预设
+    const times = {
+        dawn: function () {
+            timeParams.hours = 6;
+            timeParams.minutes = 0;
+            timeParams.useTimeOfDay = true;
+            updateTimeBasedPosition();
+        },
+        noon: function () {
+            timeParams.hours = 12;
+            timeParams.minutes = 0;
+            timeParams.useTimeOfDay = true;
+            updateTimeBasedPosition();
         },
         sunset: function () {
-            sunParams.elevation = 2;
-            sunParams.azimuth = 260;
-            updateSunPosition();
-            skyAtmosphereEffect.enableStars = false;
-            skyAtmosphereEffect.enableMoon = false;
-            skyAtmosphereEffect.enableAurora = false;
-            skyAtmosphereEffect.intensity = 15.0;
-            skyAtmosphereEffect.skyBlueness = 0.3;
-            skyAtmosphereEffect.sunBrightness = 4.5;
+            timeParams.hours = 18;
+            timeParams.minutes = 0;
+            timeParams.useTimeOfDay = true;
+            updateTimeBasedPosition();
         },
         night: function () {
-            sunParams.elevation = -5;
-            sunParams.azimuth = 180;
+            timeParams.hours = 21;
+            timeParams.minutes = 0;
+            timeParams.useTimeOfDay = true;
+            updateTimeBasedPosition();
+        },
+        midnight: function () {
+            timeParams.hours = 0;
+            timeParams.minutes = 0;
+            timeParams.useTimeOfDay = true;
+            updateTimeBasedPosition();
+        }
+    };
+
+    timeFolder.addButton({ title: "黎明 (6:00)" }).on("click", times.dawn);
+    timeFolder.addButton({ title: "正午 (12:00)" }).on("click", times.noon);
+    timeFolder.addButton({ title: "日落 (18:00)" }).on("click", times.sunset);
+    timeFolder.addButton({ title: "夜晚 (21:00)" }).on("click", times.night);
+    timeFolder.addButton({ title: "午夜 (0:00)" }).on("click", times.midnight);
+
+    // 修改月亮控制，增加与太阳位置关联选项
+    moonFolder.addBinding(skyAtmosphereEffect, "autoUpdateMoon", {
+        label: "跟随太阳位置"
+    }).on("change", (e) => {
+        // 更新月亮位置控制文件夹的启用状态
+        moonPosFolder.disabled = e.value;
+        // 如果启用自动更新，立即更新月亮位置
+        if (e.value) {
+            skyAtmosphereEffect.calculateMoonPosition();
+        }
+    });
+
+    // 添加月亮偏移控制
+    const moonOffsetFolder = moonFolder.addFolder({
+        title: "月亮位置偏移",
+        expanded: false
+    });
+
+    function updateMoonOffset() {
+        skyAtmosphereEffect.moonOffset.set(
+            moonOffsetParams.x * Math.PI / 180, // 转换为弧度
+            moonOffsetParams.y * Math.PI / 180,
+            moonOffsetParams.z * Math.PI / 180
+        );
+        // 如果启用自动更新，立即更新月亮位置
+        if (skyAtmosphereEffect.autoUpdateMoon) {
+            skyAtmosphereEffect.calculateMoonPosition();
+        } else if (moonLockParams.lockToSun) {
+            updateMoonPosition();
+        }
+    }
+
+    moonOffsetFolder.addBinding(moonOffsetParams, "x", {
+        label: "X轴偏移",
+        min: -30,
+        max: 30,
+        step: 1
+    }).on("change", updateMoonOffset);
+
+    moonOffsetFolder.addBinding(moonOffsetParams, "y", {
+        label: "Y轴偏移",
+        min: -30,
+        max: 30,
+        step: 1
+    }).on("change", updateMoonOffset);
+
+    moonOffsetFolder.addBinding(moonOffsetParams, "z", {
+        label: "Z轴偏移",
+        min: -30,
+        max: 30,
+        step: 1
+    }).on("change", updateMoonOffset);
+
+    const presets = {
+        daytime: function () {
+            // 如果使用时间控制，关闭它
+            timeParams.useTimeOfDay = false;
+
+            // 使用工具类应用白天预设
+            const newSunPosition = SkyAtmosphereUtils.applyDaytimePreset(skyAtmosphereEffect, sunParams);
+            skyAtmosphereEffect.sunPosition.copy(newSunPosition);
+
+            // 更新太阳位置和月亮位置
             updateSunPosition();
-            skyAtmosphereEffect.enableStars = true;
-            skyAtmosphereEffect.enableMoon = true;
-            skyAtmosphereEffect.enableAurora = false;
-            skyAtmosphereEffect.intensity = 12.0;
-            skyAtmosphereEffect.nightIntensity = 0.2;
-            skyAtmosphereEffect.starIntensity = 1.5;
-            skyAtmosphereEffect.moonIntensity = 1.2;
-            skyAtmosphereEffect.sunBrightness = 2.0;
-            moonPosParams.elevation = 30;
-            moonPosParams.azimuth = 45;
-            updateMoonPositionOpposite();
+        },
+        sunset: function () {
+            // 如果使用时间控制，关闭它
+            timeParams.useTimeOfDay = false;
+
+            // 使用工具类应用日落预设
+            const newSunPosition = SkyAtmosphereUtils.applySunsetPreset(skyAtmosphereEffect, sunParams);
+            skyAtmosphereEffect.sunPosition.copy(newSunPosition);
+
+            // 更新太阳位置和月亮位置
+            updateSunPosition();
+        },
+        night: function () {
+            // 如果使用时间控制，关闭它
+            timeParams.useTimeOfDay = false;
+
+            // 使用工具类应用夜晚预设
+            const result = SkyAtmosphereUtils.applyNightPreset(skyAtmosphereEffect, sunParams, moonPosParams);
+            skyAtmosphereEffect.sunPosition.copy(result.sunPosition);
+
+            // 更新太阳位置和月亮位置
+            updateSunPosition();
         },
         aurora: function () {
-            sunParams.elevation = -8;
-            sunParams.azimuth = 180;
+            // 如果使用时间控制，关闭它
+            timeParams.useTimeOfDay = false;
+
+            // 使用工具类应用极光预设
+            const result = SkyAtmosphereUtils.applyAuroraPreset(skyAtmosphereEffect, sunParams, moonPosParams, auroraColorParams);
+            skyAtmosphereEffect.sunPosition.copy(result.sunPosition);
+
+            // 更新太阳位置和月亮位置
             updateSunPosition();
-            skyAtmosphereEffect.enableStars = true;
-            skyAtmosphereEffect.enableMoon = true;
-            skyAtmosphereEffect.enableAurora = true;
-            skyAtmosphereEffect.intensity = 12.0;
-            skyAtmosphereEffect.nightIntensity = 0.15;
-            skyAtmosphereEffect.starIntensity = 1.2;
-            skyAtmosphereEffect.moonIntensity = 0.8;
-            skyAtmosphereEffect.auroraIntensity = 1.5;
-            skyAtmosphereEffect.auroraDensity = 1.0;  // 设置默认极光密度
-            skyAtmosphereEffect.sunBrightness = 1.5;
-            auroraColorParams.red = 2.15;
-            auroraColorParams.green = -1.0;
-            auroraColorParams.blue = 1.0;
-            updateAuroraColor();
-            moonPosParams.elevation = 20;
-            moonPosParams.azimuth = 35;
-            updateMoonPositionOpposite();
         }
     };
 
@@ -692,6 +867,17 @@ window.addEventListener("load", () => load().then((assets) => {
         fpsMeter.update(timestamp);
         const delta = clock.getDelta();
 
+        // 如果启用了实时更新功能，检查是否需要更新时间
+        if (timeParams.autoUpdate && timeParams.useTimeOfDay) {
+            if (timestamp - timeParams.lastUpdateTime > timeParams.updateInterval * 1000) {
+                const now = new Date();
+                timeParams.hours = now.getHours();
+                timeParams.minutes = now.getMinutes();
+                updateTimeBasedPosition();
+                timeParams.lastUpdateTime = timestamp;
+            }
+        }
+
         // 更新控制器
         controls.update(timestamp, delta);
 
@@ -699,4 +885,46 @@ window.addEventListener("load", () => load().then((assets) => {
         composer.render(delta);
         requestAnimationFrame(render);
     });
+
+    // 更新太阳位置的函数
+    function updateSunPosition() {
+        // 使用工具类计算太阳位置
+        const newSunPosition = SkyAtmosphereUtils.calculateSunPosition(sunParams);
+
+        skyAtmosphereEffect.sunPosition.copy(newSunPosition);
+        directionalLight.position.copy(skyAtmosphereEffect.sunPosition.clone().multiplyScalar(10));
+
+        // 同时更新月亮位置
+        updateMoonPosition();
+    }
+
+    // 计算月亮位置
+    function updateMoonPosition() {
+        // 如果锁定到太阳，计算月亮位置为太阳的反方向
+        if (moonLockParams.lockToSun) {
+            // 计算月亮的高度角和方位角（从太阳下山的地方升起）
+            // 保持方位角相同，但高度角相反
+            const moonElevation = -sunParams.elevation; // 如果太阳高，月亮低；如果太阳低，月亮高
+            const moonAzimuth = sunParams.azimuth; // 保持相同的方位角
+
+            // 更新UI控件值
+            if (moonPosParams.elevation !== moonElevation) {
+                moonPosParams.elevation = moonElevation;
+            }
+
+            if (moonPosParams.azimuth !== moonAzimuth) {
+                moonPosParams.azimuth = moonAzimuth;
+            }
+        }
+
+        // 使用工具类计算月亮位置
+        const offset = new Vector3(
+            moonOffsetParams.x * Math.PI / 180,
+            moonOffsetParams.y * Math.PI / 180,
+            moonOffsetParams.z * Math.PI / 180
+        );
+
+        const newMoonPosition = SkyAtmosphereUtils.calculateMoonPosition(moonPosParams, offset);
+        skyAtmosphereEffect.moonPosition.copy(newMoonPosition);
+    }
 })); 

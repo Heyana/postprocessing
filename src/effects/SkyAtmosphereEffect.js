@@ -2,6 +2,7 @@ import { Uniform, Vector2, Vector3, Color, LinearFilter, RGBAFormat, WebGLRender
 import { BlendFunction } from "../enums/BlendFunction.js";
 import { Effect, EffectAttribute } from "postprocessing";
 import fragmentShader from "./shaders/sky-atmosphere.frag.glsl";
+import { SkyAtmosphereUtils } from "./utils/SkyAtmosphereUtils.js";
 
 /**
  * 高级体积云和大气散射效果
@@ -46,6 +47,8 @@ export class SkyAtmosphereEffect extends Effect {
      * @param {Number} [options.auroraDensity=1.0] - 极光密度
      * @param {Vector3} [options.auroraColor=new Vector3(2.15, -1.0, 1.0)] - 极光颜色 (R,G,B)系数
      * @param {Number} [options.nightIntensity=0.2] - 夜晚强度（值越小，夜空越暗）
+     * @param {Boolean} [options.autoUpdateMoon=true] - 是否根据太阳位置自动更新月亮位置
+     * @param {Vector3} [options.moonOffset=new Vector3(0, 0, 0)] - 月亮位置偏移量（弧度）
      */
     constructor({
         blendFunction = BlendFunction.SCREEN,
@@ -62,9 +65,9 @@ export class SkyAtmosphereEffect extends Effect {
         cloudAmount = 1.0,
         cloudScale = 1.0,
         cloudThreshold = 0.0,
-        volumetricCloudSteps = 4,
-        volumetricLightSteps = 4,
-        cloudShadowingSteps = 4,
+        volumetricCloudSteps = 16,
+        volumetricLightSteps = 8,
+        cloudShadowingSteps = 12,
         volumetricLightShadowSteps = 4,
         enableStars = false,
         starIntensity = 1.0,
@@ -78,7 +81,9 @@ export class SkyAtmosphereEffect extends Effect {
         auroraIntensity = 1.5,
         auroraDensity = 1.0,
         auroraColor = new Vector3(2.15, -1.0, 1.0),
-        nightIntensity = 0.2
+        nightIntensity = 0.2,
+        autoUpdateMoon = true,
+        moonOffset = new Vector3(0, 0, 0)
     } = {}) {
         super("SkyAtmosphereEffect", fragmentShader, {
             blendFunction,
@@ -315,6 +320,26 @@ export class SkyAtmosphereEffect extends Effect {
          * @type {Number}
          */
         this._auroraDensity = auroraDensity;
+
+        // 添加自动更新月亮位置选项
+        /**
+         * 是否自动根据太阳位置更新月亮位置
+         * @type {Boolean}
+         * @private
+         */
+        this._autoUpdateMoon = autoUpdateMoon;
+
+        /**
+         * 月亮位置偏移量（弧度）
+         * 可用于微调月亮相对于太阳的位置
+         * @type {Vector3}
+         */
+        this.moonOffset = moonOffset.clone();
+
+        // 初始化月亮位置
+        if (this._autoUpdateMoon) {
+            this.calculateMoonPosition();
+        }
 
         // 创建默认噪声纹理
         this.createDefaultNoiseTexture();
@@ -777,6 +802,11 @@ export class SkyAtmosphereEffect extends Effect {
                 this.fov = this._camera.fov;
             }
         }
+
+        // 如果启用自动更新月亮位置，确保月亮位置被正确更新
+        if (this._autoUpdateMoon) {
+            this.uniforms.get("moonPosition").value.copy(this.moonPosition);
+        }
     }
 
     /**
@@ -810,5 +840,167 @@ export class SkyAtmosphereEffect extends Effect {
     } = {}) {
         // 在实际实现中，这些参数可以通过uniforms传递给着色器
         // 目前示例中这些值是硬编码的
+    }
+
+    /**
+     * 获取是否自动更新月亮位置
+     * @return {Boolean} 是否自动更新
+     */
+    get autoUpdateMoon() {
+        return this._autoUpdateMoon;
+    }
+
+    /**
+     * 设置是否自动更新月亮位置
+     * @param {Boolean} value - 是否自动更新
+     */
+    set autoUpdateMoon(value) {
+        this._autoUpdateMoon = value;
+        if (value) {
+            // 如果启用自动更新，立即更新月亮位置
+            this.calculateMoonPosition();
+        }
+    }
+
+    /**
+     * 根据太阳位置计算月亮位置
+     * 月亮位置从太阳下山的地方升起，基于地平线
+     */
+    calculateMoonPosition() {
+        if (!this._autoUpdateMoon) return;
+
+        // 使用工具类计算月亮位置
+        this.moonPosition.copy(SkyAtmosphereUtils.calculateMoonPositionFromSun(this.sunPosition, this.moonOffset));
+        this.uniforms.get("moonPosition").value = this.moonPosition;
+    }
+
+    /**
+     * 从日期时间更新太阳位置
+     * 基于给定的日期时间自动设置太阳位置，同时更新月亮位置（如果启用）
+     * 
+     * @param {Date} date - 日期时间对象，默认为当前时间
+     * @param {Number} latitude - 纬度（度），默认为35°（东京附近）
+     * @param {Number} longitude - 经度（度），默认为139°（东京附近）
+     */
+    updateSunPositionFromDate(date = new Date(), latitude = 35, longitude = 139) {
+        date = date || new Date();
+
+        // 使用工具类计算太阳位置
+        const sunPosition = SkyAtmosphereUtils.calculateSunPositionFromDate(date, latitude, longitude);
+
+        // 更新太阳位置
+        this.sunPosition.copy(sunPosition);
+        this.uniforms.get("sunPosition").value = this.sunPosition;
+
+        // 根据太阳高度自动设置场景参数
+        this.autoAdjustParameters(sunPosition.y);
+
+        // 更新月亮位置（如果启用）
+        if (this._autoUpdateMoon) {
+            this.calculateMoonPosition();
+        }
+    }
+
+    /**
+     * 根据太阳高度自动调整场景参数
+     * 
+     * @param {Number} sunHeight - 太阳高度（-1到1之间）
+     * @private
+     */
+    autoAdjustParameters(sunHeight) {
+        // 使用工具类自动调整参数
+        SkyAtmosphereUtils.autoAdjustParameters(this, sunHeight);
+    }
+
+    /**
+     * 获取太阳位置的高度角和方位角
+     * @returns {Object} 包含elevation（高度角）和azimuth（方位角）的对象
+     */
+    getSunAngles() {
+        return SkyAtmosphereUtils.getSunAngles(this.sunPosition);
+    }
+
+    /**
+     * 根据高度角和方位角计算太阳位置
+     * @param {Object} sunParams - 太阳参数对象
+     * @param {Number} sunParams.elevation - 高度角（度）
+     * @param {Number} sunParams.azimuth - 方位角（度）
+     * @returns {Vector3} 太阳位置向量
+     */
+    calculateSunPosition(sunParams) {
+        const newSunPosition = SkyAtmosphereUtils.calculateSunPosition(sunParams);
+        this.sunPosition.copy(newSunPosition);
+        this.uniforms.get("sunPosition").value = this.sunPosition;
+        return this.sunPosition;
+    }
+
+    /**
+     * 根据高度角和方位角计算月亮位置
+     * @param {Object} moonParams - 月亮参数对象
+     * @param {Number} moonParams.elevation - 高度角（度）
+     * @param {Number} moonParams.azimuth - 方位角（度）
+     * @param {Vector3} [offset=new Vector3(0,0,0)] - 月亮位置偏移量（弧度）
+     * @returns {Vector3} 月亮位置向量
+     */
+    calculateMoonPosition(moonParams, offset = new Vector3(0, 0, 0)) {
+        const newMoonPosition = SkyAtmosphereUtils.calculateMoonPosition(moonParams, offset);
+        this.moonPosition.copy(newMoonPosition);
+        this.uniforms.get("moonPosition").value = this.moonPosition;
+        return this.moonPosition;
+    }
+
+    /**
+     * 应用白天预设
+     * @param {Object} sunParams - 太阳参数对象，将被更新
+     * @returns {Vector3} 更新后的太阳位置
+     */
+    applyDaytimePreset(sunParams) {
+        const newSunPosition = SkyAtmosphereUtils.applyDaytimePreset(this, sunParams);
+        this.sunPosition.copy(newSunPosition);
+        this.uniforms.get("sunPosition").value = this.sunPosition;
+        return this.sunPosition;
+    }
+
+    /**
+     * 应用日落预设
+     * @param {Object} sunParams - 太阳参数对象，将被更新
+     * @returns {Vector3} 更新后的太阳位置
+     */
+    applySunsetPreset(sunParams) {
+        const newSunPosition = SkyAtmosphereUtils.applySunsetPreset(this, sunParams);
+        this.sunPosition.copy(newSunPosition);
+        this.uniforms.get("sunPosition").value = this.sunPosition;
+        return this.sunPosition;
+    }
+
+    /**
+     * 应用夜晚预设
+     * @param {Object} sunParams - 太阳参数对象，将被更新
+     * @param {Object} moonParams - 月亮参数对象，将被更新
+     * @returns {Object} 包含sunPosition和moonPosition的对象
+     */
+    applyNightPreset(sunParams, moonParams) {
+        const result = SkyAtmosphereUtils.applyNightPreset(this, sunParams, moonParams);
+        this.sunPosition.copy(result.sunPosition);
+        this.moonPosition.copy(result.moonPosition);
+        this.uniforms.get("sunPosition").value = this.sunPosition;
+        this.uniforms.get("moonPosition").value = this.moonPosition;
+        return result;
+    }
+
+    /**
+     * 应用极光预设
+     * @param {Object} sunParams - 太阳参数对象，将被更新
+     * @param {Object} moonParams - 月亮参数对象，将被更新
+     * @param {Object} auroraParams - 极光参数对象，将被更新
+     * @returns {Object} 包含sunPosition和moonPosition的对象
+     */
+    applyAuroraPreset(sunParams, moonParams, auroraParams) {
+        const result = SkyAtmosphereUtils.applyAuroraPreset(this, sunParams, moonParams, auroraParams);
+        this.sunPosition.copy(result.sunPosition);
+        this.moonPosition.copy(result.moonPosition);
+        this.uniforms.get("sunPosition").value = this.sunPosition;
+        this.uniforms.get("moonPosition").value = this.moonPosition;
+        return result;
     }
 } 
