@@ -1,11 +1,12 @@
 import {
-    Color,
     CubeTextureLoader,
+    FogExp2,
     LoadingManager,
     PerspectiveCamera,
     Scene,
     SRGBColorSpace,
     WebGLRenderer,
+    Color
 } from "three";
 
 import {
@@ -13,15 +14,15 @@ import {
     EffectComposer,
     EffectPass,
     RenderPass,
-    FrozenWastelandEffect
+    SandStormEffect
 } from "postprocessing";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+
 import { Pane } from "tweakpane";
+import { SpatialControls, ControlMode } from "spatial-controls";
 import { calculateVerticalFoV, FPSMeter } from "../utils";
 import * as Domain from "../objects/Domain";
 
 function load() {
-
     const assets = new Map();
     const loadingManager = new LoadingManager();
     const cubeTextureLoader = new CubeTextureLoader(loadingManager);
@@ -35,23 +36,17 @@ function load() {
     ];
 
     return new Promise((resolve, reject) => {
-
         loadingManager.onLoad = () => resolve(assets);
-        loadingManager.onError = (url) => reject(new Error(`加载失败 ${url}`));
+        loadingManager.onError = (url) => reject(new Error(`Failed to load ${url}`));
 
         cubeTextureLoader.load(urls, (t) => {
-
             t.colorSpace = SRGBColorSpace;
             assets.set("sky", t);
-
         });
-
     });
-
 }
 
 window.addEventListener("load", () => load().then((assets) => {
-
     // 渲染器
     const renderer = new WebGLRenderer({
         powerPreference: "high-performance",
@@ -64,39 +59,43 @@ window.addEventListener("load", () => load().then((assets) => {
     const container = document.querySelector(".viewport");
     container.prepend(renderer.domElement);
 
-    // 相机 & 控制器
+    // 相机和控制
     const camera = new PerspectiveCamera();
-    const controls = new OrbitControls(camera, renderer.domElement);
+    const controls = new SpatialControls(camera.position, camera.quaternion, renderer.domElement);
     const settings = controls.settings;
+    settings.general.mode = ControlMode.THIRD_PERSON;
+    settings.rotation.sensitivity = 2.2;
+    settings.rotation.damping = 0.05;
+    settings.zoom.damping = 2;
+    settings.translation.enabled = true;
 
-    // 设置初始相机位置在冰冻荒原的上方，提供更好的初始视角
-    controls.position.set(0, 5, -140);
-    controls.lookAt(0, 0, -150);
-
-    // 场景, 灯光, 物体
+    // 场景、光照、物体
     const scene = new Scene();
-    // scene.fog = new FogExp2(0x373134, 0.06);
-    scene.background = new Color(0x444444);
+    scene.fog = new FogExp2(0x373134, 0.06);
+    scene.background = assets.get("sky");
     scene.add(Domain.createLights());
-    scene.add(Domain.createEnvironment());
-    scene.add(Domain.createActors(scene.background));
+    // scene.add(Domain.createEnvironment(scene.background));
+    // scene.add(Domain.createActors(scene.background));
 
     // 后处理
     const composer = new EffectComposer(renderer, {
         multisampling: Math.min(4, renderer.capabilities.maxSamples)
     });
 
-    const effect = new FrozenWastelandEffect({
-        speed: 1.0,
-        fogDensity: 1.0,
-        composer,
-        blendFunction: BlendFunction.NORMAL
+    // 创建沙尘暴效果
+    const effect = new SandStormEffect({
+        volumeDensity: 0.6,
+        volumeAbsorbtion: 1.0,
+        lightColor: 0xffba59, // 暖黄色光源
+        shadowQuality: 1.5,
+        numSteps: 32,
+        enableDithering: true,
+        enableVolumetricLighting: true,
+        camera: camera // 传入相机，用于视角变换
     });
 
-    // 设置相机
-    effect.setCamera(camera);
-
     const effectPass = new EffectPass(camera, effect);
+    effectPass.fullscreenMaterial.dithering = true;
     composer.addPass(new RenderPass(scene, camera));
     composer.addPass(effectPass);
 
@@ -105,28 +104,35 @@ window.addEventListener("load", () => load().then((assets) => {
     const pane = new Pane({ container: container.querySelector(".tp") });
     pane.addBinding(fpsMeter, "fps", { readonly: true, label: "FPS" });
 
-    const folder = pane.addFolder({ title: "冰冻荒原设置" });
-    folder.addBinding(effect, "speed", { min: 0.1, max: 3.0, step: 0.1, label: "动画速度" });
-    folder.addBinding(effect, "fogDensity", { min: 0.0, max: 3.0, step: 0.1, label: "雾气浓度" });
+    const folder = pane.addFolder({ title: "沙尘暴设置" });
 
-    // 添加相机控制
-    const cameraFolder = pane.addFolder({ title: "相机控制" });
+    // 添加体积相关控制
+    folder.addBinding(effect, "volumeDensity", { min: 0, max: 2, step: 0.01, label: "体积密度" });
+    folder.addBinding(effect, "volumeAbsorbtion", { min: 0, max: 2, step: 0.01, label: "体积吸收" });
 
-    // 创建一个用于重置相机位置的按钮
-    const cameraControl = {
-        resetCamera: () => {
+    // 添加光照相关控制
+    const lightColorParams = { color: effect.lightColor };
+    folder.addBinding(lightColorParams, "color", {
+        color: { type: "float" },
+        label: "光源颜色"
+    }).on("change", (e) => {
+        effect.lightColor = e.value;
+    });
 
-        }
-    };
+    // 添加质量相关控制
+    folder.addBinding(effect, "shadowQuality", { min: 0.5, max: 5, step: 0.1, label: "阴影质量" });
+    folder.addBinding(effect, "numSteps", { min: 8, max: 64, step: 1, label: "采样步数" });
 
-    cameraFolder.addButton({
-        title: "重置相机位置"
-    }).on("click", cameraControl.resetCamera);
+    // 添加功能开关
+    folder.addBinding(effect, "enableDithering", { label: "启用抖动" });
+    folder.addBinding(effect, "enableVolumetricLighting", { label: "启用体积光" });
 
+    // 添加混合模式控制
+    folder.addBinding(effectPass.fullscreenMaterial, "dithering", { label: "后期抖动" });
     folder.addBinding(effect.blendMode.opacity, "value", { label: "不透明度", min: 0, max: 1, step: 0.01 });
     folder.addBinding(effect.blendMode, "blendFunction", { options: BlendFunction, label: "混合模式" });
 
-    // 调整大小处理
+    // 窗口大小变化处理
     function onResize() {
         const width = container.clientWidth, height = container.clientHeight;
         camera.aspect = width / height;
@@ -141,8 +147,8 @@ window.addEventListener("load", () => load().then((assets) => {
     // 渲染循环
     requestAnimationFrame(function render(timestamp) {
         fpsMeter.update(timestamp);
+        controls.update(timestamp);
         composer.render();
         requestAnimationFrame(render);
     });
-
 })); 

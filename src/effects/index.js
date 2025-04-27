@@ -13,6 +13,7 @@ export * from "./DepthOfFieldEffect.js";
 export * from "./DotScreenEffect.js";
 export * from "./Effect.js";
 export * from "./FrozenWastelandEffect.js";
+export * from "./FoggyMountainsEffect.js";
 export * from "./FXAAEffect.js";
 export * from "./GammaCorrectionEffect.js";
 export * from "./GlitchEffect.js";
@@ -45,6 +46,11 @@ export * from "./CustomSSGIEffect.js";
 export * from "./VolumetricFogEffect.js";
 export * from "./SkyAtmosphereEffect.js";
 export * from "./WeatherSystemEffect.js";
+export * from "./FoggyMountainsEffect.js";
+
+export * from "./LakesMountainsEffect.js";
+export * from "./SandStormEffect.js";
+export * from './utils/SkyAtmosphereUtils'
 export * from "./VolumetricAtmosphereEffect.js";
 /** @deprecated Renamed to LUT3DEffect. */
 export { LUT3DEffect as LUTEffect } from "./LUT3DEffect.js";

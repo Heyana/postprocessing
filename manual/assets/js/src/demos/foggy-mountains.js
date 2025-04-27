@@ -13,10 +13,11 @@ import {
     EffectComposer,
     EffectPass,
     RenderPass,
-    FrozenWastelandEffect
+    FoggyMountainsEffect
 } from "postprocessing";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+
 import { Pane } from "tweakpane";
+import { SpatialControls, ControlMode } from "spatial-controls";
 import { calculateVerticalFoV, FPSMeter } from "../utils";
 import * as Domain from "../objects/Domain";
 
@@ -60,22 +61,27 @@ window.addEventListener("load", () => load().then((assets) => {
         depth: false
     });
 
-    renderer.debug.checkShaderErrors = (window.location.hostname === "localhost");
+    renderer.debug.checkShaderErrors = true;
     const container = document.querySelector(".viewport");
     container.prepend(renderer.domElement);
 
     // 相机 & 控制器
     const camera = new PerspectiveCamera();
-    const controls = new OrbitControls(camera, renderer.domElement);
+    const controls = new SpatialControls(camera.position, camera.quaternion, renderer.domElement);
     const settings = controls.settings;
+    settings.general.mode = ControlMode.THIRD_PERSON;
+    settings.rotation.sensitivity = 2.2;
+    settings.rotation.damping = 0.05;
+    settings.zoom.damping = 0.1;
+    settings.translation.enabled = true;
+    controls.position.set(0, 3, 10);
 
-    // 设置初始相机位置在冰冻荒原的上方，提供更好的初始视角
+    // 设置初始相机位置
     controls.position.set(0, 5, -140);
     controls.lookAt(0, 0, -150);
 
     // 场景, 灯光, 物体
     const scene = new Scene();
-    // scene.fog = new FogExp2(0x373134, 0.06);
     scene.background = new Color(0x444444);
     scene.add(Domain.createLights());
     scene.add(Domain.createEnvironment());
@@ -86,10 +92,13 @@ window.addEventListener("load", () => load().then((assets) => {
         multisampling: Math.min(4, renderer.capabilities.maxSamples)
     });
 
-    const effect = new FrozenWastelandEffect({
-        speed: 1.0,
+    // 使用雾山效果
+    const effect = new FoggyMountainsEffect({
+        speed: 0.5,
         fogDensity: 1.0,
         composer,
+        // 指定噪声纹理路径，使用相对路径
+        noiseTexturePath: document.baseURI + "img/textures/noise/FoggyMountains2.png",
         blendFunction: BlendFunction.NORMAL
     });
 
@@ -105,9 +114,23 @@ window.addEventListener("load", () => load().then((assets) => {
     const pane = new Pane({ container: container.querySelector(".tp") });
     pane.addBinding(fpsMeter, "fps", { readonly: true, label: "FPS" });
 
-    const folder = pane.addFolder({ title: "冰冻荒原设置" });
-    folder.addBinding(effect, "speed", { min: 0.1, max: 3.0, step: 0.1, label: "动画速度" });
-    folder.addBinding(effect, "fogDensity", { min: 0.0, max: 3.0, step: 0.1, label: "雾气浓度" });
+    const folder = pane.addFolder({ title: "雾天效果设置" });
+    folder.addBinding(effect, "speed", { min: 0.1, max: 5.0, step: 0.1, label: "动画速度" });
+    folder.addBinding(effect, "fogDensity", { min: 0.0, max: 15.0, step: 0.1, label: "雾气浓度" });
+
+    // 添加鼠标位置控制
+    const mouseControl = {
+        x: 0.5,
+        y: 0.5,
+        updateMouse: function () {
+            effect.setMousePosition(this.x, this.y);
+        }
+    };
+
+    folder.addBinding(mouseControl, "x", { min: 0.0, max: 1.0, step: 0.01, label: "鼠标X" })
+        .on("change", () => mouseControl.updateMouse());
+    folder.addBinding(mouseControl, "y", { min: 0.0, max: 1.0, step: 0.01, label: "鼠标Y" })
+        .on("change", () => mouseControl.updateMouse());
 
     // 添加相机控制
     const cameraFolder = pane.addFolder({ title: "相机控制" });
@@ -115,7 +138,8 @@ window.addEventListener("load", () => load().then((assets) => {
     // 创建一个用于重置相机位置的按钮
     const cameraControl = {
         resetCamera: () => {
-
+            controls.position.set(0, 5, -140);
+            controls.lookAt(0, 0, -150);
         }
     };
 
@@ -141,6 +165,7 @@ window.addEventListener("load", () => load().then((assets) => {
     // 渲染循环
     requestAnimationFrame(function render(timestamp) {
         fpsMeter.update(timestamp);
+        controls.update(timestamp);
         composer.render();
         requestAnimationFrame(render);
     });
