@@ -43,6 +43,7 @@ export * from "./VignetteEffect.js";
 export * from "./CustomSSGIEffect.js";
 export * from "./VolumetricFogEffect.js";
 export * from "./SkyAtmosphereEffect.js";
+export * from './utils/SkyAtmosphereUtils.js'
 export * from "./WeatherSystemEffect.js";
 /** @deprecated Renamed to LUT3DEffect. */
 export { LUT3DEffect as LUTEffect } from "./LUT3DEffect.js";

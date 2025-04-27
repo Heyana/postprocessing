@@ -49,6 +49,7 @@ export class SkyAtmosphereEffect extends Effect {
      * @param {Number} [options.nightIntensity=0.2] - 夜晚强度（值越小，夜空越暗）
      * @param {Boolean} [options.autoUpdateMoon=true] - 是否根据太阳位置自动更新月亮位置
      * @param {Vector3} [options.moonOffset=new Vector3(0, 0, 0)] - 月亮位置偏移量（弧度）
+     * @param {Number} [options.resolutionScale=1.0] - 分辨率缩放比例（0-1）
      */
     constructor({
         blendFunction = BlendFunction.SCREEN,
@@ -65,10 +66,10 @@ export class SkyAtmosphereEffect extends Effect {
         cloudAmount = 1.0,
         cloudScale = 1.0,
         cloudThreshold = 0.0,
-        volumetricCloudSteps = 16,
-        volumetricLightSteps = 8,
-        cloudShadowingSteps = 12,
-        volumetricLightShadowSteps = 4,
+        volumetricCloudSteps = 12,
+        volumetricLightSteps = 4,
+        cloudShadowingSteps = 4,
+        volumetricLightShadowSteps = 1,
         enableStars = false,
         starIntensity = 1.0,
         starDensity = 0.5,
@@ -83,7 +84,8 @@ export class SkyAtmosphereEffect extends Effect {
         auroraColor = new Vector3(2.15, -1.0, 1.0),
         nightIntensity = 0.2,
         autoUpdateMoon = true,
-        moonOffset = new Vector3(0, 0, 0)
+        moonOffset = new Vector3(0, 0, 0),
+        resolutionScale = 1.0
     } = {}) {
         super("SkyAtmosphereEffect", fragmentShader, {
             blendFunction,
@@ -335,6 +337,14 @@ export class SkyAtmosphereEffect extends Effect {
          * @type {Vector3}
          */
         this.moonOffset = moonOffset.clone();
+
+        /**
+         * 分辨率缩放比例（0-1）
+         * 用于控制效果渲染质量，较低的值提高性能但降低画质
+         * @type {Number}
+         * @private
+         */
+        this._resolutionScale = Math.max(0.1, Math.min(1.0, resolutionScale));
 
         // 初始化月亮位置
         if (this._autoUpdateMoon) {
@@ -750,9 +760,12 @@ export class SkyAtmosphereEffect extends Effect {
     update(renderer, inputBuffer, deltaTime) {
         this.uniforms.get("time").value += deltaTime;
 
-        // 更新分辨率
+        // 更新分辨率 - 应用分辨率缩放
         const size = renderer.getSize(new Vector2());
-        this.uniforms.get("resolution").value.set(size.width, size.height);
+        this.uniforms.get("resolution").value.set(
+            size.width * this._resolutionScale,
+            size.height * this._resolutionScale
+        );
 
         // 更新云层动画开关
         this.uniforms.get("animateClouds").value = this.animateClouds ? 1 : 0;
@@ -913,94 +926,18 @@ export class SkyAtmosphereEffect extends Effect {
     }
 
     /**
-     * 获取太阳位置的高度角和方位角
-     * @returns {Object} 包含elevation（高度角）和azimuth（方位角）的对象
+     * 获取分辨率缩放比例
+     * @return {Number} 分辨率缩放比例（0-1）
      */
-    getSunAngles() {
-        return SkyAtmosphereUtils.getSunAngles(this.sunPosition);
+    get resolutionScale() {
+        return this._resolutionScale;
     }
 
     /**
-     * 根据高度角和方位角计算太阳位置
-     * @param {Object} sunParams - 太阳参数对象
-     * @param {Number} sunParams.elevation - 高度角（度）
-     * @param {Number} sunParams.azimuth - 方位角（度）
-     * @returns {Vector3} 太阳位置向量
+     * 设置分辨率缩放比例
+     * @param {Number} value - 分辨率缩放比例（0-1）
      */
-    calculateSunPosition(sunParams) {
-        const newSunPosition = SkyAtmosphereUtils.calculateSunPosition(sunParams);
-        this.sunPosition.copy(newSunPosition);
-        this.uniforms.get("sunPosition").value = this.sunPosition;
-        return this.sunPosition;
-    }
-
-    /**
-     * 根据高度角和方位角计算月亮位置
-     * @param {Object} moonParams - 月亮参数对象
-     * @param {Number} moonParams.elevation - 高度角（度）
-     * @param {Number} moonParams.azimuth - 方位角（度）
-     * @param {Vector3} [offset=new Vector3(0,0,0)] - 月亮位置偏移量（弧度）
-     * @returns {Vector3} 月亮位置向量
-     */
-    calculateMoonPosition(moonParams, offset = new Vector3(0, 0, 0)) {
-        const newMoonPosition = SkyAtmosphereUtils.calculateMoonPosition(moonParams, offset);
-        this.moonPosition.copy(newMoonPosition);
-        this.uniforms.get("moonPosition").value = this.moonPosition;
-        return this.moonPosition;
-    }
-
-    /**
-     * 应用白天预设
-     * @param {Object} sunParams - 太阳参数对象，将被更新
-     * @returns {Vector3} 更新后的太阳位置
-     */
-    applyDaytimePreset(sunParams) {
-        const newSunPosition = SkyAtmosphereUtils.applyDaytimePreset(this, sunParams);
-        this.sunPosition.copy(newSunPosition);
-        this.uniforms.get("sunPosition").value = this.sunPosition;
-        return this.sunPosition;
-    }
-
-    /**
-     * 应用日落预设
-     * @param {Object} sunParams - 太阳参数对象，将被更新
-     * @returns {Vector3} 更新后的太阳位置
-     */
-    applySunsetPreset(sunParams) {
-        const newSunPosition = SkyAtmosphereUtils.applySunsetPreset(this, sunParams);
-        this.sunPosition.copy(newSunPosition);
-        this.uniforms.get("sunPosition").value = this.sunPosition;
-        return this.sunPosition;
-    }
-
-    /**
-     * 应用夜晚预设
-     * @param {Object} sunParams - 太阳参数对象，将被更新
-     * @param {Object} moonParams - 月亮参数对象，将被更新
-     * @returns {Object} 包含sunPosition和moonPosition的对象
-     */
-    applyNightPreset(sunParams, moonParams) {
-        const result = SkyAtmosphereUtils.applyNightPreset(this, sunParams, moonParams);
-        this.sunPosition.copy(result.sunPosition);
-        this.moonPosition.copy(result.moonPosition);
-        this.uniforms.get("sunPosition").value = this.sunPosition;
-        this.uniforms.get("moonPosition").value = this.moonPosition;
-        return result;
-    }
-
-    /**
-     * 应用极光预设
-     * @param {Object} sunParams - 太阳参数对象，将被更新
-     * @param {Object} moonParams - 月亮参数对象，将被更新
-     * @param {Object} auroraParams - 极光参数对象，将被更新
-     * @returns {Object} 包含sunPosition和moonPosition的对象
-     */
-    applyAuroraPreset(sunParams, moonParams, auroraParams) {
-        const result = SkyAtmosphereUtils.applyAuroraPreset(this, sunParams, moonParams, auroraParams);
-        this.sunPosition.copy(result.sunPosition);
-        this.moonPosition.copy(result.moonPosition);
-        this.uniforms.get("sunPosition").value = this.sunPosition;
-        this.uniforms.get("moonPosition").value = this.moonPosition;
-        return result;
+    set resolutionScale(value) {
+        this._resolutionScale = Math.max(0.1, Math.min(1.0, value));
     }
 } 

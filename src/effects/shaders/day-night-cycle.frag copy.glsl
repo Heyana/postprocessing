@@ -5,7 +5,6 @@
 // uniform sampler2D inputBuffer; // 已由Effect基类定义
 // uniform sampler2D depthBuffer; // 已由Effect基类定义
 uniform sampler2D noiseTexture; // 噪声纹理
-uniform vec2 resolution; // 分辨率
 uniform float time; // 时间
 uniform vec3 sunPosition; // 太阳位置
 uniform vec3 moonPosition; // 月亮位置
@@ -17,7 +16,6 @@ uniform float cloudyhigh; // 高层云密度
 uniform int enableStars; // 启用星空
 uniform float starThreshold; // 星星密度阈值
 uniform float skyMaskThreshold; // 天空深度阈值
-uniform mat4 viewMatrix; // 视图矩阵
 uniform float fov; // 视场角
 
 // varying vec2 vUv; // 已由Effect基类定义
