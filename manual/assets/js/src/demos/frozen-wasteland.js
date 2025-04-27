@@ -82,7 +82,7 @@ window.addEventListener("load", () => load().then((assets) => {
     // scene.fog = new FogExp2(0x373134, 0.06);
     scene.background = new Color(0x444444);
     scene.add(Domain.createLights());
-    scene.add(Domain.createEnvironment(scene.background));
+    scene.add(Domain.createEnvironment());
     scene.add(Domain.createActors(scene.background));
 
     // 后处理

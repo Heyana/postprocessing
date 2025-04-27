@@ -263,14 +263,25 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 // 将mainImage函数转换为适应postprocessing框架的mainImage函数
 void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
     vec2 fragCoord = uv * resolution.xy;
-    vec4 color;
-    mainImage(color, fragCoord);
+    vec4 skyAndFogColor;
+    mainImage(skyAndFogColor, fragCoord);
 
-    // 使用深度缓冲决定是否绘制天空
     // 读取深度值
     float depth = texture2D(depthBuffer, uv).r;
-    // 在这里我们仅在深度值为1.0（远平面）的地方绘制天空
-    float skyMask = step(0.9999, depth);
-    // 修复：color已经是vec4类型，不需要再次构造vec4
-    outputColor = mix(inputColor, color, skyMask);
+    
+    // 将深度值转换为线性深度 (0-1)
+    float linearDepth = 2.0 * cameraNear * cameraFar / (cameraFar + cameraNear - (2.0 * depth - 1.0) * (cameraFar - cameraNear));
+    linearDepth = linearDepth / cameraFar; // 归一化到0-1
+    
+    // 基于深度的雾气混合因子
+    // 1. 远处(深度接近1)：使用完整的天空和雾气效果
+    // 2. 近处：根据距离逐渐应用雾气效果
+    float skyMask = step(0.9999, depth); // 纯天空部分
+    
+    // 基于线性深度的雾气混合因子
+    float fogFactor = clamp(linearDepth * fogDensity * 2.0, 0.0, 1.0);
+    
+    // 为近处的物体应用雾气效果，为远处应用完整的天空+雾气效果
+    vec4 foggedColor = mix(inputColor, vec4(skyAndFogColor.rgb, 1.0), fogFactor);
+    outputColor = mix(foggedColor, skyAndFogColor, skyMask);
 } 
