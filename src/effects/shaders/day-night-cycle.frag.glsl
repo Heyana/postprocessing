@@ -5,6 +5,7 @@
 // uniform sampler2D inputBuffer; // 已由Effect基类定义
 // uniform sampler2D depthBuffer; // 已由Effect基类定义
 uniform sampler2D noiseTexture; // 噪声纹理
+uniform vec2 resolution; // 分辨率
 uniform float time; // 时间
 uniform vec3 sunPosition; // 太阳位置
 uniform vec3 moonPosition; // 月亮位置
@@ -16,6 +17,7 @@ uniform float cloudyhigh; // 高层云密度
 uniform int enableStars; // 启用星空
 uniform float starThreshold; // 星星密度阈值
 uniform float skyMaskThreshold; // 天空深度阈值
+uniform mat4 viewMatrix; // 视图矩阵
 uniform float fov; // 视场角
 
 // varying vec2 vUv; // 已由Effect基类定义
@@ -25,8 +27,8 @@ const float M_PI = 3.1415926535;
 const float DEGRAD = M_PI / 180.0;
 
 // 渲染质量参数
-const int steps = 32; // 采样步数，原来是80，降低以提高性能
-const int stepss = 6; // 光线采样步数，原来是12，降低以提高性能
+const int steps = 30; // 采样步数，对应原始Shadertoy中的steps
+const int stepss = 6; // 光线采样步数，对应原始Shadertoy中的stepss
 
 // 云层参数
 const float cloudnear = 1.0; // 云层最近距离
@@ -230,11 +232,10 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
     vec2 q = uv * 2.0 - 1.0;
     q.x *= resolution.x / resolution.y;
     
-    // 计算视图方向 - 修复天空方向
-    // 注意我们使用相机的世界矩阵，所以需要反转方向
+    // 计算视图方向
     vec3 vuv = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
     vec3 vrgt = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
-    vec3 vfwd = vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]); // 移除了负号
+    vec3 vfwd = -vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]);
     
     // 根据FOV计算视线方向
     float rad = fov * DEGRAD / 2.0;
@@ -249,15 +250,8 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
     float scatteringFactor = 0.0;
     float t = time * 0.04 * float(animateClouds); // 云动画时间
     
-    // 确保天空在上方而不是下方 - 如果dir.y为负，我们可能需要翻转
-    if (dir.y < -0.02) {
-        // 如果视线朝下，使用地面颜色
-        sky = mix(
-            vec3(0.1, 0.2, 0.4) * 0.2, // 地面颜色
-            vec3(0.3, 0.4, 0.6) * 0.3, // 地平线颜色
-            smoothstep(-0.1, -0.03, dir.y)
-        );
-    } else {
+    // 计算地平线以上的天空
+    if (dir.y > -0.02) {
         // 大气散射计算
         scatter(ro, dir, sky, scatteringFactor, t);
         
@@ -289,6 +283,13 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
                 sky += stars * vec3(0.8, 0.9, 1.0) * starsMask * nightSky;
             }
         }
+    } else {
+        // 对于地平线以下，使用简单渐变
+        sky = mix(
+            vec3(0.1, 0.2, 0.4) * 0.2, // 地面颜色
+            vec3(0.3, 0.4, 0.6) * 0.3, // 地平线颜色
+            smoothstep(-0.1, -0.03, dir.y)
+        );
     }
     
     // 添加月亮
