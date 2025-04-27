@@ -1,12 +1,14 @@
 import { Uniform, Vector2, Vector3, Matrix4 } from "three";
 import { BlendFunction } from "../enums/BlendFunction.js";
 import { Effect } from "./Effect.js";
-
+import { EffectAttribute } from 'postprocessing'
 import fragmentShader from "./shaders/frozen-wasteland.frag.glsl";
 
 /**
- * 冰冻荒原效果
- * 移植自Shadertoy的"Frozen wasteland"着色器
+ * 冰冻荒原天空效果
+ * 移植并修改自Shadertoy的"Frozen wasteland"着色器
+ * 本版本移除了山脉地形，只保留了天空和雾气效果
+ * 并添加了深度测试，使效果不会覆盖前景模型
  * 原作者: Dave Hoskins
  * 原始链接: https://www.shadertoy.com/view/Xls3D2
  * 许可: Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License
@@ -19,14 +21,21 @@ export class FrozenWastelandEffect extends Effect {
      * @param {Object} [options] - 配置选项
      * @param {BlendFunction} [options.blendFunction=BlendFunction.NORMAL] - 混合模式
      * @param {Number} [options.speed=1.0] - 动画速度
+     * @param {Number} [options.fogDensity=1.0] - 雾气浓度
      */
     constructor({
         blendFunction = BlendFunction.NORMAL,
-        speed = 1.0
+        composer,
+        speed = 1.0,
+        fogDensity = 1.0
     } = {}) {
 
         super("FrozenWastelandEffect", fragmentShader, {
             blendFunction,
+            attributes: EffectAttribute.DEPTH,
+            defines: new Map([
+                ["USE_DEPTH", "1"]
+            ]),
             uniforms: new Map([
                 ["time", new Uniform(0.0)],
                 ["resolution", new Uniform(new Vector2(1, 1))],
@@ -35,16 +44,27 @@ export class FrozenWastelandEffect extends Effect {
                 ["cameraForward", new Uniform(new Vector3(0, 0, -1))],
                 ["cameraUp", new Uniform(new Vector3(0, 1, 0))],
                 ["cameraRight", new Uniform(new Vector3(1, 0, 0))],
-                ["cameraFov", new Uniform(60.0)]
+                ["cameraFov", new Uniform(60.0)],
+                ["cameraNear", new Uniform(0.1)],
+                ["cameraFar", new Uniform(1000.0)],
+                ["fogDensity", new Uniform(fogDensity)]
             ])
         });
 
+
         /**
-         * 动画速度
+         * 动画速度 - 控制云和雾气的移动速度
          * @type {Number}
          * @private
          */
         this._speed = speed;
+
+        /**
+         * 雾气浓度 - 控制雾气的浓度
+         * @type {Number}
+         * @private
+         */
+        this._fogDensity = fogDensity;
 
         /**
          * 鼠标位置
@@ -59,10 +79,12 @@ export class FrozenWastelandEffect extends Effect {
          * @private
          */
         this._camera = null;
+        this.composer = composer
+
     }
 
     /**
-     * 动画速度
+     * 动画速度 - 控制云和雾气的移动速度
      * @type {Number}
      */
     get speed() {
@@ -74,11 +96,30 @@ export class FrozenWastelandEffect extends Effect {
     }
 
     /**
+     * 雾气浓度 - 控制雾气的浓度
+     * @type {Number}
+     */
+    get fogDensity() {
+        return this._fogDensity;
+    }
+
+    set fogDensity(value) {
+        this._fogDensity = value;
+        this.uniforms.get("fogDensity").value = value;
+    }
+
+    /**
      * 设置相机
      * @param {Camera} camera - Three.js相机对象
      */
     setCamera(camera) {
         this._camera = camera;
+
+        // 更新相机近平面和远平面参数
+        if (camera) {
+            this.uniforms.get("cameraNear").value = camera.near;
+            this.uniforms.get("cameraFar").value = camera.far;
+        }
     }
 
     /**
@@ -117,7 +158,12 @@ export class FrozenWastelandEffect extends Effect {
 
         // 设置相机FOV
         this.uniforms.get("cameraFov").value = this._camera.fov;
+
+        // 更新近平面和远平面
+        this.uniforms.get("cameraNear").value = this._camera.near;
+        this.uniforms.get("cameraFar").value = this._camera.far;
     }
+
 
     /**
      * 更新效果
@@ -153,4 +199,6 @@ export class FrozenWastelandEffect extends Effect {
     set mainCamera(value) {
         this.setCamera(value);
     }
+
+
 } 

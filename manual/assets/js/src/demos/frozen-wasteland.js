@@ -1,12 +1,11 @@
 import {
+    Color,
     CubeTextureLoader,
-    FogExp2,
     LoadingManager,
     PerspectiveCamera,
     Scene,
     SRGBColorSpace,
     WebGLRenderer,
-    Vector3
 } from "three";
 
 import {
@@ -80,8 +79,8 @@ window.addEventListener("load", () => load().then((assets) => {
 
     // 场景, 灯光, 物体
     const scene = new Scene();
-    scene.fog = new FogExp2(0x373134, 0.06);
-    scene.background = assets.get("sky");
+    // scene.fog = new FogExp2(0x373134, 0.06);
+    scene.background = new Color(0x444444);
     scene.add(Domain.createLights());
     scene.add(Domain.createEnvironment(scene.background));
     scene.add(Domain.createActors(scene.background));
@@ -93,6 +92,8 @@ window.addEventListener("load", () => load().then((assets) => {
 
     const effect = new FrozenWastelandEffect({
         speed: 1.0,
+        fogDensity: 1.0,
+        composer,
         blendFunction: BlendFunction.NORMAL
     });
 
@@ -110,6 +111,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
     const folder = pane.addFolder({ title: "冰冻荒原设置" });
     folder.addBinding(effect, "speed", { min: 0.1, max: 3.0, step: 0.1, label: "动画速度" });
+    folder.addBinding(effect, "fogDensity", { min: 0.0, max: 3.0, step: 0.1, label: "雾气浓度" });
 
     // 添加相机控制
     const cameraFolder = pane.addFolder({ title: "相机控制" });
