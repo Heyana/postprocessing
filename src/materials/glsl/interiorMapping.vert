@@ -6,8 +6,9 @@ varying vec3 vWorldPosition;
 varying vec3 vNormal;
 varying vec3 vPosition;
 
-// 移除不需要的多房间模式变量
-// 我们只保留单个房间模式需要的变量
+#ifdef USE_OBJECTSPACE
+varying vec3 vObjectPosition;
+#endif
 
 void main() {
     vUv = uv;
@@ -24,15 +25,24 @@ void main() {
     // 这确保了视线方向在所有角度都正确
     vec3 cameraToVertex = normalize(worldPosition.xyz - cameraPosition);
     
-    // 使用切线空间模式 - 确保TBN矩阵正确构建
-    vec3 T = normalize(normalMatrix * tangent.xyz);
-    vec3 B = normalize(cross(vNormal, T)) * tangent.w;
-    
-    // 构建TBN矩阵
-    mat3 TBN = mat3(T, B, vNormal);
-    
-    // 转换视线方向到切线空间
-    vViewDir = normalize(TBN * cameraToVertex) * roomScale;
+    #ifdef USE_OBJECTSPACE
+        // 对象空间模式
+        vObjectPosition = position * roomScale;
+        
+        // 获取对象空间视线方向
+        vec4 objCameraPos = inverse(modelMatrix) * vec4(cameraPosition, 1.0);
+        vViewDir = normalize(position - objCameraPos.xyz) * roomScale;
+    #else
+        // 切线空间模式 - 确保TBN矩阵正确构建
+        vec3 T = normalize(normalMatrix * tangent.xyz);
+        vec3 B = normalize(cross(vNormal, T)) * tangent.w;
+        
+        // 构建TBN矩阵
+        mat3 TBN = mat3(T, B, vNormal);
+        
+        // 转换视线方向到切线空间
+        vViewDir = normalize(TBN * cameraToVertex) * roomScale;
+    #endif
     
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 } 

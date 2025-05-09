@@ -76,12 +76,16 @@ function loadTextures() {
 
 // 演示状态
 const demoState = {
-    rotatePlane: true,       // 默认开启旋转，以便演示侧面效果
-    useSingleTexture: true,  // 使用单张贴图
-    roomScale: 1.0,          // 房间尺寸
+    rotatePlane: false,         // 默认开启旋转，以便演示侧面效果
+    useObjectSpace: true,
+    useSingleTexture: true,
+    fillFace: true,
+    roomScale: 1.0,
+    roomVariety: 0.5,
     roomDepth: 0.02,         // 保持较小的值，避免异常球形
-    visualDepth: 1.2,        // 房间视觉深度
-    roomAspect: 1.5          // 房间纵横比
+    visualDepth: 1.2,         // 新增视觉深度参数，控制深度感
+    roomAspect: 1.5,         // 调整默认纵横比，以获得更好的视觉效果
+    flipTextureY: true       // 默认在着色器中翻转贴图Y轴，不需要设置flipY=false
 };
 
 // 创建演示场景
@@ -104,10 +108,14 @@ function createScene(textures) {
     planeGeometry.computeTangents();
 
     const material = new InteriorMappingMaterial({
+        useObjectSpace: demoState.useObjectSpace,
         roomScale: demoState.roomScale,
+        roomVariety: demoState.roomVariety,
+        fillFace: demoState.fillFace,
         roomDepth: demoState.roomDepth,
         visualDepth: demoState.visualDepth,
-        roomAspect: demoState.roomAspect
+        roomAspect: demoState.roomAspect,
+        flipTextureY: demoState.flipTextureY  // 添加贴图Y轴翻转控制
     });
 
     // 根据默认状态设置纹理
@@ -160,7 +168,7 @@ window.addEventListener("load", () => {
         controls.lookAt(0, 5, 0);
 
         // 创建场景
-        const { scene, plane } = createScene(textures);
+        const { scene, plane } = createScene(textures);  // 使用plane而不是building
 
         // 设置时钟
         const clock = new Clock();
@@ -182,16 +190,30 @@ window.addEventListener("load", () => {
 
         const folder = pane.addFolder({ title: "室内映射材质参数" });
 
+        // 修复：使用demoState中的useObjectSpace属性
+        folder.addBinding(demoState, "useObjectSpace", {
+            label: "使用对象空间"
+        }).on("change", (event) => {
+            plane.material.useObjectSpace = event.value;  // 更改为plane
+        });
+
         // 添加贴图类型切换选项
         folder.addBinding(demoState, "useSingleTexture", {
             label: "使用单张贴图"
         }).on("change", (event) => {
             if (event.value) {
-                plane.material.roomCube = null;
+                plane.material.roomCube = null;  // 更改为plane
                 plane.material.roomMap = textures.roomMap;
             } else {
                 plane.material.roomCube = textures.roomCube;
             }
+        });
+
+        // 添加填满面模式切换选项
+        folder.addBinding(demoState, "fillFace", {
+            label: "填满整个面"
+        }).on("change", (event) => {
+            plane.material.fillFace = event.value;  // 更改为plane
         });
 
         folder.addBinding(demoState, "roomScale", {
@@ -200,7 +222,17 @@ window.addEventListener("load", () => {
             max: 3.0,
             step: 0.01
         }).on("change", (event) => {
-            plane.material.roomScale = event.value;
+            console.log('Log-- ', event.value, 'event.value');
+            plane.material.roomScale = event.value;  // 更改为plane
+        });
+
+        folder.addBinding(demoState, "roomVariety", {
+            label: "房间变化程度",
+            min: 0,
+            max: 1.0,
+            step: 0.05
+        }).on("change", (event) => {
+            plane.material.roomVariety = event.value;  // 更改为plane
         });
 
         // 在GUI中添加房间深度控制滑块
@@ -233,6 +265,13 @@ window.addEventListener("load", () => {
             plane.material.roomAspect = event.value;
         });
 
+        // 添加贴图Y轴翻转控制选项
+        folder.addBinding(demoState, "flipTextureY", {
+            label: "贴图Y轴翻转",
+        }).on("change", (event) => {
+            plane.material.flipTextureY = event.value;
+        });
+
         // 窗口大小调整处理
         function onResize() {
             const width = container.clientWidth, height = container.clientHeight;
@@ -255,10 +294,10 @@ window.addEventListener("load", () => {
             }
 
             // 更新平面模型的矩阵
-            plane.updateMatrixWorld();
+            plane.updateMatrixWorld();  // 更改为plane
 
             // 更新材质
-            plane.material.update(deltaTime);
+            plane.material.update(deltaTime);  // 更改为plane
 
             renderer.render(scene, camera);
             requestAnimationFrame(render);

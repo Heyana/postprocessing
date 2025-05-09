@@ -5,23 +5,30 @@ import fragmentShader from "./glsl/interiorMapping.frag";
 /**
  * 室内映射材质 - 用于创建建筑物窗户内部空间的错觉
  * 改编自 http://www.humus.name/index.php?page=3D&ID=80
- * 简化版本 - 只支持单个房间模式
  */
 export class InteriorMappingMaterial extends ShaderMaterial {
 
     /**
      * 构造函数
      * @param {Object} [options] - 可选配置项
+     * @param {Boolean} [options.useObjectSpace=false] - 是否使用对象空间坐标（否则使用切线空间）
      * @param {Number} [options.roomScale=1.0] - 房间尺寸缩放
-     * @param {Number} [options.roomDepth=0.02] - 房间实际深度 (保持低值避免异常)
+     * @param {Number} [options.roomVariety=0.5] - 房间随机变化程度
+     * @param {Boolean} [options.fillFace=false] - 是否让房间填满整个面（适用于长方形）
+     * @param {Number} [options.roomDepth=0.02] - 房间实际深度 (fillFace模式下有效，保持低值避免异常)
      * @param {Number} [options.visualDepth=1.2] - 房间视觉深度 (控制深度感，不会产生异常)
-     * @param {Number} [options.roomAspect=1.0] - 房间纵横比
+     * @param {Number} [options.roomAspect=1.0] - 房间纵横比 (fillFace模式下有效)
+     * @param {Boolean} [options.flipTextureY=true] - 是否在着色器中翻转贴图Y轴 (避免在外部设置flipY=false)
      */
     constructor(options = {}) {
+        const useObjectSpace = options.useObjectSpace !== undefined ? options.useObjectSpace : true;
         const roomScale = options.roomScale !== undefined ? options.roomScale : 1.0;
+        const roomVariety = options.roomVariety !== undefined ? options.roomVariety : 0.5;
+        const fillFace = options.fillFace !== undefined ? options.fillFace : true;
         const roomDepth = options.roomDepth !== undefined ? options.roomDepth : 0.02;
         const visualDepth = options.visualDepth !== undefined ? options.visualDepth : 1.2;
         const roomAspect = options.roomAspect !== undefined ? options.roomAspect : 1.0;
+        const flipTextureY = options.flipTextureY !== undefined ? options.flipTextureY : true;
 
         super({
             name: "InteriorMappingMaterial",
@@ -29,17 +36,21 @@ export class InteriorMappingMaterial extends ShaderMaterial {
                 roomCube: new Uniform(null),
                 roomMap: new Uniform(null),  // 单张图片立方体贴图
                 useSingleTexture: new Uniform(true), // 是否使用单张图片贴图
+                useObjectSpace: new Uniform(useObjectSpace),
                 roomScale: new Uniform(roomScale),
-                roomVariety: new Uniform(0.0), // 保留参数但不使用
-                fillFace: new Uniform(true),  // 始终为true，保留参数以兼容旧代码
-                roomDepth: new Uniform(roomDepth), // 房间实际深度
-                visualDepth: new Uniform(visualDepth), // 房间视觉深度
-                roomAspect: new Uniform(roomAspect) // 房间纵横比
+                roomVariety: new Uniform(roomVariety),
+                fillFace: new Uniform(fillFace), // 是否让房间填满面
+                roomDepth: new Uniform(roomDepth), // 房间实际深度 (fillFace模式下有效)
+                visualDepth: new Uniform(visualDepth), // 房间视觉深度 (控制深度感)
+                roomAspect: new Uniform(roomAspect), // 房间纵横比 (fillFace模式下有效)
+                flipTextureY: new Uniform(flipTextureY) // 是否翻转贴图Y轴
             },
             vertexShader,
             fragmentShader,
             defines: {
-                USE_TANGENT: true
+                USE_OBJECTSPACE: useObjectSpace,
+                USE_TANGENT: true,
+                FILL_FACE: fillFace
             }
         });
 
@@ -70,7 +81,6 @@ export class InteriorMappingMaterial extends ShaderMaterial {
      */
     set roomMap(value) {
         this.uniforms.roomMap.value = value;
-        // 注意：现在不需要设置 flipY = false，因为我们在着色器中处理了
         this._updateTextureMode();
     }
 
@@ -98,6 +108,22 @@ export class InteriorMappingMaterial extends ShaderMaterial {
         if (!hasCubeMap && !hasRoomMap) {
             console.warn('InteriorMappingMaterial: 未提供任何房间贴图，请设置roomCube或roomMap');
         }
+
+        // 更新着色器
+        if (this.defines.USE_SINGLE_TEXTURE !== this.uniforms.useSingleTexture.value) {
+            this.defines.USE_SINGLE_TEXTURE = this.uniforms.useSingleTexture.value;
+            this.needsUpdate = true;
+        }
+    }
+
+    /**
+     * 设置是否使用对象空间坐标
+     * @param {Boolean} value - 是否使用对象空间（否则使用切线空间）
+     */
+    set useObjectSpace(value) {
+        this.uniforms.useObjectSpace.value = value;
+        this.defines.USE_OBJECTSPACE = value;
+        this.needsUpdate = true;
     }
 
     /**
@@ -114,6 +140,44 @@ export class InteriorMappingMaterial extends ShaderMaterial {
      */
     get roomScale() {
         return this.uniforms.roomScale.value;
+    }
+
+    /**
+     * 设置房间随机变化程度
+     * @param {Number} value - 房间随机变化程度 (0-1)
+     */
+    set roomVariety(value) {
+        this.uniforms.roomVariety.value = value;
+    }
+
+    /**
+     * 获取房间随机变化程度
+     * @return {Number} 房间随机变化程度 (0-1)
+     */
+    get roomVariety() {
+        return this.uniforms.roomVariety.value;
+    }
+
+    /**
+     * 设置是否让房间填满整个面
+     * @param {Boolean} value - 是否让房间填满面
+     */
+    set fillFace(value) {
+        this.uniforms.fillFace.value = value;
+
+        // 当fillFace状态改变时，需要更新着色器的define
+        if (this.defines.FILL_FACE !== value) {
+            this.defines.FILL_FACE = value;
+            this.needsUpdate = true;
+        }
+    }
+
+    /**
+     * 获取是否让房间填满整个面
+     * @return {Boolean} 是否让房间填满面
+     */
+    get fillFace() {
+        return this.uniforms.fillFace.value;
     }
 
     /**
@@ -162,6 +226,22 @@ export class InteriorMappingMaterial extends ShaderMaterial {
      */
     get roomAspect() {
         return this.uniforms.roomAspect.value;
+    }
+
+    /**
+     * 设置是否翻转贴图Y轴
+     * @param {Boolean} value - 是否翻转贴图Y轴
+     */
+    set flipTextureY(value) {
+        this.uniforms.flipTextureY.value = value;
+    }
+
+    /**
+     * 获取是否翻转贴图Y轴
+     * @return {Boolean} 是否翻转贴图Y轴
+     */
+    get flipTextureY() {
+        return this.uniforms.flipTextureY.value;
     }
 
     /**
