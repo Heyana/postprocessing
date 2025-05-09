@@ -1,4 +1,4 @@
-import { ShaderMaterial, Uniform, Matrix4, Vector3 } from "three";
+import { ShaderMaterial, Uniform, Matrix4, Vector3, Color } from "three";
 import vertexShader from "./glsl/interiorMapping.vert";
 import fragmentShader from "./glsl/interiorMapping.frag";
 
@@ -19,6 +19,13 @@ export class InteriorMappingMaterial extends ShaderMaterial {
      * @param {Number} [options.visualDepth=1.2] - 房间视觉深度 (控制深度感，不会产生异常)
      * @param {Number} [options.roomAspect=1.0] - 房间纵横比 (fillFace模式下有效)
      * @param {Boolean} [options.flipTextureY=true] - 是否在着色器中翻转贴图Y轴 (避免在外部设置flipY=false)
+     * @param {Number} [options.roomsX=1] - 横向房间数量
+     * @param {Number} [options.roomsY=1] - 纵向房间数量
+     * @param {Number} [options.gapSize=0.05] - 房间间隔大小
+     * @param {Number|Color} [options.gapColor=0x000000] - 房间间隔颜色
+     * @param {Number} [options.glassStrength=0.25] - 前景玻璃反射强度 (0.0-1.0)
+     * @param {Number|Color} [options.glassColor=0x88CCFF] - 前景玻璃颜色
+     * @param {Number} [options.glassBlurStrength=0.0] - 玻璃模糊强度 (0.0-1.0)
      */
     constructor(options = {}) {
         const useObjectSpace = options.useObjectSpace !== undefined ? options.useObjectSpace : true;
@@ -29,6 +36,13 @@ export class InteriorMappingMaterial extends ShaderMaterial {
         const visualDepth = options.visualDepth !== undefined ? options.visualDepth : 1.2;
         const roomAspect = options.roomAspect !== undefined ? options.roomAspect : 1.0;
         const flipTextureY = options.flipTextureY !== undefined ? options.flipTextureY : true;
+        const roomsX = options.roomsX !== undefined ? options.roomsX : 1;
+        const roomsY = options.roomsY !== undefined ? options.roomsY : 1;
+        const gapSize = options.gapSize !== undefined ? options.gapSize : 0.05;
+        const gapColor = options.gapColor !== undefined ? options.gapColor : 0x000000;
+        const glassStrength = options.glassStrength !== undefined ? options.glassStrength : 0.25;
+        const glassColor = options.glassColor !== undefined ? options.glassColor : 0xffffff;
+        const glassBlurStrength = options.glassBlurStrength !== undefined ? options.glassBlurStrength : 0.0;
 
         super({
             name: "InteriorMappingMaterial",
@@ -43,7 +57,14 @@ export class InteriorMappingMaterial extends ShaderMaterial {
                 roomDepth: new Uniform(roomDepth), // 房间实际深度 (fillFace模式下有效)
                 visualDepth: new Uniform(visualDepth), // 房间视觉深度 (控制深度感)
                 roomAspect: new Uniform(roomAspect), // 房间纵横比 (fillFace模式下有效)
-                flipTextureY: new Uniform(flipTextureY) // 是否翻转贴图Y轴
+                flipTextureY: new Uniform(flipTextureY), // 是否翻转贴图Y轴
+                roomsX: new Uniform(roomsX), // 横向房间数量
+                roomsY: new Uniform(roomsY), // 纵向房间数量
+                gapSize: new Uniform(gapSize), // 房间间隔大小
+                gapColor: new Uniform(new Color(gapColor)), // 房间间隔颜色
+                glassStrength: new Uniform(glassStrength), // 前景玻璃反射强度
+                glassColor: new Uniform(new Color(glassColor)), // 前景玻璃颜色
+                glassBlurStrength: new Uniform(glassBlurStrength) // 玻璃模糊强度
             },
             vertexShader,
             fragmentShader,
@@ -242,6 +263,132 @@ export class InteriorMappingMaterial extends ShaderMaterial {
      */
     get flipTextureY() {
         return this.uniforms.flipTextureY.value;
+    }
+
+    /**
+     * 设置横向房间数量
+     * @param {Number} value - 横向房间数量
+     */
+    set roomsX(value) {
+        this.uniforms.roomsX.value = value;
+    }
+
+    /**
+     * 获取横向房间数量
+     * @return {Number} 横向房间数量
+     */
+    get roomsX() {
+        return this.uniforms.roomsX.value;
+    }
+
+    /**
+     * 设置纵向房间数量
+     * @param {Number} value - 纵向房间数量
+     */
+    set roomsY(value) {
+        this.uniforms.roomsY.value = value;
+    }
+
+    /**
+     * 获取纵向房间数量
+     * @return {Number} 纵向房间数量
+     */
+    get roomsY() {
+        return this.uniforms.roomsY.value;
+    }
+
+    /**
+     * 设置房间间隔大小
+     * @param {Number} value - 房间间隔大小
+     */
+    set gapSize(value) {
+        this.uniforms.gapSize.value = value;
+    }
+
+    /**
+     * 获取房间间隔大小
+     * @return {Number} 房间间隔大小
+     */
+    get gapSize() {
+        return this.uniforms.gapSize.value;
+    }
+
+    /**
+     * 设置房间间隔颜色
+     * @param {Color|Number} value - 房间间隔颜色
+     */
+    set gapColor(value) {
+        if (typeof value === 'number') {
+            this.uniforms.gapColor.value.setHex(value);
+        } else {
+            this.uniforms.gapColor.value.copy(value);
+        }
+    }
+
+    /**
+     * 获取房间间隔颜色
+     * @return {Color} 房间间隔颜色
+     */
+    get gapColor() {
+        return this.uniforms.gapColor.value;
+    }
+
+    /**
+     * 设置前景玻璃反射强度
+     * @param {Number} value - 前景玻璃反射强度 (0.0-1.0)
+     */
+    set glassStrength(value) {
+        this.uniforms.glassStrength.value = Math.max(0.0, Math.min(1.0, value));
+    }
+
+    /**
+     * 获取前景玻璃反射强度
+     * @return {Number} 前景玻璃反射强度
+     */
+    get glassStrength() {
+        return this.uniforms.glassStrength.value;
+    }
+
+    /**
+     * 设置前景玻璃颜色
+     * @param {Color|Number|String} value - 前景玻璃颜色
+     */
+    set glassColor(value) {
+        if (typeof value === 'number') {
+            this.uniforms.glassColor.value.setHex(value);
+        } else if (typeof value === 'string') {
+            // 支持字符串格式的颜色值（如'#AADDFF'）
+            this.uniforms.glassColor.value.set(value);
+        } else {
+            this.uniforms.glassColor.value.copy(value);
+        }
+
+        // 确保uniform标记为需要更新
+        this.uniformsNeedUpdate = true;
+    }
+
+    /**
+     * 获取前景玻璃颜色
+     * @return {Color} 前景玻璃颜色
+     */
+    get glassColor() {
+        return this.uniforms.glassColor.value;
+    }
+
+    /**
+     * 设置玻璃模糊强度
+     * @param {Number} value - 玻璃模糊强度 (0.0-1.0)
+     */
+    set glassBlurStrength(value) {
+        this.uniforms.glassBlurStrength.value = Math.max(0.0, Math.min(1.0, value));
+    }
+
+    /**
+     * 获取玻璃模糊强度
+     * @return {Number} 玻璃模糊强度
+     */
+    get glassBlurStrength() {
+        return this.uniforms.glassBlurStrength.value;
     }
 
     /**

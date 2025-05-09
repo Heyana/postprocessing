@@ -81,12 +81,22 @@ const demoState = {
     useSingleTexture: true,
     fillFace: true,
     roomScale: 1.0,
-    roomVariety: 0.5,
+    roomVariety: 0.8,         // 增加默认的房间变化程度，让房间更有区别
     roomDepth: 0.02,         // 保持较小的值，避免异常球形
     visualDepth: 1.2,         // 新增视觉深度参数，控制深度感
     roomAspect: 1.5,         // 调整默认纵横比，以获得更好的视觉效果
-    flipTextureY: true       // 默认在着色器中翻转贴图Y轴，不需要设置flipY=false
+    flipTextureY: true,       // 默认在着色器中翻转贴图Y轴，不需要设置flipY=false
+    roomsX: 2,               // 默认横向2个房间
+    roomsY: 3,               // 默认纵向3个房间
+    gapSize: 0.0,            // 默认间隔大小为0，不显示间隔
+    gapColor: "#222222",      // 默认间隔颜色
+    glassStrength: 0.3,      // 默认前景玻璃反射强度
+    glassColor: "#AADDFF",    // 默认前景玻璃颜色 - 更亮的蓝色
+    glassBlurStrength: 0.0   // 默认玻璃模糊强度为0，不模糊
 };
+
+// 存储初始颜色的标准化值
+const initialGlassColor = "#AADDFF";
 
 // 创建演示场景
 function createScene(textures) {
@@ -115,7 +125,14 @@ function createScene(textures) {
         roomDepth: demoState.roomDepth,
         visualDepth: demoState.visualDepth,
         roomAspect: demoState.roomAspect,
-        flipTextureY: demoState.flipTextureY  // 添加贴图Y轴翻转控制
+        flipTextureY: demoState.flipTextureY,
+        roomsX: demoState.roomsX,
+        roomsY: demoState.roomsY,
+        gapSize: demoState.gapSize,
+        gapColor: demoState.gapColor,
+        glassStrength: demoState.glassStrength,
+        glassColor: demoState.glassColor,
+        glassBlurStrength: demoState.glassBlurStrength
     });
 
     // 根据默认状态设置纹理
@@ -270,6 +287,103 @@ window.addEventListener("load", () => {
             label: "贴图Y轴翻转",
         }).on("change", (event) => {
             plane.material.flipTextureY = event.value;
+        });
+
+        // 添加房间布局控制选项
+        const roomLayoutFolder = pane.addFolder({ title: "房间布局设置" });
+
+        // 添加横向房间数量控制
+        roomLayoutFolder.addBinding(demoState, "roomsX", {
+            label: "横向房间数",
+            min: 1,
+            max: 10,
+            step: 1
+        }).on("change", (event) => {
+            plane.material.roomsX = event.value;
+        });
+
+        // 添加纵向房间数量控制
+        roomLayoutFolder.addBinding(demoState, "roomsY", {
+            label: "纵向房间数",
+            min: 1,
+            max: 10,
+            step: 1
+        }).on("change", (event) => {
+            plane.material.roomsY = event.value;
+        });
+
+        // 添加间隔大小控制
+        roomLayoutFolder.addBinding(demoState, "gapSize", {
+            label: "间隔大小",
+            min: 0,
+            max: 0.3,  // 减小最大值，避免间隔过大
+            step: 0.01
+        }).on("change", (event) => {
+            plane.material.gapSize = event.value;
+        });
+
+        // 添加间隔颜色控制
+        roomLayoutFolder.addBinding(demoState, "gapColor", {
+            label: "间隔颜色",
+            view: "color"
+        }).on("change", (event) => {
+            plane.material.gapColor = event.value;
+        });
+
+        // 添加玻璃效果控制选项
+        const glassEffectFolder = pane.addFolder({ title: "玻璃效果设置" });
+
+        // 添加玻璃反射强度控制
+        glassEffectFolder.addBinding(demoState, "glassStrength", {
+            label: "玻璃反射强度",
+            min: 0.0,
+            max: 1.0,
+            step: 0.01
+        }).on("change", (event) => {
+            plane.material.glassStrength = event.value;
+        });
+
+        // 添加玻璃模糊强度控制
+        glassEffectFolder.addBinding(demoState, "glassBlurStrength", {
+            label: "玻璃模糊强度",
+            min: 0.0,
+            max: 1.0,
+            step: 0.01
+        }).on("change", (event) => {
+            plane.material.glassBlurStrength = event.value;
+        });
+
+        // 添加玻璃颜色控制
+        glassEffectFolder.addBinding(demoState, "glassColor", {
+            label: "玻璃颜色",
+            view: "color"
+        }).on("change", (event) => {
+            // 标准化处理颜色值
+            const color = event.value;
+            plane.material.glassColor = color;
+
+            // 强制更新材质的uniforms
+            plane.material.needsUpdate = true;
+        });
+
+        // 添加重置玻璃颜色按钮
+        glassEffectFolder.addButton({
+            title: "重置为默认颜色"
+        }).on("click", () => {
+            // 重置为初始值
+            demoState.glassColor = initialGlassColor;
+            plane.material.glassColor = initialGlassColor;
+            plane.material.needsUpdate = true;
+            // 通知GUI更新
+            pane.refresh();
+        });
+
+        // 在玻璃控制区添加提示文本
+        glassEffectFolder.addBinding({
+            info: "注意: 建议选择较亮的颜色作为玻璃颜色以获得最佳效果"
+        }, "info", {
+            label: "提示",
+            readonly: true
         });
 
         // 窗口大小调整处理

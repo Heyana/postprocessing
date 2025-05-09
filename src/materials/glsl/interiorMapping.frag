@@ -8,6 +8,13 @@ uniform float roomDepth;
 uniform float visualDepth;
 uniform float roomAspect;
 uniform bool flipTextureY;
+uniform float roomsX;
+uniform float roomsY;
+uniform float gapSize;
+uniform vec3 gapColor;
+uniform float glassStrength;
+uniform vec3 glassColor;
+uniform float glassBlurStrength;
 
 varying vec2 vUv;
 varying vec3 vViewDir;
@@ -125,12 +132,164 @@ vec4 sampleSingleTextureCube(sampler2D tex, vec3 dir) {
     return texture2D(tex, uv);
 }
 
+// 计算玻璃反射效果
+vec3 calculateGlassEffect(vec3 baseColor, vec3 normal, vec3 viewDir) {
+    // 法线和视线方向都需要归一化
+    vec3 N = normalize(normal);
+    vec3 V = normalize(-viewDir);
+    
+    // 计算菲涅尔效应 - 使用改进的Schlick近似
+    float cosTheta = max(0.0, dot(N, V));
+    // 基础反射率 - 即使在0度角也有一些反射
+    float baseReflectivity = 0.04; 
+    float fresnel = baseReflectivity + (1.0 - baseReflectivity) * pow(1.0 - cosTheta, 5.0);
+    
+    // 确保反射效果明显可见
+    fresnel = max(fresnel, 0.1); 
+    
+    // 基于菲涅尔和反射强度混合玻璃颜色
+    float reflectionFactor = fresnel * glassStrength;
+    
+    // 添加基于视角的高光效果 - 降低高光指数使效果更柔和
+    vec3 lightDir = normalize(vec3(0.5, 1.0, 0.5)); // 假设的光源方向
+    float specular = pow(max(0.0, dot(reflect(-lightDir, N), V)), 16.0) * glassStrength;
+    
+    // 防止玻璃颜色太暗导致画面变黑
+    // 对白色(1,1,1)和接近白色的颜色进行特殊处理，确保高亮效果
+    vec3 safeGlassColor;
+    float colorBrightness = dot(glassColor, vec3(0.299, 0.587, 0.114));
+    
+    if (colorBrightness > 0.9) {
+        // 对于接近白色的颜色，保持其亮度但略微增加高光
+        safeGlassColor = glassColor + vec3(0.1);
+    } else {
+        // 对其他颜色设置最低亮度下限
+        safeGlassColor = max(glassColor, vec3(0.3));
+    }
+    
+    // 混合反射和基础颜色 - 使用加性混合保持亮度
+    vec3 reflection = safeGlassColor * (reflectionFactor + specular);
+    vec3 finalColor = mix(baseColor, baseColor + reflection, glassStrength);
+    
+    // 亮度保护 - 防止颜色过暗
+    float originalLuminance = dot(baseColor, vec3(0.299, 0.587, 0.114));
+    float newLuminance = dot(finalColor, vec3(0.299, 0.587, 0.114));
+    
+    // 如果亮度降低超过30%，进行亮度补偿
+    if (newLuminance < originalLuminance * 0.7) {
+        finalColor = finalColor * (originalLuminance * 0.7 / max(newLuminance, 0.001));
+    }
+    
+    return finalColor;
+}
+
+// 对立方体贴图应用模糊效果
+vec4 sampleCubeWithBlur(samplerCube cube, vec3 dir, float blurStrength) {
+    if (blurStrength <= 0.001) {
+        return textureCube(cube, dir);
+    }
+
+    // 创建正交基向量，用于在球面上采样
+    vec3 tangent, bitangent;
+    
+    // 找到与dir不平行的向量用来构建正交基
+    if (abs(dir.x) < 0.8) {
+        tangent = normalize(cross(vec3(1.0, 0.0, 0.0), dir));
+    } else {
+        tangent = normalize(cross(vec3(0.0, 1.0, 0.0), dir));
+    }
+    
+    bitangent = normalize(cross(dir, tangent));
+    
+    // 采样点数 - 越多越平滑但性能越低
+    const int numSamples = 5;
+    
+    // 根据模糊强度计算采样范围，最大可达0.15弧度
+    float radius = blurStrength * 0.15;
+    
+    vec4 result = vec4(0.0);
+    float weight = 0.0;
+    
+    // 中心点权重最高
+    result += textureCube(cube, dir) * 1.0;
+    weight += 1.0;
+    
+    // 环绕中心点采样
+    for (int i = 0; i < numSamples; i++) {
+        // 计算随机偏移角度
+        float angle = float(i) / float(numSamples) * 2.0 * 3.14159265359;
+        float dist = radius * (0.5 + float(i % 3) / 3.0);
+        
+        vec3 offset = tangent * cos(angle) * dist + bitangent * sin(angle) * dist;
+        vec3 sampleDir = normalize(dir + offset);
+        
+        // 权重根据距离中心的远近递减
+        float sampleWeight = 1.0 - dist / radius * 0.5;
+        result += textureCube(cube, sampleDir) * sampleWeight;
+        weight += sampleWeight;
+    }
+    
+    // 标准化结果
+    return result / weight;
+}
+
+// 对单张图片立方体贴图应用模糊效果
+vec4 sampleSingleTextureWithBlur(sampler2D tex, vec3 dir, float blurStrength) {
+    if (blurStrength <= 0.001) {
+        return sampleSingleTextureCube(tex, dir);
+    }
+
+    // 创建正交基向量，用于在球面上采样
+    vec3 tangent, bitangent;
+    
+    // 找到与dir不平行的向量用来构建正交基
+    if (abs(dir.x) < 0.8) {
+        tangent = normalize(cross(vec3(1.0, 0.0, 0.0), dir));
+    } else {
+        tangent = normalize(cross(vec3(0.0, 1.0, 0.0), dir));
+    }
+    
+    bitangent = normalize(cross(dir, tangent));
+    
+    // 采样点数 - 越多越平滑但性能越低
+    const int numSamples = 5;
+    
+    // 根据模糊强度计算采样范围，最大可达0.15弧度
+    float radius = blurStrength * 0.15;
+    
+    vec4 result = vec4(0.0);
+    float weight = 0.0;
+    
+    // 中心点权重最高
+    result += sampleSingleTextureCube(tex, dir) * 1.0;
+    weight += 1.0;
+    
+    // 环绕中心点采样
+    for (int i = 0; i < numSamples; i++) {
+        // 计算随机偏移角度
+        float angle = float(i) / float(numSamples) * 2.0 * 3.14159265359;
+        float dist = radius * (0.5 + float(i % 3) / 3.0);
+        
+        vec3 offset = tangent * cos(angle) * dist + bitangent * sin(angle) * dist;
+        vec3 sampleDir = normalize(dir + offset);
+        
+        // 权重根据距离中心的远近递减
+        float sampleWeight = 1.0 - dist / radius * 0.5;
+        result += sampleSingleTextureCube(tex, sampleDir) * sampleWeight;
+        weight += sampleWeight;
+    }
+    
+    // 标准化结果
+    return result / weight;
+}
+
 void main() {
     vec3 viewDir = normalize(vViewDir);
     vec3 pos;
     
     #ifdef FILL_FACE
-        // ===== 完全重写填满面模式的实现，解决侧面观察问题 =====
+        // ===== 在fillFace模式下处理多房间分布 =====
+        
         // 确定当前所在的面
         vec3 absNormal = abs(vNormal);
         float maxComp = max(max(absNormal.x, absNormal.y), absNormal.z);
@@ -140,61 +299,166 @@ void main() {
         vec3 normal = normalize(vNormal);
         
         // 创建一个正交坐标系来处理任何角度的平面
-        // 我们需要一个与法线垂直的两个向量，用于构建UV空间
         vec3 upVector = abs(normal.y) > 0.9 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
         vec3 rightVector = normalize(cross(upVector, normal));
         vec3 upVectorOrtho = normalize(cross(normal, rightVector));
         
-        // 现在使用这个坐标系和UV坐标来定位点在立方体表面
-        // 我们直接使用UV坐标生成一个基于法线的平面上的点
-        float u = vUv.x * 2.0 - 1.0; // 将UV从[0,1]映射到[-1,1]
+        // 计算多房间布局
+        // 将UV坐标从[0,1]映射到[-1,1]
+        float u = vUv.x * 2.0 - 1.0; 
         float v = vUv.y * 2.0 - 1.0;
         
-        // 在法线方向上应用房间纵横比
-        // 对水平方向应用roomAspect
+        // 如果需要绘制多个房间
+        bool isInGap = false;
+        vec2 roomUVOrig = vec2(u, v);
+        
+        // 用于存储房间ID，以便生成随机值
+        vec2 roomId = vec2(0.0, 0.0);
+        
+        if ((roomsX > 1.0 || roomsY > 1.0) && gapSize > 0.0) {
+            // 计算单个房间的大小
+            float roomWidth = 2.0 / roomsX;
+            float roomHeight = 2.0 / roomsY;
+            
+            // 计算当前所在的房间索引 (0-based)
+            roomId = floor((vec2(u, v) + 1.0) / vec2(roomWidth, roomHeight));
+            
+            // 检查是否在最外层边缘
+            bool isOnLeftEdge = roomId.x == 0.0;
+            bool isOnRightEdge = roomId.x == roomsX - 1.0;
+            bool isOnTopEdge = roomId.y == 0.0;
+            bool isOnBottomEdge = roomId.y == roomsY - 1.0;
+            
+            // 计算在整个UV空间中，当前房间的左右上下边界
+            float leftBound = -1.0 + roomId.x * roomWidth;
+            float rightBound = -1.0 + (roomId.x + 1.0) * roomWidth;
+            float topBound = -1.0 + roomId.y * roomHeight;
+            float bottomBound = -1.0 + (roomId.y + 1.0) * roomHeight;
+            
+            // 计算每个房间的间隔区域宽度
+            float gapWidthHalf = roomWidth * gapSize * 0.5;
+            float gapHeightHalf = roomHeight * gapSize * 0.5;
+            
+            // 只有不在边缘的右侧和下侧才需要添加间隔
+            bool inRightGap = !isOnRightEdge && u > (rightBound - gapWidthHalf);
+            bool inLeftGap = !isOnLeftEdge && u < (leftBound + gapWidthHalf);
+            bool inTopGap = !isOnTopEdge && v < (topBound + gapHeightHalf);
+            bool inBottomGap = !isOnBottomEdge && v > (bottomBound - gapHeightHalf);
+            
+            // 判断是否在间隔区域
+            isInGap = inRightGap || inLeftGap || inTopGap || inBottomGap;
+            
+            // 计算房间中心点
+            vec2 roomCenter = vec2(
+                leftBound + roomWidth * 0.5,
+                topBound + roomHeight * 0.5
+            );
+            
+            // 计算房间内的局部坐标 (不考虑间隔)
+            u = (u - roomCenter.x) / (roomWidth * 0.5 - gapWidthHalf) * roomWidth * 0.5;
+            v = (v - roomCenter.y) / (roomHeight * 0.5 - gapHeightHalf) * roomHeight * 0.5;
+            
+            // 限制局部坐标范围
+            u = clamp(u, -1.0, 1.0);
+            v = clamp(v, -1.0, 1.0);
+        } else if (roomsX > 1.0 || roomsY > 1.0) {
+            // 没有间隔但有多个房间的情况
+            float roomWidth = 2.0 / roomsX;
+            float roomHeight = 2.0 / roomsY;
+            
+            // 计算当前所在的房间索引 (0-based)
+            roomId = floor((vec2(u, v) + 1.0) / vec2(roomWidth, roomHeight));
+            
+            // 计算房间中心点
+            vec2 roomCenter = vec2(
+                -1.0 + (roomId.x + 0.5) * roomWidth,
+                -1.0 + (roomId.y + 0.5) * roomHeight
+            );
+            
+            // 计算房间内的局部坐标
+            u = (u - roomCenter.x) / (roomWidth * 0.5) * 1.0;
+            v = (v - roomCenter.y) / (roomHeight * 0.5) * 1.0;
+            
+            // 限制局部坐标范围
+            u = clamp(u, -1.0, 1.0);
+            v = clamp(v, -1.0, 1.0);
+        }
+        
+        // 如果在间隔内，直接返回间隔颜色
+        if (isInGap) {
+            gl_FragColor = vec4(gapColor, 1.0);
+            return;
+        }
+        
+        // 应用房间纵横比
         u *= roomAspect;
         
-        // 计算立方体表面上的点，这个点是沿着法线的
-        // 我们首先创建一个在法线平面上的点
+        // 计算立方体表面上的点
         vec3 planePos = rightVector * u + upVectorOrtho * v;
         
-        // 然后沿着法线方向突出到立方体表面
-        // 这里我们选取一个标准深度来创建初始立方体表面
+        // 沿着法线方向突出到立方体表面
         float cubeSurfaceOffset = 1.0;
         cubePos = normal * cubeSurfaceOffset + planePos;
         
         // 标准化到单位立方体大小
         cubePos = normalize(cubePos);
         
-        // 计算光线方向 - 从相机到表面点的方向
+        // 计算光线方向和相交
         vec3 rayDir = normalize(viewDir);
-        
-        // 使用改进的光线和立方体相交算法
-        // 计算从立方体表面到内部的光线相交
         vec3 invRayDir = 1.0 / rayDir;  
-        
-        // 计算与房间对面墙的相交
-        // 我们首先计算光线与各个轴对齐的平面的相交
         vec3 tMax = (sign(rayDir) - cubePos) * invRayDir;
-        
-        // 找到最近的相交点
         float t = min(min(tMax.x, tMax.y), tMax.z);
         
-        // 保持较小的roomDepth值以避免异常球形，但使用visualDepth来影响视觉效果
-        // 首先限制深度值，避免从极端角度观察时穿透过深
+        // 保持较小的roomDepth值以避免异常球形
         t = min(t, roomDepth);
         
         // 使用视觉深度参数来创建深度感
         float visualScale = visualDepth / max(roomDepth, 0.001);
         
-        // 计算最终的采样位置 - 在保持低roomDepth的同时增强深度效果
+        // 计算最终的采样位置
         pos = cubePos + rayDir * t;
         
         // 应用视觉深度缩放，但只缩放与表面法线垂直的分量
-        // 这样可以保持低roomDepth的数学正确性，同时视觉上有深度感
         vec3 normalComponent = normal * dot(pos - cubePos, normal);
         vec3 tangentComponent = (pos - cubePos) - normalComponent;
         pos = cubePos + normalComponent + tangentComponent * visualScale;
+        
+        // 为每个房间应用随机朝向（仅在需要变化时）
+        if (roomVariety > 0.0 && (roomsX > 1.0 || roomsY > 1.0)) {
+            // 使用房间ID为种子生成随机值
+            vec3 r = rand3(roomId);
+            
+            // 基于roomVariety参数控制随机程度
+            float variety = clamp(roomVariety, 0.0, 1.0);
+            
+            // 随机选择四个侧面之一作为房间正面（-X, +Z, +X, -Z）
+            // 我们将随机值映射到0-3之间，对应四个侧面
+            float faceChoice = floor(r.x * 4.0);
+            
+            // 只有当随机值小于variety时才应用随机朝向，以便可以控制随机程度
+            if (r.y < variety) {
+                // 创建一个临时变量存储原始pos
+                vec3 origPos = pos;
+                
+                if (faceChoice < 0.5) {
+                    // -X 面（左侧）作为正面
+                    // x=-z, y=y, z=x
+                    pos = vec3(-origPos.z, origPos.y, origPos.x);
+                } else if (faceChoice < 1.5) {
+                    // +Z 面（前面）作为正面
+                    // 保持不变
+                    // pos = origPos;
+                } else if (faceChoice < 2.5) {
+                    // +X 面（右侧）作为正面
+                    // x=z, y=y, z=-x
+                    pos = vec3(origPos.z, origPos.y, -origPos.x);
+                } else {
+                    // -Z 面（后面）作为正面
+                    // x=-x, y=y, z=-z
+                    pos = vec3(-origPos.x, origPos.y, -origPos.z);
+                }
+            }
+        }
     #else
         // ===== 标准模式：多个房间 =====
         vec3 roomUV;
@@ -234,13 +498,32 @@ void main() {
             // 基于roomVariety参数控制随机程度
             float variety = clamp(roomVariety, 0.0, 1.0);
             
-            // 随机翻转和旋转
-            vec2 flip = floor(r.xy * 2.0) * 2.0 - 1.0;
-            pos.xz *= mix(vec2(1.0), flip, variety);
+            // 随机选择四个侧面之一作为房间正面（-X, +Z, +X, -Z）
+            // 我们将随机值映射到0-3之间，对应四个侧面
+            float faceChoice = floor(r.x * 4.0);
             
-            // 随机交换轴
-            if(r.z > 0.5 && variety > 0.5) {
-                pos.xz = pos.zx;
+            // 只有当随机值小于variety时才应用随机朝向，以便可以控制随机程度
+            if (r.y < variety) {
+                // 创建一个临时变量存储原始pos
+                vec3 origPos = pos;
+                
+                if (faceChoice < 0.5) {
+                    // -X 面（左侧）作为正面
+                    // x=-z, y=y, z=x
+                    pos = vec3(-origPos.z, origPos.y, origPos.x);
+                } else if (faceChoice < 1.5) {
+                    // +Z 面（前面）作为正面
+                    // 保持不变
+                    // pos = origPos;
+                } else if (faceChoice < 2.5) {
+                    // +X 面（右侧）作为正面
+                    // x=z, y=y, z=-x
+                    pos = vec3(origPos.z, origPos.y, -origPos.x);
+                } else {
+                    // -Z 面（后面）作为正面
+                    // x=-x, y=y, z=-z
+                    pos = vec3(-origPos.x, origPos.y, -origPos.z);
+                }
             }
         }
     #endif
@@ -249,12 +532,27 @@ void main() {
     vec4 roomColor;
     
     if (useSingleTexture) {
-        // 使用单张图片立方体贴图
-        roomColor = sampleSingleTextureCube(roomMap, pos);
+        // 使用单张图片立方体贴图，应用模糊效果
+        roomColor = sampleSingleTextureWithBlur(roomMap, pos, glassBlurStrength);
     } else {
-        // 使用立方体贴图
-        roomColor = textureCube(roomCube, pos);
+        // 使用立方体贴图，应用模糊效果
+        roomColor = sampleCubeWithBlur(roomCube, pos, glassBlurStrength);
     }
     
-    gl_FragColor = vec4(roomColor.rgb, 1.0);
+    // 应用玻璃效果
+    vec3 finalColor = roomColor.rgb;
+    if (glassStrength > 0.0) {
+        vec3 normal = normalize(vNormal);
+        finalColor = calculateGlassEffect(finalColor, normal, viewDir);
+        
+        // 确保颜色亮度不会大幅度降低
+        float originalLuminance = dot(roomColor.rgb, vec3(0.299, 0.587, 0.114));
+        float newLuminance = dot(finalColor, vec3(0.299, 0.587, 0.114));
+        if (newLuminance < originalLuminance * 0.7) {
+            // 如果亮度降低太多，进行补偿
+            finalColor = finalColor * (originalLuminance * 0.7 / max(newLuminance, 0.001));
+        }
+    }
+    
+    gl_FragColor = vec4(finalColor, 1.0);
 } 
