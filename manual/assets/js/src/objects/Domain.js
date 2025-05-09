@@ -97,7 +97,7 @@ export function createEnvironment(envMap) {
 		}
 
 	}
-	environment.scale.set(0.1)
+	// environment.scale.set(0.1, 0.1, 0.1);
 
 	return environment;
 

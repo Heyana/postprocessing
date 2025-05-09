@@ -22,7 +22,9 @@ export * from "./SMAAWeightsMaterial.js";
 export * from "./SSAOMaterial.js";
 export * from "./TiltShiftBlurMaterial.js";
 export * from "./UpsamplingMaterial.js";
-
+export * from "./RiverMaterial.js";
+export * from "./OceanMaterial.js";
+export * from "./InteriorMappingMaterial.js";
 /** @deprecated Renamed to KawaseBlurMaterial. */
 export { KawaseBlurMaterial as ConvolutionMaterial } from "./KawaseBlurMaterial.js";
 /** @deprecated Renamed to EdgeDetectionMaterial. */

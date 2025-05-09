@@ -10,6 +10,7 @@ import {
 	Vector3,
 	WebGLRenderTarget
 } from "three";
+import * as THREE from "three";
 
 import { Resolution } from "../core/Resolution.js";
 import { BlendFunction } from "../enums/BlendFunction.js";
@@ -246,7 +247,7 @@ export class GodRaysEffect extends Effect {
 
 		this._lightSource = value;
 
-		if(value !== null) {
+		if (value !== null) {
 
 			value.material.depthWrite = false;
 			value.material.transparent = true;
@@ -531,9 +532,9 @@ export class GodRaysEffect extends Effect {
 		lightSource.matrixAutoUpdate = false;
 		lightSource.updateWorldMatrix(true, false);
 
-		if(parent !== null) {
+		if (parent !== null) {
 
-			if(!matrixAutoUpdate) {
+			if (!matrixAutoUpdate) {
 
 				// Remember the local transformation to restore it later.
 				m.copy(lightSource.matrix);
@@ -555,9 +556,9 @@ export class GodRaysEffect extends Effect {
 		lightSource.material.depthWrite = false;
 		lightSource.matrixAutoUpdate = matrixAutoUpdate;
 
-		if(parent !== null) {
+		if (parent !== null) {
 
-			if(!matrixAutoUpdate) {
+			if (!matrixAutoUpdate) {
 
 				lightSource.matrix.copy(m);
 
@@ -576,7 +577,7 @@ export class GodRaysEffect extends Effect {
 			Math.min(Math.max((v.y + 1.0) * 0.5, -1.0), 2.0)
 		);
 
-		if(this.blurPass.enabled) {
+		if (this.blurPass.enabled) {
 
 			// Blur the masked scene to reduce artifacts.
 			this.blurPass.render(renderer, renderTargetA, renderTargetA);
@@ -623,13 +624,13 @@ export class GodRaysEffect extends Effect {
 		this.depthMaskPass.initialize(renderer, alpha, frameBufferType);
 		this.godRaysPass.initialize(renderer, alpha, frameBufferType);
 
-		if(frameBufferType !== undefined) {
+		if (frameBufferType !== undefined) {
 
 			this.renderTargetA.texture.type = frameBufferType;
 			this.renderTargetB.texture.type = frameBufferType;
 			this.renderTargetLight.texture.type = frameBufferType;
 
-			if(renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
+			if (renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
 
 				this.renderTargetA.texture.colorSpace = SRGBColorSpace;
 				this.renderTargetB.texture.colorSpace = SRGBColorSpace;

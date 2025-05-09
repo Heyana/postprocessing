@@ -1,6 +1,6 @@
-// 沙尘暴宇宙飞船效果
-// 基于Shadertoy效果: https://www.shadertoy.com/view/XXXXX (替换为实际ID)
-// 适配为postprocessing库可用的格式
+// 沙尘暴效果（修改版）
+// 基于Shadertoy效果移植，提供体积雾、光线散射效果
+// 暂时隐藏飞船模型，仅保留沙尘暴部分
 
 // 统一变量声明 - 不需要重复定义已经由库提供的变量
 // uniform sampler2D inputBuffer;
@@ -27,7 +27,12 @@ uniform float shadowQuality;       // 阴影质量
 uniform float numSteps;            // 采样步数
 uniform float enableDithering;     // 是否启用抖动
 uniform float enableVolumetricLighting; // 是否启用体积光照
+uniform float fogDensity;          // 雾气浓度
+uniform float fogDecay;            // 雾气衰减速度
+uniform float fogMinDist;          // 最小雾气距离
 
+// 常量定义 PI无需反复定义
+//#define PI 3.141592
 
 // ACES 色调映射
 vec3 ACES(vec3 x) { 
@@ -152,11 +157,8 @@ vec4 getLight(vec3 ce, vec3 p) {
     return vec4(lig, l);
 }
 
-// 体积渲染
-// depth是深度缓冲（到分形的距离）
-vec4 renderVolume(vec3 ro, vec3 rd, float depth) {
-    float tmax = min(8.0, depth); // 最大距离
-    
+// 体积渲染 - 仅渲染沙尘暴
+vec4 renderVolume(vec3 ro, vec3 rd, float tmax) {
     vec4 sum = vec4(0.0, 0.0, 0.0, 0.0); // 颜色和不透明度
     
     float s = tmax / float(int(numSteps)); // 步进大小
@@ -166,28 +168,42 @@ vec4 renderVolume(vec3 ro, vec3 rd, float depth) {
         t += s*hash(gl_FragCoord.x*8315.9213/resolution.x+gl_FragCoord.y*2942.5192/resolution.y);
     }
     
+    // 计算光源位置 - 随时间变化
+    vec3 lightPos = vec3(1.5)*rot(vec3(0.5*time));
+    
     for (int i=0; i<128; i++) { // 光线步进循环
         if (i >= int(numSteps)) break; // 限制步进次数
         
         vec3 p = ro + rd*t; // 当前点
-        float h = volumeDensity*fbm(4.0*p); // 雾的密度
         
-        // 光照
-        vec3 lightPos = vec3(1.5)*rot(vec3(0.5*time)); // 光源位置
-        vec4 lig = getLight(lightPos, p); // 光线方向 + 光线向量的长度
+        // 应用最小雾气距离 - 在cameraNear和fogMinDist之间的区域不会有雾气
+        float distFromCamera = distance(p, ro);
         
-        float sha = 1.0; // 无阴影
-        if (enableVolumetricLighting > 0.5) {
-            sha = shadow(p, lig.xyz, lig.w); // 分形的阴影（光束）
-        }
-                  
-        // 着色
-        vec3 col = lightColor*sha / (lig.w*lig.w); // 光照衰减平方反比
+        if (distFromCamera > fogMinDist) {
+            // 应用衰减速度 - 使雾气随距离增加而变浓
+            // 使用更加平滑的过渡函数
+            float distFactor = 1.0 - exp(-0.1 * (1.0 - fogDecay) * (distFromCamera - fogMinDist));
             
-        sum.rgb += h*s*exp(sum.a)*col; // 将颜色添加到最终结果
-        sum.a += -h*s*volumeAbsorbtion; // 比尔定律
+            // 计算雾的密度，考虑距离因素和雾气浓度设置
+            float h = volumeDensity * fbm(4.0*p) * distFactor * fogDensity;
+            
+            // 计算光照
+            vec4 lig = getLight(lightPos, p); // 光线方向 + 光线向量的长度
+            
+            // 简化的阴影计算
+            float sha = 1.0;
+            if (enableVolumetricLighting > 0.5) {
+                // 使用简化的阴影计算，根据距离衰减
+                sha = clamp(1.0 - 0.2 * lig.w * shadowQuality, 0.0, 1.0);
+            }
+                      
+            // 着色
+            vec3 col = lightColor * sha / (lig.w * lig.w); // 光照衰减平方反比
+                
+            sum.rgb += h * s * exp(sum.a) * col; // 将颜色添加到最终结果
+            sum.a += -h * s * volumeAbsorbtion; // 比尔定律
+        }
         
-        //if (sum.a<0.01) break; // 优化
         t += s; // 前进
     }
     
@@ -260,7 +276,7 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
     // 获取深度值
     float depth = texture2D(depthBuffer, uv).r;
     
-    // 将深度转换为线性深度
+    // 将深度转换为线性深度 (0-1)
     float linearDepth = linearizeDepth(depth) / cameraFar;
     
     // 计算相机方向
@@ -271,27 +287,40 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
     vec3 rayDir = normalize(vec3(p, -1.0));
     vec3 rd = normalize((inverse(viewMatrix) * vec4(rayDir, 0.0)).xyz);
     
-    // 渲染效果
-    vec3 col = render(cameraPosition, rd);
+    // 最大渲染距离
+    float maxDist = 30.0;
+    
+    // 渲染沙尘暴效果
+    vec4 volumeResult = renderVolume(cameraPosition, rd, maxDist);
+    vec3 sandStormColor = volumeResult.rgb;
     
     // 后处理
-    col = ACES(col); // 色调映射
-    col = pow(col, vec3(0.4545)); // 伽马校正
-    col = col*0.2+0.8*col*col*(3.0-2.0*col); // 对比度
+    sandStormColor = ACES(sandStormColor); // 色调映射
+    sandStormColor = pow(sandStormColor, vec3(0.4545)); // 伽马校正
+    sandStormColor = sandStormColor*0.2+0.8*sandStormColor*sandStormColor*(3.0-2.0*sandStormColor); // 对比度
     
     // 边缘暗角
     vec2 q = fragCoord/resolution.xy;
-    col *= 0.5+0.5*pow(16.0 * q.x*q.y*(1.0-q.x)*(1.0-q.y), 0.1);
+    sandStormColor *= 0.5+0.5*pow(16.0 * q.x*q.y*(1.0-q.x)*(1.0-q.y), 0.1);
     
-    // 根据深度混合 - 仅在远处应用完整效果
-    float effectStrength = clamp(linearDepth * 8.0, 0.0, 1.0);
+    // --------- 参考foggy-mountains.frag的混合逻辑 ---------
     
-    // 天空完全替换
+    // 天空掩码 - 标识最远处的天空部分
     float skyMask = step(0.9999, depth);
     
-    // 最终输出
-    vec3 finalColor = mix(inputColor.rgb, col, effectStrength);
-    finalColor = mix(finalColor, col, skyMask);
+    // 基于线性深度的混合因子 - 控制沙尘暴效果的强度
+    // 使用fogDensity、fogDecay和fogMinDist来修改混合计算
+    float distFactor = max(0.0, linearDepth - fogMinDist/cameraFar);
+    // 使用更加平滑的过渡函数
+    float blendFactor = clamp(distFactor * fogDensity * 2.0 * (1.0 - exp(-0.5 * (1.0 - fogDecay) * distFactor * cameraFar)), 0.0, 1.0);
     
+    // 两步混合:
+    // 1. 先将输入颜色与沙尘暴颜色基于深度混合，得到带沙尘的前景
+    vec3 blendedColor = mix(inputColor.rgb, sandStormColor, blendFactor);
+    
+    // 2. 在天空区域（最远处）使用完整的沙尘暴效果
+    vec3 finalColor = mix(blendedColor, sandStormColor, skyMask);
+    
+    // 最终输出
     outputColor = vec4(finalColor, inputColor.a);
 } 

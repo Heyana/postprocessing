@@ -21,6 +21,9 @@ export class SandStormEffect extends Effect {
      * @param {Number} [options.numSteps=32] - 光线行进采样步数
      * @param {Boolean} [options.enableDithering=true] - 是否启用抖动
      * @param {Boolean} [options.enableVolumetricLighting=true] - 是否启用体积光照
+     * @param {Number} [options.fogDensity=1.0] - 雾气浓度
+     * @param {Number} [options.fogDecay=0.9] - 雾气衰减速度
+     * @param {Number} [options.fogMinDist=0.0] - 雾气最小距离（小于此距离不会有雾气）
      * @param {Object} [options.camera] - 相机对象，用于获取视图矩阵和位置
      */
     constructor({
@@ -31,6 +34,9 @@ export class SandStormEffect extends Effect {
         numSteps = 32,
         enableDithering = true,
         enableVolumetricLighting = true,
+        fogDensity = 1.0,
+        fogDecay = 0.9,
+        fogMinDist = 0.0,
         camera = null
     } = {}) {
 
@@ -53,6 +59,9 @@ export class SandStormEffect extends Effect {
                 ["numSteps", new Uniform(numSteps)],
                 ["enableDithering", new Uniform(enableDithering ? 1.0 : 0.0)],
                 ["enableVolumetricLighting", new Uniform(enableVolumetricLighting ? 1.0 : 0.0)],
+                ["fogDensity", new Uniform(fogDensity)],
+                ["fogDecay", new Uniform(fogDecay)],
+                ["fogMinDist", new Uniform(fogMinDist)],
                 ["cameraPosition", new Uniform(new Vector3())],
                 ["viewMatrix", new Uniform(new Matrix4())],
                 ["cameraFov", new Uniform(45.0)],
@@ -183,5 +192,38 @@ export class SandStormEffect extends Effect {
 
     set enableVolumetricLighting(value) {
         this.uniforms.get("enableVolumetricLighting").value = value ? 1.0 : 0.0;
+    }
+
+    /**
+     * 雾气浓度
+     */
+    get fogDensity() {
+        return this.uniforms.get("fogDensity").value;
+    }
+
+    set fogDensity(value) {
+        this.uniforms.get("fogDensity").value = value;
+    }
+
+    /**
+     * 雾气衰减速度
+     */
+    get fogDecay() {
+        return this.uniforms.get("fogDecay").value;
+    }
+
+    set fogDecay(value) {
+        this.uniforms.get("fogDecay").value = value;
+    }
+
+    /**
+     * 雾气最小距离
+     */
+    get fogMinDist() {
+        return this.uniforms.get("fogMinDist").value;
+    }
+
+    set fogMinDist(value) {
+        this.uniforms.get("fogMinDist").value = value;
     }
 } 

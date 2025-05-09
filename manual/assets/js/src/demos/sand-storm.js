@@ -6,7 +6,16 @@ import {
     Scene,
     SRGBColorSpace,
     WebGLRenderer,
-    Color
+    Color,
+    DirectionalLight,
+    AmbientLight,
+    MeshStandardMaterial,
+    SphereGeometry,
+    BoxGeometry,
+    Mesh,
+    Vector3,
+    MathUtils,
+    Group
 } from "three";
 
 import {
@@ -46,36 +55,114 @@ function load() {
     });
 }
 
+// 创建简单的场景物体
+function createSceneObjects() {
+    const group = new Group();
+
+    // 创建地面
+    const ground = new Mesh(
+        new BoxGeometry(100, 1, 100),
+        new MeshStandardMaterial({
+            color: 0xaa8866,
+            roughness: 0.9,
+            metalness: 0.1
+        })
+    );
+    ground.position.y = -0.5;
+    group.add(ground);
+
+    // 创建一些随机柱子
+    const columnMaterial = new MeshStandardMaterial({
+        color: 0xbbaa99,
+        roughness: 0.7,
+        metalness: 0.2
+    });
+
+    for (let i = 0; i < 30; i++) {
+        const height = MathUtils.randFloat(1, 6);
+        const column = new Mesh(
+            new BoxGeometry(0.6, height, 0.6),
+            columnMaterial
+        );
+        column.position.set(
+            MathUtils.randFloatSpread(30),
+            height * 0.5 - 0.5,
+            MathUtils.randFloatSpread(30)
+        );
+        group.add(column);
+    }
+
+    // 创建一些球体
+    for (let i = 0; i < 20; i++) {
+        const radius = MathUtils.randFloat(0.3, 1.5);
+        const sphere = new Mesh(
+            new SphereGeometry(radius, 16, 16),
+            new MeshStandardMaterial({
+                color: new Color().setHSL(MathUtils.randFloat(0, 0.1), 0.5, 0.5),
+                roughness: MathUtils.randFloat(0.3, 0.8),
+                metalness: MathUtils.randFloat(0.1, 0.5)
+            })
+        );
+        sphere.position.set(
+            MathUtils.randFloatSpread(40),
+            radius + MathUtils.randFloat(0, 2),
+            MathUtils.randFloatSpread(40)
+        );
+        group.add(sphere);
+    }
+
+    return group;
+}
+
 window.addEventListener("load", () => load().then((assets) => {
     // 渲染器
     const renderer = new WebGLRenderer({
         powerPreference: "high-performance",
-        antialias: false,
+        antialias: true,
         stencil: false,
-        depth: false
+        depth: true // 启用深度测试
     });
 
     renderer.debug.checkShaderErrors = (window.location.hostname === "localhost");
+    renderer.shadowMap.enabled = true;
     const container = document.querySelector(".viewport");
     container.prepend(renderer.domElement);
 
     // 相机和控制
-    const camera = new PerspectiveCamera();
+    const camera = new PerspectiveCamera(60, 1, 0.1, 100);
     const controls = new SpatialControls(camera.position, camera.quaternion, renderer.domElement);
     const settings = controls.settings;
-    settings.general.mode = ControlMode.THIRD_PERSON;
     settings.rotation.sensitivity = 2.2;
     settings.rotation.damping = 0.05;
-    settings.zoom.damping = 2;
+    settings.translation.damping = 0.1;
     settings.translation.enabled = true;
+    controls.position.set(0, 3, 15);
+    controls.lookAt(0, 1, 0);
+    settings.general.mode = ControlMode.THIRD_PERSON;
 
     // 场景、光照、物体
     const scene = new Scene();
-    scene.fog = new FogExp2(0x373134, 0.06);
     scene.background = assets.get("sky");
-    scene.add(Domain.createLights());
-    // scene.add(Domain.createEnvironment(scene.background));
-    // scene.add(Domain.createActors(scene.background));
+
+    // 添加光源
+    const mainLight = new DirectionalLight(0xffffbb, 1.5);
+    mainLight.position.set(5, 10, 7);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.width = 1024;
+    mainLight.shadow.mapSize.height = 1024;
+    mainLight.shadow.camera.near = 1;
+    mainLight.shadow.camera.far = 30;
+    mainLight.shadow.camera.left = -15;
+    mainLight.shadow.camera.right = 15;
+    mainLight.shadow.camera.top = 15;
+    mainLight.shadow.camera.bottom = -15;
+    scene.add(mainLight);
+
+    const ambientLight = new AmbientLight(0x887766, 0.5);
+    scene.add(ambientLight);
+
+    // 添加场景物体
+    scene.add(createSceneObjects());
 
     // 后处理
     const composer = new EffectComposer(renderer, {
@@ -84,13 +171,16 @@ window.addEventListener("load", () => load().then((assets) => {
 
     // 创建沙尘暴效果
     const effect = new SandStormEffect({
-        volumeDensity: 0.6,
-        volumeAbsorbtion: 1.0,
-        lightColor: 0xffba59, // 暖黄色光源
+        volumeDensity: 0.4,
+        volumeAbsorbtion: 0.8,
+        lightColor: 0xffcc88, // 暖黄色光源
         shadowQuality: 1.5,
-        numSteps: 32,
+        numSteps: 24,
         enableDithering: true,
         enableVolumetricLighting: true,
+        fogDensity: 1.0,      // 雾气浓度
+        fogDecay: 0.75,       // 雾气衰减速度 (降低值使衰减更快)
+        fogMinDist: 1.0,      // 最小雾气距离
         camera: camera // 传入相机，用于视角变换
     });
 
@@ -104,39 +194,45 @@ window.addEventListener("load", () => load().then((assets) => {
     const pane = new Pane({ container: container.querySelector(".tp") });
     pane.addBinding(fpsMeter, "fps", { readonly: true, label: "FPS" });
 
-    const folder = pane.addFolder({ title: "沙尘暴设置" });
+    // 体积参数文件夹
+    const volumeFolder = pane.addFolder({ title: "体积参数" });
+    volumeFolder.addBinding(effect, "volumeDensity", { min: 0, max: 2, step: 0.01, label: "体积密度" });
+    volumeFolder.addBinding(effect, "volumeAbsorbtion", { min: 0, max: 2, step: 0.01, label: "体积吸收" });
 
-    // 添加体积相关控制
-    folder.addBinding(effect, "volumeDensity", { min: 0, max: 2, step: 0.01, label: "体积密度" });
-    folder.addBinding(effect, "volumeAbsorbtion", { min: 0, max: 2, step: 0.01, label: "体积吸收" });
+    // 雾气参数文件夹
+    const fogFolder = pane.addFolder({ title: "雾气参数" });
+    fogFolder.addBinding(effect, "fogDensity", { min: 0, max: 3, step: 0.01, label: "雾气浓度" });
+    fogFolder.addBinding(effect, "fogDecay", { min: 0.5, max: 0.99, step: 0.01, label: "衰减速度" });
+    fogFolder.addBinding(effect, "fogMinDist", { min: 0, max: 10, step: 0.1, label: "最小距离" });
 
-    // 添加光照相关控制
+    // 光照参数文件夹
+    const lightFolder = pane.addFolder({ title: "光照参数" });
     const lightColorParams = { color: effect.lightColor };
-    folder.addBinding(lightColorParams, "color", {
+    lightFolder.addBinding(lightColorParams, "color", {
         color: { type: "float" },
         label: "光源颜色"
     }).on("change", (e) => {
         effect.lightColor = e.value;
     });
+    lightFolder.addBinding(effect, "shadowQuality", { min: 0.5, max: 5, step: 0.1, label: "阴影质量" });
+    lightFolder.addBinding(effect, "enableVolumetricLighting", { label: "启用体积光" });
 
-    // 添加质量相关控制
-    folder.addBinding(effect, "shadowQuality", { min: 0.5, max: 5, step: 0.1, label: "阴影质量" });
-    folder.addBinding(effect, "numSteps", { min: 8, max: 64, step: 1, label: "采样步数" });
+    // 质量参数文件夹
+    const qualityFolder = pane.addFolder({ title: "质量参数" });
+    qualityFolder.addBinding(effect, "numSteps", { min: 8, max: 64, step: 1, label: "采样步数" });
+    qualityFolder.addBinding(effect, "enableDithering", { label: "启用抖动" });
+    qualityFolder.addBinding(effectPass.fullscreenMaterial, "dithering", { label: "后期抖动" });
 
-    // 添加功能开关
-    folder.addBinding(effect, "enableDithering", { label: "启用抖动" });
-    folder.addBinding(effect, "enableVolumetricLighting", { label: "启用体积光" });
-
-    // 添加混合模式控制
-    folder.addBinding(effectPass.fullscreenMaterial, "dithering", { label: "后期抖动" });
-    folder.addBinding(effect.blendMode.opacity, "value", { label: "不透明度", min: 0, max: 1, step: 0.01 });
-    folder.addBinding(effect.blendMode, "blendFunction", { options: BlendFunction, label: "混合模式" });
+    // 混合设置文件夹
+    const blendFolder = pane.addFolder({ title: "混合设置" });
+    blendFolder.addBinding(effect.blendMode.opacity, "value", { label: "不透明度", min: 0, max: 1, step: 0.01 });
+    blendFolder.addBinding(effect.blendMode, "blendFunction", { options: BlendFunction, label: "混合模式" });
 
     // 窗口大小变化处理
     function onResize() {
         const width = container.clientWidth, height = container.clientHeight;
         camera.aspect = width / height;
-        camera.fov = calculateVerticalFoV(90, Math.max(camera.aspect, 16 / 9));
+        camera.fov = calculateVerticalFoV(60, Math.max(camera.aspect, 16 / 9));
         camera.updateProjectionMatrix();
         composer.setSize(width, height);
     }

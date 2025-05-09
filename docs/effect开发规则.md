@@ -12,7 +12,10 @@
 
 2. effect的使用方法为 在src\effects\index.js 中导出 在demo中 直接从posetprocessing中导入即可
 
-3. 如想使用深度贴图
+3. EffectAttribute 直接从postprocessing上引入
+   import { EffectAttribute } from 'postprocessing'
+
+4. 如想使用深度贴图
 
    1. 在effect中配置 然后在shader中无需定义 直接使用depthBuffer
 
@@ -35,13 +38,13 @@
               });
       ```
 
-4. 内容参考
+5. 内容参考
 
    ```
    import { FloatType, HalfFloatType, Uniform } from "three";
    import { BlendFunction } from "../enums/BlendFunction.js";
    import { Effect } from "./Effect.js";
-   
+   import { EffectAttribute } from 'postprocessing'
    import fragmentShader from "./shader/lut-1d.frag";
    
    /**
@@ -288,6 +291,8 @@
 
    1. inputBuffer、depthBuffer、vUv、PI、USE_DEPTH不用在定义直接使用不然会报错
 
+   2. PI不需要定义 已经内置了
+
       ```
       ERROR: 0:330: 'inputBuffer' : redefinition
       ERROR: 0:331: 'depthBuffer' : redefinition
@@ -300,7 +305,9 @@
 
 1. 创建新的js文件 文件位于 manual\assets\js\src\demos\当前.js
 
-2. 内容结构参考 可以服用某些场景的创建函数 位于manual\assets\js\src\utils\SceneUtils.js
+2. 创建控制器 需要支持滚动缩放
+
+3. 内容结构参考 可以服用某些场景的创建函数 位于manual\assets\js\src\utils\SceneUtils.js
 
    ```
    import {

@@ -3,15 +3,14 @@ import { Color, Matrix4, Uniform, Vector2, Vector3 } from "three";
 import fragmentShader from "./shaders/LakesMountainsEffect.glsl";
 
 /**
- * 天空和雾气效果
+ * 雾气效果
  * 
- * 修改自湖泊与山脉效果，移除了山脉和湖泊部分，仅保留天空和雾气。
- * 支持相机旋转，天空会跟随相机视角变化。
+ * 仅保留雾气效果部分
  */
 export class LakesMountainsEffect extends Effect {
 
     /**
-     * 构建一个新的天空和雾气效果
+     * 构建一个新的雾气效果
      * 
      * @param {Object} [options] - 效果选项
      * @param {Number} [options.fogDensity=1.0] - 雾气密度
@@ -19,12 +18,19 @@ export class LakesMountainsEffect extends Effect {
      * @param {Number} [options.fogDecay=1.0] - 雾气衰减速度
      * @param {Number} [options.fogMinDist=0.0] - 雾气最小距离
      * @param {Number} [options.quality=0.5] - 质量设置 (0-1)
-     * @param {Boolean} [options.enableClouds=true] - 是否启用云效果
-     * @param {Boolean} [options.enableVolumeFog=false] - 是否启用体积雾
-     * @param {Number} [options.volumeDetail=0.6] - 体积雾细节程度 (0-1)
-     * @param {Number} [options.volumeSteps=0.5] - 体积雾采样步数 (0-1)
+     * @param {Number} [options.occludeSky=0.0] - 雾气遮挡天空的程度 (0-1)
+     * @param {Boolean} [options.useHeightFog=false] - 是否使用高度雾，根据高度和噪声生成雾效果
+     * @param {Boolean} [options.combineFog=false] - 是否同时启用普通雾和高度雾（叠加显示）
+     * @param {Number} [options.fogMaxHeight=50.0] - 雾气最大高度，超过此高度不会有雾
+     * @param {Number} [options.fogMinHeight=-10.0] - 雾气最小高度，低于此高度不会有雾
+     * @param {Number} [options.fogNoiseScale=0.01] - 雾气噪声缩放，影响噪声的密度
+     * @param {Number} [options.fogNoiseStrength=15.0] - 雾气噪声强度，影响噪声对高度的扰动量
+     * @param {Number} [options.heightFogStrength=2.5] - 高度雾强度，独立控制高度雾的强度
+     * @param {Number} [options.heightFogDecay=0.5] - 高度雾衰减速度，独立控制高度雾的衰减
+     * @param {Number} [options.heightFogMinDist=0.0] - 高度雾的最小距离，独立于标准雾的最小距离
+     * @param {Number} [options.heightFogMaxDist=4000.0] - 高度雾的最大距离，超过此距离不会显示高度雾
+     * @param {Number} [options.heightFogTransition=5.0] - 高度雾的过渡距离，控制上下边缘的平滑过渡
      * @param {Object} [options.camera] - 相机对象，用于获取视图矩阵和位置
-     * @param {Texture} [options.noiseTexture] - 噪声纹理
      */
     constructor({
         fogDensity = 1.0,
@@ -32,10 +38,18 @@ export class LakesMountainsEffect extends Effect {
         fogDecay = 1.0,
         fogMinDist = 0.0,
         quality = 0.5,
-        enableClouds = true,
-        enableVolumeFog = false,
-        volumeDetail = 0.6,
-        volumeSteps = 0.5,
+        occludeSky = 0.1,
+        useHeightFog = false,
+        combineFog = false,
+        fogMaxHeight = 50.0,
+        fogMinHeight = -10.0,
+        fogNoiseScale = 0.01,
+        fogNoiseStrength = 15.0,
+        heightFogStrength = 2.5,
+        heightFogDecay = 0.5,
+        heightFogMinDist = 0.0,
+        heightFogMaxDist = 4000.0,
+        heightFogTransition = 5.0,
         camera = null,
         noiseTexture
     } = {}) {
@@ -57,10 +71,18 @@ export class LakesMountainsEffect extends Effect {
                 ["fogDecay", new Uniform(fogDecay)],
                 ["fogMinDist", new Uniform(fogMinDist)],
                 ["quality", new Uniform(quality)],
-                ["enableClouds", new Uniform(enableClouds)],
-                ["enableVolumeFog", new Uniform(enableVolumeFog)],
-                ["volumeDetail", new Uniform(volumeDetail)],
-                ["volumeSteps", new Uniform(volumeSteps)],
+                ["occludeSky", new Uniform(occludeSky)],
+                ["useHeightFog", new Uniform(useHeightFog)],
+                ["combineFog", new Uniform(combineFog)],
+                ["fogMaxHeight", new Uniform(fogMaxHeight)],
+                ["fogMinHeight", new Uniform(fogMinHeight)],
+                ["fogNoiseScale", new Uniform(fogNoiseScale)],
+                ["fogNoiseStrength", new Uniform(fogNoiseStrength)],
+                ["heightFogStrength", new Uniform(heightFogStrength)],
+                ["heightFogDecay", new Uniform(heightFogDecay)],
+                ["heightFogMinDist", new Uniform(heightFogMinDist)],
+                ["heightFogMaxDist", new Uniform(heightFogMaxDist)],
+                ["heightFogTransition", new Uniform(heightFogTransition)],
                 ["cameraPosition", new Uniform(new Vector3())],
                 ["viewMatrix", new Uniform(new Matrix4())],
                 ["cameraFov", new Uniform(45.0)]
@@ -68,6 +90,17 @@ export class LakesMountainsEffect extends Effect {
         });
 
         this.camera = camera;
+        this.useHeightFog = useHeightFog;
+        this.combineFog = combineFog;
+        this.fogMaxHeight = fogMaxHeight;
+        this.fogMinHeight = fogMinHeight;
+        this.fogNoiseScale = fogNoiseScale;
+        this.fogNoiseStrength = fogNoiseStrength;
+        this.heightFogStrength = heightFogStrength;
+        this.heightFogDecay = heightFogDecay;
+        this.heightFogMinDist = heightFogMinDist;
+        this.heightFogMaxDist = heightFogMaxDist;
+        this.heightFogTransition = heightFogTransition;
     }
 
     /**
@@ -166,57 +199,134 @@ export class LakesMountainsEffect extends Effect {
     }
 
     /**
-     * 是否启用云
+     * 雾气遮挡天空的程度 (0-1)
      */
-    get enableClouds() {
-        return this.uniforms.get("enableClouds").value;
+    get occludeSky() {
+        return this.uniforms.get("occludeSky").value;
     }
 
-    set enableClouds(value) {
-        this.uniforms.get("enableClouds").value = value;
+    set occludeSky(value) {
+        this.uniforms.get("occludeSky").value = value;
     }
 
     /**
-     * 是否启用体积雾
+     * 是否使用高度雾
      */
-    get enableVolumeFog() {
-        return this.uniforms.get("enableVolumeFog").value;
+    get useHeightFog() {
+        return this.uniforms.get("useHeightFog").value;
     }
 
-    set enableVolumeFog(value) {
-        this.uniforms.get("enableVolumeFog").value = value;
+    set useHeightFog(value) {
+        this.uniforms.get("useHeightFog").value = value;
     }
 
     /**
-     * 体积雾细节程度
+     * 是否同时启用普通雾和高度雾（叠加显示）
      */
-    get volumeDetail() {
-        return this.uniforms.get("volumeDetail").value;
+    get combineFog() {
+        return this.uniforms.get("combineFog").value;
     }
 
-    set volumeDetail(value) {
-        this.uniforms.get("volumeDetail").value = value;
+    set combineFog(value) {
+        this.uniforms.get("combineFog").value = value;
     }
 
     /**
-     * 体积雾采样步数
+     * 雾气最大高度
      */
-    get volumeSteps() {
-        return this.uniforms.get("volumeSteps").value;
+    get fogMaxHeight() {
+        return this.uniforms.get("fogMaxHeight").value;
     }
 
-    set volumeSteps(value) {
-        this.uniforms.get("volumeSteps").value = value;
+    set fogMaxHeight(value) {
+        this.uniforms.get("fogMaxHeight").value = value;
     }
 
     /**
-     * 噪声纹理
+     * 雾气最小高度
      */
-    get noiseTexture() {
-        return this.uniforms.get("noiseTexture").value;
+    get fogMinHeight() {
+        return this.uniforms.get("fogMinHeight").value;
     }
 
-    set noiseTexture(value) {
-        this.uniforms.get("noiseTexture").value = value;
+    set fogMinHeight(value) {
+        this.uniforms.get("fogMinHeight").value = value;
+    }
+
+    /**
+     * 雾气噪声缩放
+     */
+    get fogNoiseScale() {
+        return this.uniforms.get("fogNoiseScale").value;
+    }
+
+    set fogNoiseScale(value) {
+        this.uniforms.get("fogNoiseScale").value = value;
+    }
+
+    /**
+     * 雾气噪声强度
+     */
+    get fogNoiseStrength() {
+        return this.uniforms.get("fogNoiseStrength").value;
+    }
+
+    set fogNoiseStrength(value) {
+        this.uniforms.get("fogNoiseStrength").value = value;
+    }
+
+    /**
+     * 高度雾强度
+     */
+    get heightFogStrength() {
+        return this.uniforms.get("heightFogStrength").value;
+    }
+
+    set heightFogStrength(value) {
+        this.uniforms.get("heightFogStrength").value = value;
+    }
+
+    /**
+     * 高度雾衰减速度
+     */
+    get heightFogDecay() {
+        return this.uniforms.get("heightFogDecay").value;
+    }
+
+    set heightFogDecay(value) {
+        this.uniforms.get("heightFogDecay").value = value;
+    }
+
+    /**
+     * 高度雾最小距离
+     */
+    get heightFogMinDist() {
+        return this.uniforms.get("heightFogMinDist").value;
+    }
+
+    set heightFogMinDist(value) {
+        this.uniforms.get("heightFogMinDist").value = value;
+    }
+
+    /**
+     * 高度雾最大距离
+     */
+    get heightFogMaxDist() {
+        return this.uniforms.get("heightFogMaxDist").value;
+    }
+
+    set heightFogMaxDist(value) {
+        this.uniforms.get("heightFogMaxDist").value = value;
+    }
+
+    /**
+     * 高度雾过渡距离
+     */
+    get heightFogTransition() {
+        return this.uniforms.get("heightFogTransition").value;
+    }
+
+    set heightFogTransition(value) {
+        this.uniforms.get("heightFogTransition").value = value;
     }
 } 

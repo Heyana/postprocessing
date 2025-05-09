@@ -1,5 +1,5 @@
 // Sky and Fog Effect (修改自 Lakes and Mountains Effect)
-// 基于Shadertoy效果，移除了山脉和湖泊部分，仅保留天空和雾气
+// 仅保留雾气效果部分
 
 uniform float time;           // 替代 iTime
 uniform vec2 resolution;      // 替代 iResolution
@@ -16,10 +16,20 @@ uniform vec3 fogColor;        // 雾气颜色
 uniform float fogDecay;       // 雾气衰减速度
 uniform float fogMinDist;     // 雾气最小距离
 uniform float quality;        // 质量设置 (0-低, 1-中, 2-高)
-uniform bool enableClouds;    // 是否启用云
-uniform bool enableVolumeFog; // 是否启用体积雾
-uniform float volumeDetail;   // 体积雾细节程度 
-uniform float volumeSteps;    // 体积雾步进次数
+uniform float occludeSky;     // 雾气遮挡天空的程度 (0-1)
+
+// 高度雾参数
+uniform bool useHeightFog;    // 是否使用高度雾
+uniform bool combineFog;      // 是否同时启用普通雾和高度雾（叠加显示）
+uniform float fogMaxHeight;   // 雾气最大高度
+uniform float fogMinHeight;   // 雾气最小高度，低于此高度不会有雾
+uniform float fogNoiseScale;  // 雾气噪声缩放
+uniform float fogNoiseStrength; // 雾气噪声强度
+uniform float heightFogStrength; // 高度雾强度
+uniform float heightFogDecay;   // 高度雾衰减速度
+uniform float heightFogMinDist; // 高度雾最小距离
+uniform float heightFogMaxDist; // 高度雾最大距离
+uniform float heightFogTransition; // 高度雾过渡距离，控制上下边缘的平滑过渡
 
 // 噪声函数
 float hash(float n) {
@@ -48,162 +58,29 @@ float noiseHigh(in vec3 x) {
     return res;
 }
 
-// 体积噪声函数 (使用纹理)
-float volumeNoise(in vec3 x) {
-    vec3 p = floor(x);
-    vec3 f = fract(x);
-    f = f*f*(3.0-2.0*f);
+// 重建世界坐标的函数 - 改进版本
+vec3 reconstructWorldPos(vec2 uv, float depth) {
+    // 计算NDC空间的坐标 (-1 到 1 的范围)
+    float z = depth * 2.0 - 1.0;
+    vec2 screenPos = uv * 2.0 - 1.0;
     
-    vec2 uv = (p.xy+vec2(37.0,17.0)*p.z) + f.xy;
-    vec2 rg = texture2D(noiseTexture, (uv+0.5)/256.0).yx;
-    return mix(rg.x, rg.y, f.z);
-}
-
-// FBM (分形布朗运动) - 从Foggy Terrain着色器移植
-mat3 m = mat3(0.00, 1.60, 1.20, 
-             -1.60, 0.72, -0.96, 
-             -1.20, -0.96, 2.28);
-             
-float fbm(vec3 p) {
-    float f = 0.5000 * volumeNoise(p); p = m * p * 0.72;
-    f += 0.2500 * volumeNoise(p); p = m * p * 0.73;
-    f += 0.1250 * volumeNoise(p); p = m * p * 0.74;
-    
-    if (volumeDetail > 0.5) {
-        f += 0.0625 * volumeNoise(p); p = m * p * 0.75;
-    }
-    
-    if (volumeDetail > 0.8) {
-        f += 0.03125 * volumeNoise(p);
-    }
-    
-    return f;
-}
-
-vec3 rotate(vec3 p, float theta) {
-    float c = cos(theta), s = sin(theta);
-    return vec3(p.x, p.y * c + p.z * s, p.z * c - p.y * s);
-}
-
-float clouds(vec2 p) {
-    float final = noise(p);
-    p *= 2.94; final += noise(p) * 0.4;
-    p *= 2.87; final += noise(p) * 0.2;
-    p *= 2.93; final += noise(p) * 0.1;
-    return final;
-}
-
-const vec3 lightDir = vec3(0.819232, 0.573462, 0.0);
-
-vec3 calculateSkyColor(vec3 rdir) {
-    vec3 col = mix(vec3(0.3, 0.5, 0.7), vec3(0.0, 0.05, 0.1), clamp(rdir.y*2.5, 0.0, 1.0));
-    col += pow(dot(lightDir, rdir) * 0.5 + 0.5, 2.0) * vec3(0.3, 0.2, 0.1);    
-    return col;
-}
-
-vec3 renderSkyAndFog(vec3 rpos, vec3 rdir) {
-    // 渲染天空基础颜色
-    vec3 skyColor = calculateSkyColor(rdir);
-    
-    // 如果启用云层效果，添加云
-    if (enableClouds) {
-        float cloudst = (rpos.y + 130.0) / rdir.y;
-        
-        if (cloudst > 0.0) {
-            float f = 1.0/exp(cloudst*0.0005);
-            
-            vec3 pos = rpos + rdir * cloudst;
-            float c = clouds(pos.xz*0.005);
-            float c2 = clouds((pos.xz+vec2(50.0, 0.0))*0.005);
-            float dir = max((c-c2)+0.5, 0.0);
-            
-            c = max(c - 0.5, 0.0) * 1.8;
-            c = c*c*(3.0-2.0*c);
-            vec3 cloudColor = mix(vec3(0.4, 0.5, 0.6), vec3(1.0, 0.9, 0.8), dir);
-            
-            // 应用云层
-            skyColor = mix(skyColor, cloudColor, clamp(f*c, 0.0, 1.0));
-        }
-    }
-    
-    return skyColor;
-}
-
-// 体积雾计算函数
-vec4 volumetricFog(vec3 rayOrigin, vec3 rayDir, float maxDist) {
-    // 调整采样步数基于质量
-    int steps = int(mix(10.0, 24.0, volumeSteps));
-    float stepSize = maxDist / float(steps);
-    
-    vec4 result = vec4(0.0);
-    vec3 pos = rayOrigin;
-    
-    // 体积光追踪
-    for (int i = 0; i < 24; i++) {
-        if (i >= steps) break;
-        
-        // 移动采样点
-        pos += rayDir * stepSize;
-        
-        // 计算噪声值
-        float density = fbm(pos * 0.01) * fogDensity;
-        
-        // 高度因子 - 雾在低处更浓
-        float heightFactor = exp(-max(0.0, pos.y) * 0.2);
-        density *= heightFactor;
-        
-        // 计算当前采样点的颜色和透明度
-        vec3 sampleColor = fogColor;
-        float alpha = density * stepSize;
-        
-        // 光照效果 - 简单的散射模拟
-        float light = max(0.0, dot(normalize(vec3(0.0, 1.0, 0.0)), lightDir));
-        sampleColor *= mix(0.5, 1.5, light);
-        
-        // 前向混合
-        result.rgb += (1.0 - result.a) * sampleColor * alpha;
-        result.a += (1.0 - result.a) * alpha;
-        
-        // 提前终止以提高性能
-        if (result.a >= 0.99) break;
-    }
-    
-    return result;
-}
-
-// 使用相机参数的渲染函数
-vec3 cameraBasedRender(vec2 fragCoord) {
-    // 使用相机FOV和视图矩阵计算射线方向
+    // 在相机空间中的射线方向 - 使用更精确的计算
     float fovFactor = tan(radians(cameraFov * 0.5));
-    vec2 screenPos = (fragCoord / resolution) * 2.0 - 1.0;
-    
-    // 计算相机空间中的视线方向
     vec3 viewDir = normalize(vec3(
         screenPos.x * resolution.x / resolution.y * fovFactor, 
         screenPos.y * fovFactor, 
         -1.0
     ));
     
-    // 将相机空间的视线方向转换到世界空间
-    // 使用相机的世界矩阵(viewMatrix)来转换
-    vec3 ray = normalize((viewMatrix * vec4(viewDir, 0.0)).xyz);
+    // 线性深度计算 - 更精确版本，尽量减少浮点精度问题
+    float linearDepth = 2.0 * cameraNear * cameraFar / 
+        (cameraFar + cameraNear - z * (cameraFar - cameraNear));
     
-    // 使用实际相机位置
-    vec3 rayPosition = cameraPosition;
+    // 计算相机空间的位置 - 使用标准化方向乘以线性深度
+    vec3 cameraSpacePos = viewDir * linearDepth;
     
-    // 渲染天空和雾气
-    vec3 skyColor = renderSkyAndFog(rayPosition, ray);
-    
-    // 体积雾渲染
-    if (enableVolumeFog) {
-        float maxDist = 200.0; // 最大渲染距离
-        vec4 volumeFog = volumetricFog(rayPosition, ray, maxDist);
-        
-        // 混合天空和体积雾
-        skyColor = mix(skyColor, volumeFog.rgb, volumeFog.a);
-    }
-    
-    return skyColor;
+    // 转换为世界空间 - 确保使用正确的相机位置和方向
+    return cameraPosition + (viewMatrix * vec4(cameraSpacePos, 0.0)).xyz;
 }
 
 // 计算雾因子的函数，应用自定义的雾参数
@@ -211,58 +88,128 @@ float calculateFogFactor(float linearDepth) {
     // 考虑最小距离
     float adjustedDepth = max(0.0, linearDepth - fogMinDist);
     
-    // 应用雾密度和衰减速率
-    // 使用指数函数模拟雾的衰减效果
+    // 使用指数函数计算雾量 - 更加平滑，减少角度依赖
+    // 将fogDensity和fogDecay结合为单一系数，简化计算
     float fogAmount = 1.0 - exp(-adjustedDepth * fogDensity * fogDecay);
+    
+    // 确保雾限制在合理范围内
+    return clamp(fogAmount, 0.0, 1.0);
+}
+
+// 计算高度雾因子 - 修改版本
+float calculateHeightFogFactor(vec3 worldPos, float linearDepth) {
+    // 修改距离判断逻辑 - 减少对高度雾的影响
+    float distFactor = 1.0;
+    if (linearDepth < heightFogMinDist) {
+        distFactor = smoothstep(0.0, heightFogMinDist, linearDepth);
+    } else if (linearDepth > heightFogMaxDist) {
+        // 使用更缓慢的衰减，减少对大范围的敏感性
+        distFactor = 1.0 - smoothstep(heightFogMaxDist * 0.9, heightFogMaxDist * 1.1, linearDepth);
+    }
+    
+    // 获取噪声值，用于扰动高度
+    float noiseValue = noise(worldPos.xz * fogNoiseScale) * fogNoiseStrength;
+    
+    // 计算实际高度，添加噪声扰动
+    float adjustedHeight = worldPos.y + noiseValue;
+    
+    // 使用过渡距离参数计算平滑的高度因子
+    float lowerTransitionStart = fogMinHeight;
+    float lowerTransitionEnd = fogMinHeight + heightFogTransition;
+    float upperTransitionStart = fogMaxHeight - heightFogTransition;
+    float upperTransitionEnd = fogMaxHeight;
+    
+    float heightFactor = 0.0;
+    
+    // 下边缘过渡区域
+    if (adjustedHeight >= lowerTransitionStart && adjustedHeight <= lowerTransitionEnd) {
+        // 在下边缘平滑过渡区内，使用平滑步进
+        heightFactor = smoothstep(lowerTransitionStart, lowerTransitionEnd, adjustedHeight);
+    } 
+    // 中间完全雾化区域
+    else if (adjustedHeight > lowerTransitionEnd && adjustedHeight < upperTransitionStart) {
+        // 在中间区域，保持完全雾化
+        heightFactor = 1.0;
+    } 
+    // 上边缘过渡区域
+    else if (adjustedHeight >= upperTransitionStart && adjustedHeight <= upperTransitionEnd) {
+        // 在上边缘平滑过渡区内，使用平滑步进的反向版本
+        heightFactor = 1.0 - smoothstep(upperTransitionStart, upperTransitionEnd, adjustedHeight);
+    }
+    
+    // 使用新的角度无关的计算方式
+    // 保持基于距离的衰减，但移除对视角的直接依赖
+    float baseIntensity = heightFogStrength * heightFactor * distFactor;
+    float fogAmount = 1.0 - exp(-baseIntensity * heightFogDecay);
     
     return clamp(fogAmount, 0.0, 1.0);
 }
 
 // PostProcessing框架的主函数
 void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
-    vec2 fragCoord = uv * resolution;
-    
-    // 质量高时使用抗锯齿
-    vec3 col;
-    if (quality > 0.8) {
-        col = (cameraBasedRender(fragCoord) + 
-               cameraBasedRender(fragCoord + vec2(0.0, 0.5))) * 0.5;
-    } else {
-        col = cameraBasedRender(fragCoord);
-    }
-    
     // 根据深度混合场景
     if (USE_DEPTH == 1) {
         // 读取深度
         float depth = texture2D(depthBuffer, uv).r;
         
-        // 将深度转换为线性深度
-        float linearDepth = 2.0 * cameraNear * cameraFar / 
-            (cameraFar + cameraNear - (2.0 * depth - 1.0) * (cameraFar - cameraNear));
-        linearDepth = linearDepth / cameraFar; // 归一化到0-1
+        // 将深度转换为线性深度 - 使用更稳定的计算方式
+        // 这种方式更不容易受到浮点精度问题的影响
+        float linearDepth;
+        if (depth >= 0.9999) {
+            // 对于远处(天空)使用最大值
+            linearDepth = 1.0;
+        } else {
+            // 标准线性深度计算
+            float z = depth * 2.0 - 1.0;
+            linearDepth = 2.0 * cameraNear * cameraFar / 
+                (cameraFar + cameraNear - z * (cameraFar - cameraNear));
+            // 归一化，但使用更大的缩放因子来提高近处的精度
+            linearDepth = linearDepth / (cameraFar * 2.0); 
+            linearDepth = clamp(linearDepth, 0.0, 0.5);
+            // 重新映射到0-1范围
+            linearDepth = linearDepth * 2.0;
+        }
         
         // 基于深度的混合
         float skyMask = step(0.9999, depth); // 天空部分（最远处）
         
-        if (enableVolumeFog) {
-            // 体积雾模式下，使用简单混合
-            vec3 finalColor = mix(inputColor.rgb, col, skyMask);
-            outputColor = vec4(finalColor, inputColor.a);
+        float fogFactor;
+        
+        // 根据设置决定使用哪种雾算法
+        if (useHeightFog && depth < 0.9999) {
+            // 使用高度雾 - 先重建世界坐标
+            vec3 worldPos = reconstructWorldPos(uv, depth);
+            
+            // 使用修改后的计算方式获取高度雾因子
+            float heightFogFactor = calculateHeightFogFactor(worldPos, linearDepth);
+            
+            // 确保天空区域不受高度雾影响，除非特别设置了天空遮挡
+            if (skyMask > 0.5 && occludeSky <= 0.0) {
+                heightFogFactor = 0.0;
+            }
+            
+            // 判断是否同时使用普通雾和高度雾
+            if (combineFog) {
+                // 计算普通雾的雾因子
+                float standardFogFactor = calculateFogFactor(linearDepth);
+                
+                // 混合两种雾因子 - 使用屏幕空间混合模式，使两种雾叠加而不过度强化
+                // 公式: 1.0 - (1.0 - a) * (1.0 - b)，类似于Photoshop的"变亮"混合模式
+                fogFactor = 1.0 - (1.0 - heightFogFactor) * (1.0 - standardFogFactor);
+            } else {
+                // 仅使用高度雾
+                fogFactor = heightFogFactor;
+            }
         } else {
-            // 标准雾模式
-            // 计算自定义雾因子
-            float fogFactor = calculateFogFactor(linearDepth);
-            
-            // 根据雾因子混合输入颜色和雾颜色
-            vec3 foggedColor = mix(inputColor.rgb, fogColor, fogFactor);
-            
-            // 最终混合：将雾化后的颜色与天空颜色混合
-            vec3 finalColor = mix(foggedColor, col, skyMask);
-            
-            outputColor = vec4(finalColor, inputColor.a);
+            // 使用标准雾
+            fogFactor = calculateFogFactor(linearDepth);
         }
+        
+        // 应用雾效果到输入颜色
+        vec3 foggedScene = mix(inputColor.rgb, fogColor, fogFactor);
+        outputColor = vec4(foggedScene, inputColor.a);
     } else {
-        // 不使用深度时直接输出效果
-        outputColor = vec4(pow(col, vec3(0.4545)), 1.0);
+        // 不使用深度时直接返回输入颜色
+        outputColor = inputColor;
     }
 } 
