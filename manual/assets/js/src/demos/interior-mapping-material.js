@@ -49,7 +49,7 @@ function loadTextures() {
 
         // 加载单张图片立方体贴图
         textureLoader.load(
-            document.baseURI + "img/InteriorMappingMaterial/map.png",
+            document.baseURI + "img/InteriorMappingMaterial/test2.png",
             (roomMap) => {
                 textures.roomMap = roomMap;
                 // 确保贴图重复
@@ -76,14 +76,12 @@ function loadTextures() {
 
 // 演示状态
 const demoState = {
-    rotatePlane: true,         // 默认开启旋转，以便演示侧面效果
-    useObjectSpace: false,
-    useSingleTexture: true,
-    fillFace: true,
-    roomScale: 1.0,
-    roomVariety: 0.5,
-    roomDepth: 2.0,         // 增加深度，使侧面观看时效果更明显
-    roomAspect: 1.5         // 调整默认纵横比，以获得更好的视觉效果
+    rotatePlane: true,       // 默认开启旋转，以便演示侧面效果
+    useSingleTexture: true,  // 使用单张贴图
+    roomScale: 1.0,          // 房间尺寸
+    roomDepth: 0.02,         // 保持较小的值，避免异常球形
+    visualDepth: 1.2,        // 房间视觉深度
+    roomAspect: 1.5          // 房间纵横比
 };
 
 // 创建演示场景
@@ -106,11 +104,9 @@ function createScene(textures) {
     planeGeometry.computeTangents();
 
     const material = new InteriorMappingMaterial({
-        useObjectSpace: demoState.useObjectSpace,
         roomScale: demoState.roomScale,
-        roomVariety: demoState.roomVariety,
-        fillFace: demoState.fillFace,
         roomDepth: demoState.roomDepth,
+        visualDepth: demoState.visualDepth,
         roomAspect: demoState.roomAspect
     });
 
@@ -164,7 +160,7 @@ window.addEventListener("load", () => {
         controls.lookAt(0, 5, 0);
 
         // 创建场景
-        const { scene, plane } = createScene(textures);  // 使用plane而不是building
+        const { scene, plane } = createScene(textures);
 
         // 设置时钟
         const clock = new Clock();
@@ -186,58 +182,45 @@ window.addEventListener("load", () => {
 
         const folder = pane.addFolder({ title: "室内映射材质参数" });
 
-        // 修复：使用demoState中的useObjectSpace属性
-        folder.addBinding(demoState, "useObjectSpace", {
-            label: "使用对象空间"
-        }).on("change", (event) => {
-            plane.material.useObjectSpace = event.value;  // 更改为plane
-        });
-
         // 添加贴图类型切换选项
         folder.addBinding(demoState, "useSingleTexture", {
             label: "使用单张贴图"
         }).on("change", (event) => {
             if (event.value) {
-                plane.material.roomCube = null;  // 更改为plane
+                plane.material.roomCube = null;
                 plane.material.roomMap = textures.roomMap;
             } else {
                 plane.material.roomCube = textures.roomCube;
             }
         });
 
-        // 添加填满面模式切换选项
-        folder.addBinding(demoState, "fillFace", {
-            label: "填满整个面"
-        }).on("change", (event) => {
-            plane.material.fillFace = event.value;  // 更改为plane
-        });
-
         folder.addBinding(demoState, "roomScale", {
             label: "房间尺寸",
-            min: 0.1,
+            min: 0.01,
             max: 3.0,
-            step: 0.1
+            step: 0.01
         }).on("change", (event) => {
-            plane.material.roomScale = event.value;  // 更改为plane
-        });
-
-        folder.addBinding(demoState, "roomVariety", {
-            label: "房间变化程度",
-            min: 0,
-            max: 1.0,
-            step: 0.05
-        }).on("change", (event) => {
-            plane.material.roomVariety = event.value;  // 更改为plane
+            plane.material.roomScale = event.value;
         });
 
         // 在GUI中添加房间深度控制滑块
         folder.addBinding(demoState, "roomDepth", {
-            label: "房间深度",
-            min: 0.5,
-            max: 2.5,
-            step: 0.1
+            label: "房间深度(数学)",
+            min: 0.01,
+            max: 0.1,
+            step: 0.01
         }).on("change", (event) => {
-            plane.material.roomDepth = event.value;  // 更改为plane
+            plane.material.roomDepth = event.value;
+        });
+
+        // 在GUI中添加房间视觉深度控制滑块
+        folder.addBinding(demoState, "visualDepth", {
+            label: "房间深度(视觉)",
+            min: 0.01,
+            max: 2.5,
+            step: 0.01
+        }).on("change", (event) => {
+            plane.material.visualDepth = event.value;
         });
 
         // 在GUI中添加房间纵横比控制滑块
@@ -247,7 +230,7 @@ window.addEventListener("load", () => {
             max: 2.0,
             step: 0.1
         }).on("change", (event) => {
-            plane.material.roomAspect = event.value;  // 更改为plane
+            plane.material.roomAspect = event.value;
         });
 
         // 窗口大小调整处理
@@ -272,10 +255,10 @@ window.addEventListener("load", () => {
             }
 
             // 更新平面模型的矩阵
-            plane.updateMatrixWorld();  // 更改为plane
+            plane.updateMatrixWorld();
 
             // 更新材质
-            plane.material.update(deltaTime);  // 更改为plane
+            plane.material.update(deltaTime);
 
             renderer.render(scene, camera);
             requestAnimationFrame(render);
