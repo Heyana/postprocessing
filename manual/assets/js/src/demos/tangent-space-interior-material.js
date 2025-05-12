@@ -3,22 +3,23 @@ import {
     Scene,
     WebGLRenderer,
     Mesh,
+    PlaneGeometry,
+    SphereGeometry,
+    TorusGeometry,
     BoxGeometry,
     DirectionalLight,
     AmbientLight,
     CubeTextureLoader,
     TextureLoader,
     Clock,
-    Vector3,
-    PlaneGeometry,
+    RepeatWrapping,
     DoubleSide,
     MeshStandardMaterial,
-    BufferGeometry,
-    RepeatWrapping
+    Group
 } from "three";
 
 import {
-    InteriorMappingMaterial
+    TangentSpaceInteriorMaterial
 } from "postprocessing";
 
 import { Pane } from "tweakpane";
@@ -76,24 +77,25 @@ function loadTextures() {
 
 // 演示状态
 const demoState = {
-    rotatePlane: false,         // 默认开启旋转，以便演示侧面效果
-    useObjectSpace: true,
+    rotateObjects: true,       // 默认开启旋转，演示在曲面上的效果
     useSingleTexture: true,
-    fillFace: true,
     roomScale: 1.0,
-    roomVariety: 0.8,         // 增加默认的房间变化程度，让房间更有区别
-    roomDepth: 0.02,         // 保持较小的值，避免异常球形
-    visualDepth: 1.2,         // 新增视觉深度参数，控制深度感
-    roomAspect: 1.5,         // 调整默认纵横比，以获得更好的视觉效果
-    flipTextureY: true,       // 默认在着色器中翻转贴图Y轴，不需要设置flipY=false
-    roomsX: 2,               // 默认横向2个房间
-    roomsY: 3,               // 默认纵向3个房间
-    gapSize: 0.0,            // 默认间隔大小为0，不显示间隔
-    gapColor: "#222222",      // 默认间隔颜色
-    glassStrength: 0.3,      // 默认前景玻璃反射强度
-    glassColor: "#AADDFF",    // 默认前景玻璃颜色 - 更亮的蓝色
-    glassBlurStrength: 0.0,   // 默认玻璃模糊强度为0，不模糊
-    enhancedDepth: false     // 默认不启用增强深度模式
+    roomVariety: 0.8,          // 增加默认的房间变化程度，让房间更有区别
+    roomDepth: 0.5,            // 默认值为0.5，标准深度
+    roomsX: 2,                 // 默认横向2个房间
+    roomsY: 3,                 // 默认纵向3个房间
+    gapSize: 0.05,             // 默认间隔大小
+    gapColor: "#222222",       // 默认间隔颜色
+    glassStrength: 0.3,        // 默认前景玻璃反射强度
+    glassColor: "#AADDFF",     // 默认前景玻璃颜色 - 更亮的蓝色
+    flipTextureY: true,        // 默认在着色器中翻转贴图Y轴
+    showSphere: true,          // 显示球体模型
+    showTorus: true,           // 显示环面模型
+    showPlane: true,           // 显示平面模型
+    showCube: true,            // 显示立方体模型
+    handleBackFaces: false,    // 默认不特殊处理背面
+    invert3DDepthOnBackFace: true,  // 默认在背面时翻转Y轴方向
+    useOriginalRaytracing: false    // 默认不使用原始光线追踪算法
 };
 
 // 存储初始颜色的标准化值
@@ -102,9 +104,11 @@ const initialGlassColor = "#AADDFF";
 // 创建演示场景
 function createScene(textures) {
     const scene = new Scene();
+    const objects = new Group();
+    scene.add(objects);
 
     // 添加灯光
-    const directionalLight = new DirectionalLight(0xffffff, 2.0);  // 增强光照
+    const directionalLight = new DirectionalLight(0xffffff, 2.0);
     directionalLight.position.set(0.5, 0.7, 0.5).normalize();
     scene.add(directionalLight);
     directionalLight.intensity = 10;
@@ -112,29 +116,21 @@ function createScene(textures) {
     ambientLight.intensity = 10;
     scene.add(ambientLight);
 
-    // 创建平面几何体
-    const planeGeometry = new PlaneGeometry(10, 10, 1, 1);  // 增大平面尺寸
-
-    // 为几何体计算切线
-    planeGeometry.computeTangents();
-
-    const material = new InteriorMappingMaterial({
-        useObjectSpace: demoState.useObjectSpace,
+    // 创建材质
+    const material = new TangentSpaceInteriorMaterial({
         roomScale: demoState.roomScale,
         roomVariety: demoState.roomVariety,
-        fillFace: demoState.fillFace,
         roomDepth: demoState.roomDepth,
-        visualDepth: demoState.visualDepth,
-        roomAspect: demoState.roomAspect,
-        flipTextureY: demoState.flipTextureY,
         roomsX: demoState.roomsX,
         roomsY: demoState.roomsY,
         gapSize: demoState.gapSize,
         gapColor: demoState.gapColor,
         glassStrength: demoState.glassStrength,
         glassColor: demoState.glassColor,
-        glassBlurStrength: demoState.glassBlurStrength,
-        enhancedDepth: demoState.enhancedDepth
+        flipTextureY: demoState.flipTextureY,
+        handleBackFaces: demoState.handleBackFaces,
+        invert3DDepthOnBackFace: demoState.invert3DDepthOnBackFace,
+        useOriginalRaytracing: demoState.useOriginalRaytracing
     });
 
     // 根据默认状态设置纹理
@@ -144,11 +140,40 @@ function createScene(textures) {
         material.roomCube = textures.roomCube;
     }
 
+    // 创建平面
+    const planeGeometry = new PlaneGeometry(5, 5, 10, 10);
+    planeGeometry.computeTangents(); // 计算切线，确保切线空间正常工作
     const plane = new Mesh(planeGeometry, material);
-    plane.position.y = 5;  // 稍微提高位置
-    scene.add(plane);
+    plane.position.set(0, 0, 0);
+    plane.visible = demoState.showPlane;
+    objects.add(plane);
 
-    // 添加简单的地面 - 扩大地面尺寸
+    // 创建球体
+    const sphereGeometry = new SphereGeometry(2.5, 32, 32);
+    sphereGeometry.computeTangents(); // 计算切线，确保切线空间正常工作
+    const sphere = new Mesh(sphereGeometry, material);
+    sphere.position.set(-6, 0, 0);
+    sphere.visible = demoState.showSphere;
+    objects.add(sphere);
+
+    // 创建环面
+    const torusGeometry = new TorusGeometry(2, 0.8, 32, 64);
+    torusGeometry.computeTangents(); // 计算切线，确保切线空间正常工作
+    const torus = new Mesh(torusGeometry, material);
+    torus.position.set(6, 0, 0);
+    torus.visible = demoState.showTorus;
+    objects.add(torus);
+
+    // 创建立方体
+    const cubeGeometry = new BoxGeometry(4, 4, 4, 10, 10, 10);
+    cubeGeometry.computeTangents(); // 计算切线，确保切线空间正常工作
+    const cube = new Mesh(cubeGeometry, material);
+    cube.position.set(0, 6, 0);
+    cube.rotation.set(Math.PI / 6, Math.PI / 6, 0); // 略微旋转以便更好地展示效果
+    cube.visible = demoState.showCube;
+    objects.add(cube);
+
+    // 添加简单的地面
     const groundGeometry = new PlaneGeometry(40, 40);
     const groundMaterial = new MeshStandardMaterial({
         color: 0x333333,
@@ -158,10 +183,10 @@ function createScene(textures) {
     });
     const ground = new Mesh(groundGeometry, groundMaterial);
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = 0;
+    ground.position.y = -4;
     scene.add(ground);
 
-    return { scene, plane };
+    return { scene, objects, plane, sphere, torus, cube };
 }
 
 window.addEventListener("load", () => {
@@ -177,17 +202,17 @@ window.addEventListener("load", () => {
         const container = document.querySelector(".viewport");
         container.prepend(renderer.domElement);
 
-        // 相机和控制器 - 调整位置更好地查看平面
+        // 相机和控制器
         const camera = new PerspectiveCamera();
         const controls = new SpatialControls(camera.position, camera.quaternion, renderer.domElement);
         const settings = controls.settings;
         settings.general.mode = ControlMode.THIRD_PERSON;
         settings.translation.enabled = true;
-        controls.position.set(0, 5, 15);  // 稍微提高相机高度，增加距离
-        controls.lookAt(0, 5, 0);
+        controls.position.set(0, 0, 12);  // 调整相机位置
+        controls.lookAt(0, 0, 0);
 
         // 创建场景
-        const { scene, plane } = createScene(textures);  // 使用plane而不是building
+        const { scene, objects, plane, sphere, torus, cube } = createScene(textures);
 
         // 设置时钟
         const clock = new Clock();
@@ -197,42 +222,53 @@ window.addEventListener("load", () => {
         const pane = new Pane({ container: container.querySelector(".tp") });
         pane.addBinding(fpsMeter, "fps", { readonly: true, label: "FPS" });
 
-        // 添加旋转平面选项
-        pane.addBinding(demoState, "rotatePlane", {
-            label: "旋转平面",
+        // 添加旋转控制选项
+        pane.addBinding(demoState, "rotateObjects", {
+            label: "旋转对象",
         }).on("change", (event) => {
-            // 当用户关闭旋转时，重置平面旋转到正面
+            // 当用户关闭旋转时，重置旋转
             if (!event.value) {
-                plane.rotation.y = 0;
+                objects.rotation.y = 0;
             }
         });
 
-        const folder = pane.addFolder({ title: "室内映射材质参数" });
-
-        // 修复：使用demoState中的useObjectSpace属性
-        folder.addBinding(demoState, "useObjectSpace", {
-            label: "使用对象空间"
+        // 添加模型显示控制
+        pane.addBinding(demoState, "showPlane", {
+            label: "显示平面"
         }).on("change", (event) => {
-            plane.material.useObjectSpace = event.value;  // 更改为plane
+            plane.visible = event.value;
         });
+
+        pane.addBinding(demoState, "showSphere", {
+            label: "显示球体"
+        }).on("change", (event) => {
+            sphere.visible = event.value;
+        });
+
+        pane.addBinding(demoState, "showTorus", {
+            label: "显示环面"
+        }).on("change", (event) => {
+            torus.visible = event.value;
+        });
+
+        pane.addBinding(demoState, "showCube", {
+            label: "显示立方体"
+        }).on("change", (event) => {
+            cube.visible = event.value;
+        });
+
+        const folder = pane.addFolder({ title: "切线空间室内映射材质参数" });
 
         // 添加贴图类型切换选项
         folder.addBinding(demoState, "useSingleTexture", {
             label: "使用单张贴图"
         }).on("change", (event) => {
             if (event.value) {
-                plane.material.roomCube = null;  // 更改为plane
+                plane.material.roomCube = null;
                 plane.material.roomMap = textures.roomMap;
             } else {
                 plane.material.roomCube = textures.roomCube;
             }
-        });
-
-        // 添加填满面模式切换选项
-        folder.addBinding(demoState, "fillFace", {
-            label: "填满整个面"
-        }).on("change", (event) => {
-            plane.material.fillFace = event.value;  // 更改为plane
         });
 
         folder.addBinding(demoState, "roomScale", {
@@ -241,8 +277,7 @@ window.addEventListener("load", () => {
             max: 3.0,
             step: 0.01
         }).on("change", (event) => {
-            console.log('Log-- ', event.value, 'event.value');
-            plane.material.roomScale = event.value;  // 更改为plane
+            plane.material.roomScale = event.value;
         });
 
         folder.addBinding(demoState, "roomVariety", {
@@ -251,37 +286,25 @@ window.addEventListener("load", () => {
             max: 1.0,
             step: 0.05
         }).on("change", (event) => {
-            plane.material.roomVariety = event.value;  // 更改为plane
+            plane.material.roomVariety = event.value;
         });
 
         // 在GUI中添加房间深度控制滑块
         folder.addBinding(demoState, "roomDepth", {
-            label: "房间深度(数学)",
-            min: 0.01,
-            max: 0.1,
+            label: "房间深度",
+            min: 0.001,
+            max: 0.999,
             step: 0.01
         }).on("change", (event) => {
             plane.material.roomDepth = event.value;
         });
 
-        // 在GUI中添加房间视觉深度控制滑块
-        folder.addBinding(demoState, "visualDepth", {
-            label: "房间深度(视觉)",
-            min: 0.01,
-            max: 2.5,
-            step: 0.01
-        }).on("change", (event) => {
-            plane.material.visualDepth = event.value;
-        });
-
-        // 在GUI中添加房间纵横比控制滑块
-        folder.addBinding(demoState, "roomAspect", {
-            label: "房间纵横比",
-            min: 0.5,
-            max: 2.0,
-            step: 0.1
-        }).on("change", (event) => {
-            plane.material.roomAspect = event.value;
+        // 添加说明提示
+        folder.addBinding({
+            depthInfo: "深度参数: 0.5为标准深度，<0.5更深，>0.5更浅"
+        }, "depthInfo", {
+            label: "深度参数说明",
+            readonly: true
         });
 
         // 添加贴图Y轴翻转控制选项
@@ -291,31 +314,25 @@ window.addEventListener("load", () => {
             plane.material.flipTextureY = event.value;
         });
 
-        // 添加增强深度模式选项
-        folder.addBinding(demoState, "enhancedDepth", {
-            label: "增强深度模式"
+        // 添加背面处理选项
+        folder.addBinding(demoState, "handleBackFaces", {
+            label: "处理背面",
         }).on("change", (event) => {
-            plane.material.enhancedDepth = event.value;
-
-            // 如果启用增强深度模式，自动调整房间深度为更合适的值
-            if (event.value && demoState.roomDepth < 0.3) {
-                demoState.roomDepth = 0.5; // 设置为标准深度
-                plane.material.roomDepth = 0.5;
-                pane.refresh(); // 刷新GUI显示
-            }
-
-            // 如果启用增强深度，并且当前是填充面模式，提示用户
-            if (event.value && plane.material.fillFace) {
-                console.warn("增强深度模式与填充面模式不兼容，建议关闭填充面模式以获得最佳效果");
-            }
+            plane.material.handleBackFaces = event.value;
         });
 
-        // 增加说明提示
-        folder.addBinding({
-            enhancedDepthInfo: "增强深度模式在roomDepth=0.5时效果最佳，<0.5更深，>0.5更浅"
-        }, "enhancedDepthInfo", {
-            label: "增强深度说明",
-            readonly: true
+        // 添加背面反转3D深度方向选项
+        folder.addBinding(demoState, "invert3DDepthOnBackFace", {
+            label: "背面翻转Y轴方向",
+        }).on("change", (event) => {
+            plane.material.invert3DDepthOnBackFace = event.value;
+        });
+
+        // 添加原始光线追踪选项
+        folder.addBinding(demoState, "useOriginalRaytracing", {
+            label: "使用原始光线追踪",
+        }).on("change", (event) => {
+            plane.material.useOriginalRaytracing = event.value;
         });
 
         // 添加房间布局控制选项
@@ -345,7 +362,7 @@ window.addEventListener("load", () => {
         roomLayoutFolder.addBinding(demoState, "gapSize", {
             label: "间隔大小",
             min: 0,
-            max: 0.3,  // 减小最大值，避免间隔过大
+            max: 0.3,
             step: 0.01
         }).on("change", (event) => {
             plane.material.gapSize = event.value;
@@ -370,16 +387,6 @@ window.addEventListener("load", () => {
             step: 0.01
         }).on("change", (event) => {
             plane.material.glassStrength = event.value;
-        });
-
-        // 添加玻璃模糊强度控制
-        glassEffectFolder.addBinding(demoState, "glassBlurStrength", {
-            label: "玻璃模糊强度",
-            min: 0.0,
-            max: 1.0,
-            step: 0.01
-        }).on("change", (event) => {
-            plane.material.glassBlurStrength = event.value;
         });
 
         // 添加玻璃颜色控制
@@ -430,17 +437,14 @@ window.addEventListener("load", () => {
             fpsMeter.update();
             controls.update(deltaTime);
 
-            // 如果需要演示旋转平面
-            if (demoState.rotatePlane) {
+            // 如果需要演示旋转对象
+            if (demoState.rotateObjects) {
                 const time = clock.getElapsedTime();
-                plane.rotation.y = time * 0.2;  // 保持缓慢旋转
+                objects.rotation.y = time * 0.2;  // 保持缓慢旋转
             }
 
-            // 更新平面模型的矩阵
-            plane.updateMatrixWorld();  // 更改为plane
-
             // 更新材质
-            plane.material.update(deltaTime);  // 更改为plane
+            plane.material.update(deltaTime);
 
             renderer.render(scene, camera);
             requestAnimationFrame(render);

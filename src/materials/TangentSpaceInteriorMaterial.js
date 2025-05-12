@@ -1,80 +1,70 @@
-import { ShaderMaterial, Uniform, Matrix4, Vector3, Color } from "three";
-import vertexShader from "./glsl/interiorMapping.vert";
-import fragmentShader from "./glsl/interiorMapping.frag";
+import { ShaderMaterial, Uniform, Color } from "three";
+import vertexShader from "./glsl/tangentSpaceInterior.vert";
+import fragmentShader from "./glsl/tangentSpaceInterior.frag";
 
 /**
- * 室内映射材质 - 用于创建建筑物窗户内部空间的错觉
- * 改编自 http://www.humus.name/index.php?page=3D&ID=80
+ * 切线空间室内映射材质 - 专为曲面上的室内效果优化
+ * 基于切线空间计算，实现更好的深度和立体感
  */
-export class InteriorMappingMaterial extends ShaderMaterial {
+export class TangentSpaceInteriorMaterial extends ShaderMaterial {
 
     /**
      * 构造函数
      * @param {Object} [options] - 可选配置项
-     * @param {Boolean} [options.useObjectSpace=false] - 是否使用对象空间坐标（否则使用切线空间）
      * @param {Number} [options.roomScale=1.0] - 房间尺寸缩放
      * @param {Number} [options.roomVariety=0.5] - 房间随机变化程度
-     * @param {Boolean} [options.fillFace=false] - 是否让房间填满整个面（适用于长方形）
-     * @param {Number} [options.roomDepth=0.02] - 房间实际深度 (fillFace模式下有效，保持低值避免异常)
-     * @param {Number} [options.visualDepth=1.2] - 房间视觉深度 (控制深度感，不会产生异常)
-     * @param {Number} [options.roomAspect=1.0] - 房间纵横比 (fillFace模式下有效)
-     * @param {Boolean} [options.flipTextureY=true] - 是否在着色器中翻转贴图Y轴 (避免在外部设置flipY=false)
+     * @param {Number} [options.roomDepth=0.5] - 房间深度参数 (0.5为标准深度)
      * @param {Number} [options.roomsX=1] - 横向房间数量
      * @param {Number} [options.roomsY=1] - 纵向房间数量
      * @param {Number} [options.gapSize=0.05] - 房间间隔大小
      * @param {Number|Color} [options.gapColor=0x000000] - 房间间隔颜色
      * @param {Number} [options.glassStrength=0.25] - 前景玻璃反射强度 (0.0-1.0)
      * @param {Number|Color} [options.glassColor=0x88CCFF] - 前景玻璃颜色
-     * @param {Number} [options.glassBlurStrength=0.0] - 玻璃模糊强度 (0.0-1.0)
-     * @param {Boolean} [options.enhancedDepth=false] - 是否启用增强深度模式 (适用于非fillFace模式)
+     * @param {Boolean} [options.flipTextureY=true] - 是否在着色器中翻转贴图Y轴
+     * @param {Boolean} [options.handleBackFaces=false] - 是否特殊处理背面 (对立方体有帮助)
+     * @param {Boolean} [options.invert3DDepthOnBackFace=true] - 是否在背面时翻转Y轴方向 (保持垂直方向一致)
+     * @param {Boolean} [options.useOriginalRaytracing=false] - 是否使用原始光线追踪算法 (可能对某些模型效果更好)
      */
     constructor(options = {}) {
-        const useObjectSpace = options.useObjectSpace !== undefined ? options.useObjectSpace : true;
         const roomScale = options.roomScale !== undefined ? options.roomScale : 1.0;
         const roomVariety = options.roomVariety !== undefined ? options.roomVariety : 0.5;
-        const fillFace = options.fillFace !== undefined ? options.fillFace : true;
-        const roomDepth = options.roomDepth !== undefined ? options.roomDepth : 0.02;
-        const visualDepth = options.visualDepth !== undefined ? options.visualDepth : 1.2;
-        const roomAspect = options.roomAspect !== undefined ? options.roomAspect : 1.0;
-        const flipTextureY = options.flipTextureY !== undefined ? options.flipTextureY : true;
+        const roomDepth = options.roomDepth !== undefined ? options.roomDepth : 0.5; // 默认为0.5，标准深度
         const roomsX = options.roomsX !== undefined ? options.roomsX : 1;
         const roomsY = options.roomsY !== undefined ? options.roomsY : 1;
         const gapSize = options.gapSize !== undefined ? options.gapSize : 0.05;
         const gapColor = options.gapColor !== undefined ? options.gapColor : 0x000000;
         const glassStrength = options.glassStrength !== undefined ? options.glassStrength : 0.25;
-        const glassColor = options.glassColor !== undefined ? options.glassColor : 0xffffff;
-        const glassBlurStrength = options.glassBlurStrength !== undefined ? options.glassBlurStrength : 0.0;
-        const enhancedDepth = options.enhancedDepth !== undefined ? options.enhancedDepth : false;
+        const glassColor = options.glassColor !== undefined ? options.glassColor : 0x88CCFF;
+        const flipTextureY = options.flipTextureY !== undefined ? options.flipTextureY : true;
+        const handleBackFaces = options.handleBackFaces !== undefined ? options.handleBackFaces : false;
+        const invert3DDepthOnBackFace = options.invert3DDepthOnBackFace !== undefined ? options.invert3DDepthOnBackFace : true;
+        const useOriginalRaytracing = options.useOriginalRaytracing !== undefined ? options.useOriginalRaytracing : false;
 
         super({
-            name: "InteriorMappingMaterial",
+            name: "TangentSpaceInteriorMaterial",
             uniforms: {
                 roomCube: new Uniform(null),
                 roomMap: new Uniform(null),  // 单张图片立方体贴图
                 useSingleTexture: new Uniform(true), // 是否使用单张图片贴图
-                useObjectSpace: new Uniform(useObjectSpace),
                 roomScale: new Uniform(roomScale),
                 roomVariety: new Uniform(roomVariety),
-                fillFace: new Uniform(fillFace), // 是否让房间填满面
-                roomDepth: new Uniform(roomDepth), // 房间实际深度 (fillFace模式下有效)
-                visualDepth: new Uniform(visualDepth), // 房间视觉深度 (控制深度感)
-                roomAspect: new Uniform(roomAspect), // 房间纵横比 (fillFace模式下有效)
-                flipTextureY: new Uniform(flipTextureY), // 是否翻转贴图Y轴
+                roomDepth: new Uniform(roomDepth), // 房间深度参数
                 roomsX: new Uniform(roomsX), // 横向房间数量
                 roomsY: new Uniform(roomsY), // 纵向房间数量
                 gapSize: new Uniform(gapSize), // 房间间隔大小
                 gapColor: new Uniform(new Color(gapColor)), // 房间间隔颜色
                 glassStrength: new Uniform(glassStrength), // 前景玻璃反射强度
                 glassColor: new Uniform(new Color(glassColor)), // 前景玻璃颜色
-                glassBlurStrength: new Uniform(glassBlurStrength), // 玻璃模糊强度
-                enhancedDepth: new Uniform(enhancedDepth) // 是否启用增强深度模式
+                flipTextureY: new Uniform(flipTextureY), // 是否翻转贴图Y轴
+                time: new Uniform(0), // 时间，用于可能的动画效果
+                handleBackFaces: new Uniform(handleBackFaces), // 是否特殊处理背面
+                invert3DDepthOnBackFace: new Uniform(invert3DDepthOnBackFace), // 是否在背面时翻转Y轴方向
+                useOriginalRaytracing: new Uniform(useOriginalRaytracing) // 是否使用原始光线追踪算法
             },
             vertexShader,
             fragmentShader,
             defines: {
-                USE_OBJECTSPACE: useObjectSpace,
-                USE_TANGENT: true,
-                FILL_FACE: fillFace
+                USE_TANGENT: true
             }
         });
 
@@ -130,7 +120,7 @@ export class InteriorMappingMaterial extends ShaderMaterial {
 
         // 如果两种贴图都没有，在控制台给出警告
         if (!hasCubeMap && !hasRoomMap) {
-            console.warn('InteriorMappingMaterial: 未提供任何房间贴图，请设置roomCube或roomMap');
+            console.warn('TangentSpaceInteriorMaterial: 未提供任何房间贴图，请设置roomCube或roomMap');
         }
 
         // 更新着色器
@@ -138,16 +128,6 @@ export class InteriorMappingMaterial extends ShaderMaterial {
             this.defines.USE_SINGLE_TEXTURE = this.uniforms.useSingleTexture.value;
             this.needsUpdate = true;
         }
-    }
-
-    /**
-     * 设置是否使用对象空间坐标
-     * @param {Boolean} value - 是否使用对象空间（否则使用切线空间）
-     */
-    set useObjectSpace(value) {
-        this.uniforms.useObjectSpace.value = value;
-        this.defines.USE_OBJECTSPACE = value;
-        this.needsUpdate = true;
     }
 
     /**
@@ -183,33 +163,11 @@ export class InteriorMappingMaterial extends ShaderMaterial {
     }
 
     /**
-     * 设置是否让房间填满整个面
-     * @param {Boolean} value - 是否让房间填满面
-     */
-    set fillFace(value) {
-        this.uniforms.fillFace.value = value;
-
-        // 当fillFace状态改变时，需要更新着色器的define
-        if (this.defines.FILL_FACE !== value) {
-            this.defines.FILL_FACE = value;
-            this.needsUpdate = true;
-        }
-    }
-
-    /**
-     * 获取是否让房间填满整个面
-     * @return {Boolean} 是否让房间填满面
-     */
-    get fillFace() {
-        return this.uniforms.fillFace.value;
-    }
-
-    /**
      * 设置房间深度
-     * @param {Number} value - 房间深度值
+     * @param {Number} value - 房间深度值 (0.0-1.0, 0.5为标准)
      */
     set roomDepth(value) {
-        this.uniforms.roomDepth.value = value;
+        this.uniforms.roomDepth.value = Math.max(0.001, Math.min(0.999, value));
     }
 
     /**
@@ -218,38 +176,6 @@ export class InteriorMappingMaterial extends ShaderMaterial {
      */
     get roomDepth() {
         return this.uniforms.roomDepth.value;
-    }
-
-    /**
-     * 设置房间视觉深度
-     * @param {Number} value - 房间视觉深度值
-     */
-    set visualDepth(value) {
-        this.uniforms.visualDepth.value = value;
-    }
-
-    /**
-     * 获取房间视觉深度
-     * @return {Number} 房间视觉深度值
-     */
-    get visualDepth() {
-        return this.uniforms.visualDepth.value;
-    }
-
-    /**
-     * 设置房间纵横比
-     * @param {Number} value - 房间纵横比值
-     */
-    set roomAspect(value) {
-        this.uniforms.roomAspect.value = value;
-    }
-
-    /**
-     * 获取房间纵横比
-     * @return {Number} 房间纵横比值
-     */
-    get roomAspect() {
-        return this.uniforms.roomAspect.value;
     }
 
     /**
@@ -365,9 +291,6 @@ export class InteriorMappingMaterial extends ShaderMaterial {
         } else {
             this.uniforms.glassColor.value.copy(value);
         }
-
-        // 确保uniform标记为需要更新
-        this.uniformsNeedUpdate = true;
     }
 
     /**
@@ -379,44 +302,59 @@ export class InteriorMappingMaterial extends ShaderMaterial {
     }
 
     /**
-     * 设置玻璃模糊强度
-     * @param {Number} value - 玻璃模糊强度 (0.0-1.0)
+     * 设置是否特殊处理背面
+     * @param {Boolean} value - 是否特殊处理背面
      */
-    set glassBlurStrength(value) {
-        this.uniforms.glassBlurStrength.value = Math.max(0.0, Math.min(1.0, value));
+    set handleBackFaces(value) {
+        this.uniforms.handleBackFaces.value = value;
     }
 
     /**
-     * 获取玻璃模糊强度
-     * @return {Number} 玻璃模糊强度
+     * 获取是否特殊处理背面
+     * @return {Boolean} 是否特殊处理背面
      */
-    get glassBlurStrength() {
-        return this.uniforms.glassBlurStrength.value;
+    get handleBackFaces() {
+        return this.uniforms.handleBackFaces.value;
     }
 
     /**
-     * 设置是否启用增强深度模式
-     * @param {Boolean} value - 是否启用增强深度模式
+     * 设置是否在背面时翻转Y轴方向
+     * @param {Boolean} value - 是否在背面时翻转Y轴方向
      */
-    set enhancedDepth(value) {
-        this.uniforms.enhancedDepth.value = value;
+    set invert3DDepthOnBackFace(value) {
+        this.uniforms.invert3DDepthOnBackFace.value = value;
     }
 
     /**
-     * 获取是否启用增强深度模式
-     * @return {Boolean} 是否启用增强深度模式
+     * 获取是否在背面时翻转Y轴方向
+     * @return {Boolean} 是否在背面时翻转Y轴方向
      */
-    get enhancedDepth() {
-        return this.uniforms.enhancedDepth.value;
+    get invert3DDepthOnBackFace() {
+        return this.uniforms.invert3DDepthOnBackFace.value;
+    }
+
+    /**
+     * 设置是否使用原始光线追踪算法
+     * @param {Boolean} value - 是否使用原始光线追踪算法
+     */
+    set useOriginalRaytracing(value) {
+        this.uniforms.useOriginalRaytracing.value = value;
+    }
+
+    /**
+     * 获取是否使用原始光线追踪算法
+     * @return {Boolean} 是否使用原始光线追踪算法
+     */
+    get useOriginalRaytracing() {
+        return this.uniforms.useOriginalRaytracing.value;
     }
 
     /**
      * 更新材质
      * @param {Number} deltaTime - 时间差
-     * @param {Matrix4} modelMatrix - 模型矩阵
      */
-    update(deltaTime, modelMatrix) {
-        // 由于modelMatrix是Three.js内置的uniform，我们不需要手动更新它
-        // 只保留这个方法作为API的一部分
+    update(deltaTime) {
+        // 更新时间，用于可能的动画效果
+        this.uniforms.time.value += deltaTime;
     }
 } 

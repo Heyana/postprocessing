@@ -25,6 +25,7 @@ export * from "./UpsamplingMaterial.js";
 export * from "./RiverMaterial.js";
 export * from "./OceanMaterial.js";
 export * from "./InteriorMappingMaterial.js";
+export * from "./TangentSpaceInteriorMaterial.js";
 /** @deprecated Renamed to KawaseBlurMaterial. */
 export { KawaseBlurMaterial as ConvolutionMaterial } from "./KawaseBlurMaterial.js";
 /** @deprecated Renamed to EdgeDetectionMaterial. */

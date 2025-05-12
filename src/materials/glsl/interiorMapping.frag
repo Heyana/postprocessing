@@ -15,6 +15,7 @@ uniform vec3 gapColor;
 uniform float glassStrength;
 uniform vec3 glassColor;
 uniform float glassBlurStrength;
+uniform bool enhancedDepth; // 新增：增强深度模式标志
 
 varying vec2 vUv;
 varying vec3 vViewDir;
@@ -475,16 +476,33 @@ void main() {
         vec3 roomCell = floor(roomUV);
         roomUV = fract(roomUV);
         
+        // 计算深度增强因子（新增）
+        vec3 adjustedViewDir = viewDir;
+        if(enhancedDepth) {
+            // 增强的深度计算 - 参考用户提供的代码
+            // 将[0,1]范围的roomDepth重映射到[+inf,0]
+            // 如果roomDepth = 0 -> depthScale = 0（无限深度房间）
+            // 如果roomDepth = 0.5 -> depthScale = 1（正常深度）
+            // 如果roomDepth = 1 -> depthScale = +inf（零体积房间）
+            float depthScale = 1.0 / (1.0 - roomDepth) - 1.0;
+            
+            // 只缩放视线的z分量，保持x,y不变
+            adjustedViewDir.z *= depthScale;
+        }
+        
         // 将房间UV从[0,1]映射到[-1,1]范围
-        pos = roomUV * 2.0 - 1.0;
+        // 使用增强的初始z值(新增)
+        pos = enhancedDepth ? 
+              vec3(roomUV * 2.0 - 1.0, 1.0) :  // 增强模式：z初始值为1.0
+              roomUV * 2.0 - 1.0;             // 原始模式：所有分量从-1到1
         
         // 光线追踪参数
-        vec3 id = 1.0 / viewDir;
+        vec3 id = 1.0 / adjustedViewDir;
         vec3 k = abs(id) - pos * id;
         float kMin = min(min(k.x, k.y), k.z);
         
         // 计算光线与房间内部的相交点
-        pos += kMin * viewDir;
+        pos += kMin * adjustedViewDir;
         
         // 为每个房间生成随机旋转和翻转
         #ifdef USE_OBJECTSPACE
