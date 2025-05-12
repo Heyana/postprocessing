@@ -56,3 +56,4 @@ export { LUT3DEffect as LUTEffect } from "./LUT3DEffect.js";
 export * from "./FoggyFlyoverEffect.js";
 export * from "./SandStormEffect.js";
 export * from "./FoggyTerrainEffect.js";
+export * from "./VolumetricShadowEffect.js";

@@ -49,7 +49,7 @@ function loadTextures() {
 
         // 加载单张图片立方体贴图
         textureLoader.load(
-            document.baseURI + "img/InteriorMappingMaterial/test2.png",
+            document.baseURI + "img/InteriorMappingMaterial/map.png",
             (roomMap) => {
                 textures.roomMap = roomMap;
                 // 确保贴图重复
