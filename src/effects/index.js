@@ -57,3 +57,4 @@ export * from "./FoggyFlyoverEffect.js";
 export * from "./SandStormEffect.js";
 export * from "./FoggyTerrainEffect.js";
 export * from "./VolumetricShadowEffect.js";
+export * from "./UniformFogEffect.js";

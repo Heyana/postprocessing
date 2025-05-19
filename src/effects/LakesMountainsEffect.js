@@ -34,7 +34,7 @@ export class LakesMountainsEffect extends Effect {
      */
     constructor({
         fogDensity = 1.0,
-        fogColor = 0xaaaaaa,
+        fogColor = 0xffffff,
         fogDecay = 1.0,
         fogMinDist = 0.0,
         quality = 0.5,
