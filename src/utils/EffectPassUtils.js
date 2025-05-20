@@ -1,18 +1,20 @@
 export const effectPassUtils = {
-    getRenderOpts: () => {
-        return {
-            depthPass: {
+	getRenderOpts: () => {
 
-            },
-            renderPassReault: {
-                projectionResult: null,
-            },
-            texture: {
-                normal: {
-                    render: false,
-                    target: null
-                }
-            }
-        }
-    }
-}
+		return {
+			depthPass: {
+
+			},
+			renderPassReault: {
+				projectionResult: null
+			},
+			texture: {
+				normal: {
+					render: false,
+					target: null
+				}
+			}
+		};
+
+	}
+};

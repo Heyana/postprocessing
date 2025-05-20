@@ -1,7 +1,7 @@
 import {
 	Matrix4,
 	Vector2
-} from 'run-scene-core';
+} from "run-scene-core";
 /**
  * References:
  * https://lettier.github.io/3d-game-shaders-for-beginners/screen-space-reflection.html
@@ -9,7 +9,7 @@ import {
 
 const SSRShader = {
 
-	name: 'SSRShader',
+	name: "SSRShader",
 
 	defines: {
 		MAX_STEP: 0,
@@ -17,29 +17,29 @@ const SSRShader = {
 		DISTANCE_ATTENUATION: true,
 		FRESNEL: true,
 		INFINITE_THICK: false,
-		SELECTIVE: false,
+		SELECTIVE: false
 	},
 
 	uniforms: {
-		'tDiffuse': { value: null },
-		'tNormal': { value: null },
-		'tMetalness': { value: null },
-		'tDepth': { value: null },
-		'cameraNear': { value: null },
-		'cameraFar': { value: null },
-		'resolution': { value: new Vector2() },
-		'cameraProjectionMatrix': { value: new Matrix4() },
-		'cameraInverseProjectionMatrix': { value: new Matrix4() },
-		'opacity': { value: .5 },
-		'maxDistance': { value: 180 },
-		'cameraRange': { value: 0 },
-		'thickness': { value: .018 },
-		'reflectionStrength': { value: 1.0 },
-		'metalnessThreshold': { value: 1.0 },
-		'debugMode': { value: 0 },
-		'brightnessThreshold': { value: 1.0 },
-		'readBuffer': { value: null },
-		'normalBuffer': { value: null }
+		"tDiffuse": { value: null },
+		"tNormal": { value: null },
+		"tMetalness": { value: null },
+		"tDepth": { value: null },
+		"cameraNear": { value: null },
+		"cameraFar": { value: null },
+		"resolution": { value: new Vector2() },
+		"cameraProjectionMatrix": { value: new Matrix4() },
+		"cameraInverseProjectionMatrix": { value: new Matrix4() },
+		"opacity": { value: .5 },
+		"maxDistance": { value: 180 },
+		"cameraRange": { value: 0 },
+		"thickness": { value: .018 },
+		"reflectionStrength": { value: 1.0 },
+		"metalnessThreshold": { value: 1.0 },
+		"debugMode": { value: 0 },
+		"brightnessThreshold": { value: 1.0 },
+		"readBuffer": { value: null },
+		"normalBuffer": { value: null }
 
 	},
 
@@ -241,17 +241,17 @@ const SSRShader = {
 
 const SSRDepthShader = {
 
-	name: 'SSRDepthShader',
+	name: "SSRDepthShader",
 
 	defines: {
-		'PERSPECTIVE_CAMERA': 1
+		"PERSPECTIVE_CAMERA": 1
 	},
 
 	uniforms: {
 
-		'tDepth': { value: null },
-		'cameraNear': { value: null },
-		'cameraFar': { value: null },
+		"tDepth": { value: null },
+		"cameraNear": { value: null },
+		"cameraFar": { value: null }
 
 	},
 
@@ -310,13 +310,13 @@ const SSRDepthShader = {
 
 const SSRBlurShader = {
 
-	name: 'SSRBlurShader',
+	name: "SSRBlurShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'resolution': { value: new Vector2() },
-		'opacity': { value: .5 },
+		"tDiffuse": { value: null },
+		"resolution": { value: new Vector2() },
+		"opacity": { value: .5 }
 
 	},
 

@@ -5,11 +5,11 @@
 
 const LuminosityShader = {
 
-	name: 'LuminosityShader',
+	name: "LuminosityShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null }
+		"tDiffuse": { value: null }
 
 	},
 

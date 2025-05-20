@@ -79,7 +79,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	const camera = new PerspectiveCamera(70, window.innerWidth / window.innerHeight, 10, 30000);
 	camera.position.set(0, 0, 1000);
-	console.log('Log-- ', camera, 'camera');
+	console.log("Log-- ", camera, "camera");
 
 	// 使用OrbitControls替代SpatialControls
 	const controls = new OrbitControls(camera, renderer.domElement);
@@ -92,7 +92,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	// Scene, Lights, Objects
 
 	const scene = new Scene();
-	console.log('Log-- ', scene, 'scene');
+	console.log("Log-- ", scene, "scene");
 	// scene.fog = new FogExp2(0x373134, 0.0006); // 降低雾效强度适应大场景
 	scene.background = assets.get("sky");
 	scene.add(Domain.createLights());
@@ -137,7 +137,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		bokehScale: 5.0,
 		resolutionScale: 0.75,
 		useWorldSpaceAutoFocus: true, // 默认使用世界空间自动对焦
-		invertFocusDistance: false     // 默认不反转焦点距离
+		invertFocusDistance: false // 默认不反转焦点距离
 	});
 
 	// 初始不启用自动对焦
@@ -178,24 +178,30 @@ window.addEventListener("load", () => load().then((assets) => {
 	// 添加自动对焦设置
 	const autoFocusSettings = {
 		enabled: false,
-		amplitude: 2000,    // 适应大场景的运动幅度
-		speed: 0.5,         // 运动速度
+		amplitude: 2000, // 适应大场景的运动幅度
+		speed: 0.5, // 运动速度
 		useWorldSpace: true, // 使用世界空间距离
-		invertFocus: false   // 反转焦点距离
+		invertFocus: false // 反转焦点距离
 	};
 
 	const autoFocusFolder = pane.addFolder({ title: "自动对焦" });
 	autoFocusFolder.addBinding(autoFocusSettings, "enabled", { label: "启用" })
 		.on("change", (e) => {
+
 			effect.target = e.value ? focusTarget.position : null;
+
 		});
 	autoFocusFolder.addBinding(autoFocusSettings, "useWorldSpace", { label: "世界空间模式" })
 		.on("change", (e) => {
+
 			effect.useWorldSpaceAutoFocus = e.value;
+
 		});
 	autoFocusFolder.addBinding(autoFocusSettings, "invertFocus", { label: "反转焦距" })
 		.on("change", (e) => {
+
 			effect.invertFocusDistance = e.value;
+
 		});
 	autoFocusFolder.addBinding(autoFocusSettings, "amplitude", { label: "幅度", min: 500, max: 5000, step: 100 });
 	autoFocusFolder.addBinding(autoFocusSettings, "speed", { label: "速度", min: 0.1, max: 2, step: 0.1 });
@@ -211,20 +217,26 @@ window.addEventListener("load", () => load().then((assets) => {
 	const cameraFolder = pane.addFolder({ title: "相机设置" });
 	cameraFolder.addBinding(cameraSettings, "fov", { label: "FOV", min: 20, max: 120, step: 1 })
 		.on("change", (e) => {
+
 			camera.fov = e.value;
 			camera.updateProjectionMatrix();
+
 		});
 	cameraFolder.addBinding(cameraSettings, "near", { label: "近平面", min: 1, max: 100, step: 1 })
 		.on("change", (e) => {
+
 			camera.near = e.value;
 			cameraSettings.farNearRatio = camera.far / camera.near;
 			camera.updateProjectionMatrix();
+
 		});
 	cameraFolder.addBinding(cameraSettings, "far", { label: "远平面", min: 1000, max: 50000, step: 1000 })
 		.on("change", (e) => {
+
 			camera.far = e.value;
 			cameraSettings.farNearRatio = camera.far / camera.near;
 			camera.updateProjectionMatrix();
+
 		});
 	cameraFolder.addBinding(cameraSettings, "farNearRatio", { label: "远近比", readonly: true });
 
@@ -243,11 +255,13 @@ window.addEventListener("load", () => load().then((assets) => {
 	// Resize Handler
 
 	function onResize() {
+
 		const width = container.clientWidth, height = container.clientHeight;
 		camera.aspect = width / height;
 		camera.updateProjectionMatrix();
 		renderer.setSize(width, height);
 		composer.setSize(width, height);
+
 	}
 
 	window.addEventListener("resize", onResize);
@@ -256,6 +270,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	// Render Loop
 
 	requestAnimationFrame(function render(timestamp) {
+
 		fpsMeter.update(timestamp);
 		controls.update(); // OrbitControls需要在每帧更新
 
@@ -265,14 +280,18 @@ window.addEventListener("load", () => load().then((assets) => {
 		focusTarget.position.setZ(z);
 
 		// 更新焦距信息
-		if (autoFocusSettings.enabled) {
+		if(autoFocusSettings.enabled) {
+
 			const worldDistance = camera.position.distanceTo(focusTarget.position);
 			infoSettings.currentDistance = parseFloat(worldDistance.toFixed(0));
 			infoSettings.focusDistance = parseFloat(effect.cocMaterial.worldFocusDistance.toFixed(0));
 			infoSettings.focusRange = parseFloat(effect.cocMaterial.worldFocusRange.toFixed(0));
+
 		}
 
 		composer.render();
 		requestAnimationFrame(render);
+
 	});
+
 }));

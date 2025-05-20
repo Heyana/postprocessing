@@ -10,13 +10,13 @@
 
 const KaleidoShader = {
 
-	name: 'KaleidoShader',
+	name: "KaleidoShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'sides': { value: 6.0 },
-		'angle': { value: 0.0 }
+		"tDiffuse": { value: null },
+		"sides": { value: 6.0 },
+		"angle": { value: 0.0 }
 
 	},
 

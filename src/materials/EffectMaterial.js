@@ -48,19 +48,19 @@ export class EffectMaterial extends ShaderMaterial {
 			dithering
 		});
 
-		if (shaderParts) {
+		if(shaderParts) {
 
 			this.setShaderParts(shaderParts);
 
 		}
 
-		if (defines) {
+		if(defines) {
 
 			this.setDefines(defines);
 
 		}
 
-		if (uniforms) {
+		if(uniforms) {
 
 			this.setUniforms(uniforms);
 
@@ -156,7 +156,7 @@ export class EffectMaterial extends ShaderMaterial {
 
 	setShaderData(data) {
 
-		console.log('Log-- ', data, 'data');
+		console.log("Log-- ", data, "data");
 		this.setShaderParts(data.shaderParts);
 		this.setDefines(data.defines);
 		this.setUniforms(data.uniforms);
@@ -198,7 +198,7 @@ export class EffectMaterial extends ShaderMaterial {
 
 	setDefines(defines) {
 
-		for (const entry of defines.entries()) {
+		for(const entry of defines.entries()) {
 
 			this.defines[entry[0]] = entry[1];
 
@@ -219,7 +219,7 @@ export class EffectMaterial extends ShaderMaterial {
 
 	setUniforms(uniforms) {
 
-		for (const entry of uniforms.entries()) {
+		for(const entry of uniforms.entries()) {
 
 			this.uniforms[entry[0]] = entry[1];
 
@@ -241,7 +241,7 @@ export class EffectMaterial extends ShaderMaterial {
 
 		this.extensions = {};
 
-		for (const extension of extensions) {
+		for(const extension of extensions) {
 
 			this.extensions[extension] = true;
 
@@ -265,9 +265,9 @@ export class EffectMaterial extends ShaderMaterial {
 
 	set encodeOutput(value) {
 
-		if (this.encodeOutput !== value) {
+		if(this.encodeOutput !== value) {
 
-			if (value) {
+			if(value) {
 
 				this.defines.ENCODE_OUTPUT = "1";
 
@@ -361,12 +361,12 @@ export class EffectMaterial extends ShaderMaterial {
 
 	copyCameraSettings(camera) {
 
-		if (camera) {
+		if(camera) {
 
 			this.uniforms.cameraNear.value = camera.near;
 			this.uniforms.cameraFar.value = camera.far;
 
-			if (camera instanceof PerspectiveCamera) {
+			if(camera instanceof PerspectiveCamera) {
 
 				this.defines.PERSPECTIVE_CAMERA = "1";
 

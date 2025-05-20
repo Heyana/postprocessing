@@ -9,12 +9,12 @@
 
 const VerticalBlurShader = {
 
-	name: 'VerticalBlurShader',
+	name: "VerticalBlurShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'v': { value: 1.0 / 512.0 }
+		"tDiffuse": { value: null },
+		"v": { value: 1.0 / 512.0 }
 
 	},
 

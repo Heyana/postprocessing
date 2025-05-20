@@ -7,11 +7,11 @@
 
 const TechnicolorShader = {
 
-	name: 'TechnicolorShader',
+	name: "TechnicolorShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null }
+		"tDiffuse": { value: null }
 
 	},
 

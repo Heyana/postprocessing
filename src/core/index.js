@@ -1,4 +1,4 @@
-import {PerspectiveCamera} from 'three'
+import { PerspectiveCamera } from "three";
 export * from "./Disposable.js";
 export * from "./EffectComposer.js";
 export * from "./EffectShaderData.js";
@@ -13,8 +13,10 @@ export * from "./Timer.js";
 
 /** @deprecated Renamed to Resolution. */
 export { Resolution as Resizer } from "./Resolution.js";
-export const  getAssets = ()=>{
-    return {
-        camera:PerspectiveCamera
-    }
-}
+export const getAssets = ()=>{
+
+	return {
+		camera: PerspectiveCamera
+	};
+
+};

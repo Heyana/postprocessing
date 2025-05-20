@@ -7,12 +7,12 @@
 
 const MirrorShader = {
 
-	name: 'MirrorShader',
+	name: "MirrorShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'side': { value: 1 }
+		"tDiffuse": { value: null },
+		"side": { value: 1 }
 
 	},
 

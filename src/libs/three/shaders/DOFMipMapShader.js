@@ -6,14 +6,14 @@
 
 const DOFMipMapShader = {
 
-	name: 'DOFMipMapShader',
+	name: "DOFMipMapShader",
 
 	uniforms: {
 
-		'tColor': { value: null },
-		'tDepth': { value: null },
-		'focus': { value: 1.0 },
-		'maxblur': { value: 1.0 }
+		"tColor": { value: null },
+		"tDepth": { value: null },
+		"focus": { value: 1.0 },
+		"maxblur": { value: 1.0 }
 
 	},
 

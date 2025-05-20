@@ -133,7 +133,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	subfolder.addBinding(ssaoMaterial, "worldProximityThreshold", { min: 0, max: 3, step: 1e-2 });
 	subfolder.addBinding(ssaoMaterial, "worldProximityFalloff", { min: 0, max: 3, step: 1e-2 });
 
-	if (renderer.capabilities.isWebGL2) {
+	if(renderer.capabilities.isWebGL2) {
 
 		folder.addBinding(effect, "depthAwareUpsampling");
 

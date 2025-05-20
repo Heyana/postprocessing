@@ -4,12 +4,12 @@
 
 const ExposureShader = {
 
-	name: 'ExposureShader',
+	name: "ExposureShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'exposure': { value: 1.0 }
+		"tDiffuse": { value: null },
+		"exposure": { value: 1.0 }
 
 	},
 

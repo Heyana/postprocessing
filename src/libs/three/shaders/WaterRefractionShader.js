@@ -1,26 +1,26 @@
 const WaterRefractionShader = {
 
-	name: 'WaterRefractionShader',
+	name: "WaterRefractionShader",
 
 	uniforms: {
 
-		'color': {
+		"color": {
 			value: null
 		},
 
-		'time': {
+		"time": {
 			value: 0
 		},
 
-		'tDiffuse': {
+		"tDiffuse": {
 			value: null
 		},
 
-		'tDudv': {
+		"tDudv": {
 			value: null
 		},
 
-		'textureMatrix': {
+		"textureMatrix": {
 			value: null
 		}
 

@@ -1,18 +1,18 @@
 import {
 	Mesh
-} from 'three';
-import InstancedPointsGeometry from '../geometries/InstancedPointsGeometry.js';
-import InstancedPointsNodeMaterial from '../nodes/materials/InstancedPointsNodeMaterial.js';
+} from "three";
+import InstancedPointsGeometry from "../geometries/InstancedPointsGeometry.js";
+import InstancedPointsNodeMaterial from "../nodes/materials/InstancedPointsNodeMaterial.js";
 
 class InstancedPoints extends Mesh {
 
-	constructor( geometry = new InstancedPointsGeometry(), material = new InstancedPointsNodeMaterial() ) {
+	constructor(geometry = new InstancedPointsGeometry(), material = new InstancedPointsNodeMaterial()) {
 
-		super( geometry, material );
+		super(geometry, material);
 
 		this.isInstancedPoints = true;
 
-		this.type = 'InstancedPoints';
+		this.type = "InstancedPoints";
 
 	}
 

@@ -6,13 +6,13 @@
 
 const VignetteShader = {
 
-	name: 'VignetteShader',
+	name: "VignetteShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'offset': { value: 1.0 },
-		'darkness': { value: 1.0 }
+		"tDiffuse": { value: null },
+		"offset": { value: 1.0 },
+		"darkness": { value: 1.0 }
 
 	},
 

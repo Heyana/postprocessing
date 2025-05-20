@@ -1,4 +1,4 @@
-import { Effect } from "postprocessing"
+import { Effect } from "postprocessing";
 
 const fragmentShader = /* glsl */ `
         uniform highp sampler2D depthTexture;
@@ -43,9 +43,11 @@ const fragmentShader = /* glsl */ `
 
             outputColor = vec4(color, 1.);
         }
-`
+`;
 export class GradualBackgroundEffect extends Effect {
+
 	constructor(camera, depthTexture, backgroundColor, maxDistance = 5) {
+
 		super("GradualBackgroundEffect", fragmentShader, {
 			uniforms: new Map([
 				["projectionMatrix", { value: camera.projectionMatrix }],
@@ -56,14 +58,20 @@ export class GradualBackgroundEffect extends Effect {
 				["maxDistance", { value: maxDistance }]
 			]),
 			defines: new Map([["PERSPECTIVE_CAMERA", camera.isPerspectiveCamera ? "1" : "0"]])
-		})
+		});
+
 	}
 
 	setBackgroundColor(color) {
-		this.uniforms.get("backgroundColor").value = color
+
+		this.uniforms.get("backgroundColor").value = color;
+
 	}
 
 	setMaxDistance(distance) {
-		this.uniforms.get("maxDistance").value = distance
+
+		this.uniforms.get("maxDistance").value = distance;
+
 	}
+
 }

@@ -1,22 +1,24 @@
-import { Effect } from "postprocessing"
-import { Uniform } from "three"
+import { Effect } from "postprocessing";
+import { Uniform } from "three";
 import {
 	TemporalReprojectPass,
 	defaultTemporalReprojectPassOptions
-} from "../temporal-reproject/TemporalReprojectPass.js"
-// eslint-disable-next-line camelcase
-import traa_compose from "./shader/traa_compose.frag"
+} from "../temporal-reproject/TemporalReprojectPass.js";
+
+import traa_compose from "./shader/traa_compose.frag";
 
 export class TRAAEffect extends Effect {
+
 	constructor(scene, camera, velocityDepthNormalPass, options = defaultTemporalReprojectPassOptions) {
+
 		super("TRAAEffect", traa_compose, {
 			type: "FinalTRAAEffectMaterial",
 			uniforms: new Map([["accumulatedTexture", new Uniform(null)]])
-		})
+		});
 
-		this._scene = scene
-		this._camera = camera
-		this.velocityDepthNormalPass = velocityDepthNormalPass
+		this._scene = scene;
+		this._camera = camera;
+		this.velocityDepthNormalPass = velocityDepthNormalPass;
 
 		options = {
 			...options,
@@ -28,29 +30,38 @@ export class TRAAEffect extends Effect {
 				logTransform: true,
 				confidencePower: 4
 			}
-		}
+		};
 
-		this.options = { ...defaultTemporalReprojectPassOptions, ...options }
+		this.options = { ...defaultTemporalReprojectPassOptions, ...options };
 
-		this.setSize(options.width, options.height)
+		this.setSize(options.width, options.height);
+
 	}
 
 	setSize(width, height) {
-		this.temporalReprojectPass?.setSize(width, height)
+
+		this.temporalReprojectPass?.setSize(width, height);
+
 	}
 
 	dispose() {
-		super.dispose()
 
-		this.temporalReprojectPass.dispose()
+		super.dispose();
+
+		this.temporalReprojectPass.dispose();
+
 	}
 
 	reset() {
-		this.temporalReprojectPass.reset()
+
+		this.temporalReprojectPass.reset();
+
 	}
 
 	update(renderer, inputBuffer) {
-		if (!this.temporalReprojectPass) {
+
+		if(!this.temporalReprojectPass) {
+
 			this.temporalReprojectPass = new TemporalReprojectPass(
 				this._scene,
 				this._camera,
@@ -58,21 +69,24 @@ export class TRAAEffect extends Effect {
 				inputBuffer.texture,
 				1,
 				this.options
-			)
-			this.temporalReprojectPass.setSize(inputBuffer.width, inputBuffer.height)
+			);
+			this.temporalReprojectPass.setSize(inputBuffer.width, inputBuffer.height);
 
-			this.uniforms.get("accumulatedTexture").value = this.temporalReprojectPass.texture
+			this.uniforms.get("accumulatedTexture").value = this.temporalReprojectPass.texture;
+
 		}
 
-		this.temporalReprojectPass.unjitter()
-		this.unjitteredProjectionMatrix = this._camera.projectionMatrix.clone()
+		this.temporalReprojectPass.unjitter();
+		this.unjitteredProjectionMatrix = this._camera.projectionMatrix.clone();
 
-		this._camera.projectionMatrix.copy(this.unjitteredProjectionMatrix)
+		this._camera.projectionMatrix.copy(this.unjitteredProjectionMatrix);
 
-		this.temporalReprojectPass.jitter()
+		this.temporalReprojectPass.jitter();
 
-		this.temporalReprojectPass.render(renderer)
+		this.temporalReprojectPass.render(renderer);
+
 	}
+
 }
 
-TRAAEffect.DefaultOptions = defaultTemporalReprojectPassOptions
+TRAAEffect.DefaultOptions = defaultTemporalReprojectPassOptions;

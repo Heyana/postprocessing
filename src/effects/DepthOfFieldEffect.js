@@ -46,7 +46,8 @@ export class DepthOfFieldEffect extends Effect {
 	 */
 
 	version =
-		"0.01"
+		"0.01";
+
 	constructor(camera, {
 		blendFunction,
 		worldFocusDistance,
@@ -164,13 +165,13 @@ export class DepthOfFieldEffect extends Effect {
 		cocMaterial.focusDistance = focusDistance;
 		cocMaterial.focusRange = focusRange;
 
-		if (worldFocusDistance !== undefined) {
+		if(worldFocusDistance !== undefined) {
 
 			cocMaterial.worldFocusDistance = worldFocusDistance;
 
 		}
 
-		if (worldFocusRange !== undefined) {
+		if(worldFocusRange !== undefined) {
 
 			cocMaterial.worldFocusRange = worldFocusRange;
 
@@ -249,17 +250,17 @@ export class DepthOfFieldEffect extends Effect {
 		 * Whether to use world space distance for auto focus instead of normalized depth.
 		 * When true, camera.position.distanceTo(target) is used to set worldFocusDistance.
 		 * When false, calculateFocusDistance converts to normalized depth to set focusDistance.
-		 * 
+		 *
 		 * @type {Boolean}
 		 */
 
 		this._useWorldSpaceAutoFocus = useWorldSpaceAutoFocus;
 
 		/**
-		 * Whether to invert the focus distance calculation. When true, 
-		 * the focusDistance value will be inverted (1-d) so that 0 means far 
+		 * Whether to invert the focus distance calculation. When true,
+		 * the focusDistance value will be inverted (1-d) so that 0 means far
 		 * and 1 means near, which helps when you want to focus on near objects.
-		 * 
+		 *
 		 * @type {Boolean}
 		 */
 
@@ -312,7 +313,7 @@ export class DepthOfFieldEffect extends Effect {
 
 	set maskFunction(value) {
 
-		if (this.maskFunction !== value) {
+		if(this.maskFunction !== value) {
 
 			this.defines.set("MASK_FUNCTION", value.toFixed(0));
 			this.maskPass.fullscreenMaterial.maskFunction = value;
@@ -542,8 +543,10 @@ export class DepthOfFieldEffect extends Effect {
 		const renderTargetMasked = this.renderTargetMasked;
 
 		// Auto focus.
-		if (this.target !== null) {
-			if (this.useWorldSpaceAutoFocus) {
+		if(this.target !== null) {
+
+			if(this.useWorldSpaceAutoFocus) {
+
 				// 直接使用世界空间距离设置worldFocusDistance
 				const distance = this.camera.position.distanceTo(this.target);
 
@@ -558,9 +561,10 @@ export class DepthOfFieldEffect extends Effect {
 				this.cocMaterial.worldFocusDistance = distance;
 
 
-
 				// console.log(`使用世界焦距: ${distance.toFixed(2)}, far/near比例: ${farNearRatio.toFixed(0)}`);
+
 			} else {
+
 				// 原有的标准化深度值方法
 				let distance = this.calculateFocusDistance(this.target);
 
@@ -574,7 +578,9 @@ export class DepthOfFieldEffect extends Effect {
 				// }
 
 				this.cocMaterial.focusDistance = distance;
+
 			}
+
 		}
 
 		// Render the CoC and create a blurred version for soft near field blending.
@@ -648,20 +654,20 @@ export class DepthOfFieldEffect extends Effect {
 		// The blur pass operates on the CoC buffer.
 		this.blurPass.initialize(renderer, alpha, UnsignedByteType);
 
-		if (renderer.capabilities.logarithmicDepthBuffer) {
+		if(renderer.capabilities.logarithmicDepthBuffer) {
 
 			this.cocPass.fullscreenMaterial.defines.LOG_DEPTH = "1";
 
 		}
 
-		if (frameBufferType !== undefined) {
+		if(frameBufferType !== undefined) {
 
 			this.renderTarget.texture.type = frameBufferType;
 			this.renderTargetNear.texture.type = frameBufferType;
 			this.renderTargetFar.texture.type = frameBufferType;
 			this.renderTargetMasked.texture.type = frameBufferType;
 
-			if (renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
+			if(renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
 
 				this.renderTarget.texture.colorSpace = SRGBColorSpace;
 				this.renderTargetNear.texture.colorSpace = SRGBColorSpace;

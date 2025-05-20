@@ -389,11 +389,11 @@ export class BloomEffect extends Effect {
 		const renderTarget = this.renderTarget;
 		const luminancePass = this.luminancePass;
 
-		if (luminancePass.enabled) {
+		if(luminancePass.enabled) {
 
 			luminancePass.render(renderer, inputBuffer);
 
-			if (this.mipmapBlurPass.enabled) {
+			if(this.mipmapBlurPass.enabled) {
 
 				this.mipmapBlurPass.render(renderer, luminancePass.renderTarget);
 
@@ -405,13 +405,14 @@ export class BloomEffect extends Effect {
 
 		} else {
 
-			if (this.mipmapBlurPass.enabled) {
+			if(this.mipmapBlurPass.enabled) {
 
 				this.mipmapBlurPass.render(renderer, inputBuffer);
 
 			} else {
 
 				this.blurPass.render(renderer, inputBuffer, renderTarget);
+
 			}
 
 		}
@@ -452,11 +453,11 @@ export class BloomEffect extends Effect {
 		this.luminancePass.initialize(renderer, alpha, frameBufferType);
 		this.mipmapBlurPass.initialize(renderer, alpha, frameBufferType);
 
-		if (frameBufferType !== undefined) {
+		if(frameBufferType !== undefined) {
 
 			this.renderTarget.texture.type = frameBufferType;
 
-			if (renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
+			if(renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
 
 				this.renderTarget.texture.colorSpace = SRGBColorSpace;
 
@@ -473,11 +474,15 @@ export class BloomEffect extends Effect {
 	 */
 
 	get bloomColor() {
+
 		return this.uniforms.get("bloomColor").value;
+
 	}
 
 	set bloomColor(value) {
+
 		this.uniforms.get("bloomColor").value.copy(new Color(value));
+
 	}
 
 	/**
@@ -487,7 +492,9 @@ export class BloomEffect extends Effect {
 	 */
 
 	getBloomColor() {
+
 		return this.bloomColor;
+
 	}
 
 	/**
@@ -497,7 +504,9 @@ export class BloomEffect extends Effect {
 	 */
 
 	setBloomColor(value) {
+
 		this.bloomColor = value;
+
 	}
 
 }

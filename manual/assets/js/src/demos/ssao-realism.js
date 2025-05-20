@@ -48,65 +48,87 @@ import { calculateVerticalFoV, FPSMeter } from "../utils";
  * @returns {*} - 获取操作时返回找到的值，设置操作时返回是否成功
  */
 function accessProperty(obj, paths, value, set = false) {
+
 	// 确保paths是数组
-	if (!Array.isArray(paths)) {
+	if(!Array.isArray(paths)) {
+
 		paths = [paths];
+
 	}
 
 	// 尝试每个可能的路径
-	for (const path of paths) {
+	for(const path of paths) {
+
 		try {
+
 			// 分解属性路径
-			const parts = path.split('.');
+			const parts = path.split(".");
 			let current = obj;
 			let lastPart = null;
 			let lastObj = null;
 
 			// 遍历路径
-			for (let i = 0; i < parts.length; i++) {
+			for(let i = 0; i < parts.length; i++) {
+
 				const part = parts[i];
-				if (i === parts.length - 1) {
+				if(i === parts.length - 1) {
+
 					// 最后一部分
 					lastPart = part;
 					lastObj = current;
+
 				}
 
-				if (current[part] === undefined) {
+				if(current[part] === undefined) {
+
 					// 该路径不存在，尝试下一个
 					current = null;
 					break;
+
 				}
 
 				current = current[part];
+
 			}
 
 			// 如果找到了有效路径
-			if (current !== null && lastObj !== null) {
-				if (set) {
+			if(current !== null && lastObj !== null) {
+
+				if(set) {
+
 					// 设置属性
 					lastObj[lastPart] = value;
 					console.log(`成功设置属性 ${path} = ${value}`);
 					return true;
-				} else {
-					// 获取属性
-					return current;
+
 				}
+				// 获取属性
+				return current;
+
 			}
-		} catch (err) {
+
+		} catch(err) {
+
 			console.warn(`访问属性路径 ${path} 时出错:`, err);
+
 		}
+
 	}
 
 	// 所有路径都失败了
-	if (set) {
-		console.warn(`无法设置属性，所有路径都失败了:`, paths);
+	if(set) {
+
+		console.warn("无法设置属性，所有路径都失败了:", paths);
 		return false;
+
 	}
 
 	return undefined;
+
 }
 
 function load() {
+
 	const assets = new Map();
 	const loadingManager = new LoadingManager();
 	const gltfLoader = new GLTFLoader(loadingManager);
@@ -122,45 +144,65 @@ function load() {
 	];
 
 	return new Promise((resolve, reject) => {
+
 		loadingManager.onLoad = () => resolve(assets);
 		loadingManager.onError = (url) => reject(new Error(`Failed to load ${url}`));
 
 		gltfLoader.load(`${document.baseURI}models/rigged-simple/RiggedSimple.gltf`, (gltf) => {
+
 			gltf.scene.traverse((object) => {
-				if (object.isMesh) {
+
+				if(object.isMesh) {
+
 					object.castShadow = object.receiveShadow = true;
+
 				}
+
 			});
 
 			assets.set("rigged-simple", gltf);
+
 		});
 
 		gltfLoader.load(`${document.baseURI}models/rigged-simple/tree.glb`, (gltf) => {
+
 			gltf.scene.traverse((object) => {
-				if (object.isMesh) {
+
+				if(object.isMesh) {
+
 					object.castShadow = object.receiveShadow = true;
 					object.material.alphaTest = 0.5;
+
 				}
 				object.position.set(0, 0, 0);
+
 			});
 
 			assets.set("tree", gltf);
+
 		});
 
 		textureLoader.load(`${document.baseURI}img/textures/pattern.png`, (t) => {
+
 			t.colorSpace = SRGBColorSpace;
 			assets.set("pattern", t);
+
 		});
 
 		cubeTextureLoader.load(urls, (t) => {
+
 			t.colorSpace = SRGBColorSpace;
 			assets.set("sky", t);
+
 		});
+
 	});
+
 }
 
 // 创建更适合展示AO效果的场景对象
 function createAOTestObjects() {
+
 	const group = new Group();
 
 	// 1. 创建一个"凹槽地台"展示AO
@@ -174,13 +216,14 @@ function createAOTestObjects() {
 		new BoxGeometry(platformSize, platformHeight, platformSize),
 		new MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.8, metalness: 0.0 })
 	);
-	platform.name = 'ignore'
+	platform.name = "ignore";
 	platform.position.y = -1.5;
 	platform.receiveShadow = true;
 	group.add(platform);
 
 	// 添加凹槽
-	for (let i = 0; i < 3; i++) {
+	for(let i = 0; i < 3; i++) {
+
 		const groove = new Mesh(
 			new BoxGeometry(platformSize - 0.4, grooveDepth, grooveWidth),
 			new MeshStandardMaterial({ color: 0x999999, roughness: 0.7, metalness: 0.0 })
@@ -189,11 +232,13 @@ function createAOTestObjects() {
 		groove.receiveShadow = true;
 		groove.castShadow = true;
 		group.add(groove);
+
 	}
 
 	// 2. 添加悬浮立方体阵列（产生投影和接触阴影）
 	const cubeSize = 0.5;
-	for (let i = 0; i < 5; i++) {
+	for(let i = 0; i < 5; i++) {
+
 		const height = 0.3 + i * 0.4;
 		const cube = new Mesh(
 			new BoxGeometry(cubeSize, cubeSize, cubeSize),
@@ -207,6 +252,7 @@ function createAOTestObjects() {
 		cube.castShadow = true;
 		cube.receiveShadow = true;
 		group.add(cube);
+
 	}
 
 	// 3. 创建几何交叉结构（AO效果明显）
@@ -217,7 +263,7 @@ function createAOTestObjects() {
 	cylinder.rotation.x = Math.PI / 2;
 	cylinder.position.set(0, 0, 0);
 	cylinder.castShadow = cylinder.receiveShadow = true;
-	cylinder.name = '123'
+	cylinder.name = "123";
 	group.add(cylinder);
 
 	const cylinder2 = new Mesh(
@@ -238,42 +284,58 @@ function createAOTestObjects() {
 	group.add(torusKnot);
 
 	return group;
+
 }
 
 // 获取Selection中的对象数量
 function getSelectionCount(selection) {
-	if (!selection) return 0;
+
+	if(!selection) { return 0; }
 
 	// 检查各种可能的访问方式
-	if (Array.isArray(selection.items)) {
+	if(Array.isArray(selection.items)) {
+
 		return selection.items.length;
+
 	}
 
-	if (Array.isArray(selection.objects)) {
+	if(Array.isArray(selection.objects)) {
+
 		return selection.objects.length;
+
 	}
 
-	if (typeof selection.getItems === 'function') {
+	if(typeof selection.getItems === "function") {
+
 		return selection.getItems().length;
+
 	}
 
-	if (typeof selection.getSelection === 'function') {
+	if(typeof selection.getSelection === "function") {
+
 		return selection.getSelection().length;
+
 	}
 
-	if (typeof selection.size === 'number') {
+	if(typeof selection.size === "number") {
+
 		return selection.size;
+
 	}
 
 	// 如果Selection是一个可迭代对象
-	if (typeof selection[Symbol.iterator] === 'function') {
+	if(typeof selection[Symbol.iterator] === "function") {
+
 		return Array.from(selection).length;
+
 	}
 
 	return 0;
+
 }
 
 window.addEventListener("load", () => load().then((assets) => {
+
 	// 渲染器
 	const renderer = new WebGLRenderer({
 		powerPreference: "high-performance",
@@ -311,14 +373,20 @@ window.addEventListener("load", () => load().then((assets) => {
 	const lights = Shapes.createLights();
 	// 调整光照使AO效果更明显
 	lights.children.forEach(light => {
-		if (light.isDirectionalLight) {
+
+		if(light.isDirectionalLight) {
+
 			light.intensity = 1.0; // 降低直射光强度以便更好地看到AO
 			light.position.set(5, 10, 2); // 调整光源方向，增加阴影
 			light.castShadow = true;
 			light.shadow.bias = -0.001;
-		} else if (light.isAmbientLight) {
+
+		} else if(light.isAmbientLight) {
+
 			light.intensity = 0.3; // 降低环境光（让AO效果更明显）
+
 		}
+
 	});
 	scene.add(lights);
 
@@ -339,17 +407,21 @@ window.addEventListener("load", () => load().then((assets) => {
 	riggedSimple.scene.position.set(2, -1.5, -1);
 	riggedSimple.scene.rotation.y = -Math.PI / 4;
 	riggedSimple.scene.traverse((object) => {
-		if (object.isMesh) {
+
+		if(object.isMesh) {
+
 			object.transparent = true;
 			// object.material.alphaTest = 0.5;
 			object.material.opacity = 0.5;
+
 		}
+
 	});
 	scene.add(riggedSimple.scene);
 
 	const tree = assets.get("tree");
 	tree.scene.scale.multiplyScalar(0.01);
-	tree.scene.position.set(2, -3, -1.5)
+	tree.scene.position.set(2, -3, -1.5);
 	scene.add(tree.scene);
 
 	// 设置动画
@@ -359,10 +431,10 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	// 后处理
 	const multisampling = Math.min(4, renderer.capabilities.maxSamples);
-	const composer = new EffectComposer(renderer, { multisampling, });
-	composer.setMainScene(scene)
+	const composer = new EffectComposer(renderer, { multisampling });
+	composer.setMainScene(scene);
 
-	console.log('Log-- ', composer, 'composer');
+	console.log("Log-- ", composer, "composer");
 	// 添加基本渲染通道
 	const renderPass = new RenderPass(scene, camera);
 	composer.addPass(renderPass);
@@ -371,7 +443,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	renderer.toneMapping = THREE.ACESFilmicToneMapping;
 	renderer.toneMappingExposure = 1.0;
 
-	console.log('Log-- ', 'RealismSSAOEffect');
+	console.log("Log-- ", "RealismSSAOEffect");
 	// 创建SSAO效果
 	const ssaoEffect = new SelectiveSSAOEffect(composer, camera, scene, {
 		// 基本参数
@@ -407,29 +479,29 @@ window.addEventListener("load", () => load().then((assets) => {
 		useMultisampling: true,
 		samplingCount: 9,
 		samplingRadius: 2.0,
-		samplingThreshold: 0.5,
+		samplingThreshold: 0.5
 		// 渲染控制
 	});
 
 	// 打印Selection对象的结构，帮助调试
-	console.log('Selection API 结构:', {
+	console.log("Selection API 结构:", {
 		selection: ssaoEffect.ignoreSelection,
 		properties: Object.keys(ssaoEffect.ignoreSelection),
 		methods: Object.getOwnPropertyNames(Object.getPrototypeOf(ssaoEffect.ignoreSelection)),
 		hasItems: !!ssaoEffect.ignoreSelection.items,
 		hasObjects: !!ssaoEffect.ignoreSelection.objects,
-		hasGetItems: typeof ssaoEffect.ignoreSelection.getItems === 'function'
+		hasGetItems: typeof ssaoEffect.ignoreSelection.getItems === "function"
 	});
 
 	// 添加SSAO效果到合成器
 	composer.addPass(new EffectPass(camera, ssaoEffect));
 
 	// 输出SSAOEffect的实际API结构
-	console.log('SSAO效果已创建，详细API:', {
+	console.log("SSAO效果已创建，详细API:", {
 		directProperties: Object.keys(ssaoEffect),
 		hasBlendMode: !!ssaoEffect.blendMode,
 		blendModeProperties: ssaoEffect.blendMode ? Object.keys(ssaoEffect.blendMode) : [],
-		hasSetOpacity: typeof ssaoEffect.setOpacity === 'function',
+		hasSetOpacity: typeof ssaoEffect.setOpacity === "function",
 		prototype: Object.getPrototypeOf(ssaoEffect) ? Object.keys(Object.getPrototypeOf(ssaoEffect)) : [],
 		effectPass: composer.passes[composer.passes.length - 1]
 	});
@@ -447,14 +519,21 @@ window.addEventListener("load", () => load().then((assets) => {
 	let ambientLight = null;
 
 	lights.children.forEach(light => {
-		if (light.isDirectionalLight) {
+
+		if(light.isDirectionalLight) {
+
 			directionalLight = light;
-		} else if (light.isAmbientLight) {
+
+		} else if(light.isAmbientLight) {
+
 			ambientLight = light;
+
 		}
+
 	});
 
-	if (directionalLight) {
+	if(directionalLight) {
+
 		lightFolder.addBinding(directionalLight, "intensity", {
 			min: 0, max: 5, step: 0.1,
 			label: "主光源强度"
@@ -471,13 +550,16 @@ window.addEventListener("load", () => load().then((assets) => {
 			min: 0, max: 1, step: 0.01,
 			label: "主光源-蓝"
 		});
+
 	}
 
-	if (ambientLight) {
+	if(ambientLight) {
+
 		lightFolder.addBinding(ambientLight, "intensity", {
 			min: 0, max: 2, step: 0.1,
 			label: "环境光强度"
 		});
+
 	}
 
 	// SSAO设置
@@ -486,16 +568,23 @@ window.addEventListener("load", () => load().then((assets) => {
 	// 基本控制
 	folder.addBinding({ enabled: true }, "enabled", { label: "启用SSAO" })
 		.on("change", (e) => {
+
 			// 通过控制EffectPass的enabled属性来切换效果
 			composer.passes.forEach(pass => {
-				if (pass.effects && pass.effects.length > 0) {
-					if (pass.effects.some(effect => effect.constructor.name === "SSAOEffect")) {
-						pass.enabled = e.value;
-					}
-				}
-			});
-		});
 
+				if(pass.effects && pass.effects.length > 0) {
+
+					if(pass.effects.some(effect => effect.constructor.name === "SSAOEffect")) {
+
+						pass.enabled = e.value;
+
+					}
+
+				}
+
+			});
+
+		});
 
 
 	// 创建自定义对象来控制混合强度
@@ -507,6 +596,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		min: 0, max: 1, step: 0.01,
 		label: "混合强度"
 	}).on("change", (e) => {
+
 		// 使用辅助函数设置混合强度，尝试多种可能的属性路径
 		const paths = [
 			"blendMode.opacity",
@@ -518,7 +608,8 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		const success = accessProperty(ssaoEffect, paths, e.value, true);
 
-		if (!success) {
+		if(!success) {
+
 			// 尝试调用可能的setter方法
 			const methods = [
 				"setOpacity",
@@ -528,40 +619,60 @@ window.addEventListener("load", () => load().then((assets) => {
 			];
 
 			let methodCalled = false;
-			for (const method of methods) {
-				if (typeof ssaoEffect[method] === 'function') {
+			for(const method of methods) {
+
+				if(typeof ssaoEffect[method] === "function") {
+
 					try {
+
 						ssaoEffect[method](e.value);
 						console.log(`成功通过方法 ${method} 设置混合强度为 ${e.value}`);
 						methodCalled = true;
 						break;
-					} catch (err) {
+
+					} catch(err) {
+
 						console.warn(`调用方法 ${method} 失败:`, err);
+
 					}
+
 				}
+
 			}
 
-			if (!methodCalled) {
+			if(!methodCalled) {
+
 				console.warn("无法设置SSAO混合强度，所有尝试都失败了");
 
 				// 最后的尝试 - 直接在EffectPass中查找控制方法
 				const ssaoPass = composer.passes.find(pass =>
 					pass.effects && pass.effects.some(effect => effect.constructor.name === "SSAOEffect"));
 
-				if (ssaoPass) {
+				if(ssaoPass) {
+
 					console.log("尝试直接设置EffectPass混合模式");
 					try {
+
 						const effect = ssaoPass.effects.find(effect => effect instanceof RealismSSAOEffect);
-						if (effect && effect.blendMode) {
+						if(effect && effect.blendMode) {
+
 							effect.blendMode.opacity = e.value;
 							console.log("成功设置EffectPass内效果的混合强度");
+
 						}
-					} catch (err) {
+
+					} catch(err) {
+
 						console.error("设置EffectPass混合模式失败:", err);
+
 					}
+
 				}
+
 			}
+
 		}
+
 	});
 
 	// 基本参数控制
@@ -649,7 +760,9 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	// 使用辅助函数获取十六进制颜色字符串
 	function getHexByColor(color) {
-		return '#' + color.getHexString();
+
+		return "#" + color.getHexString();
+
 	}
 
 	// 颜色控制状态对象
@@ -661,11 +774,17 @@ window.addEventListener("load", () => load().then((assets) => {
 		view: "color",
 		label: "AO颜色"
 	}).on("change", (e) => {
-		if (e.value === "#000000") {
+
+		if(e.value === "#000000") {
+
 			ssaoEffect.color = null;
+
 		} else {
+
 			ssaoEffect.color = new Color().setStyle(e.value).convertSRGBToLinear();
+
 		}
+
 	});
 
 	// 预设选项
@@ -680,8 +799,10 @@ window.addEventListener("load", () => load().then((assets) => {
 			高质量: "high"
 		}
 	}).on("change", (e) => {
+
 		// 应用预设，根据配置对象调整参数
-		switch (e.value) {
+		switch(e.value) {
+
 			case "low":
 				// 分辨率和采样
 				ssaoEffect.resolutionScale = 0.25;
@@ -747,6 +868,7 @@ window.addEventListener("load", () => load().then((assets) => {
 				ssaoEffect.normalPhi = 5.0;
 				ssaoEffect.lumaPhi = 15.0;
 				break;
+
 		}
 
 		// 更新颜色状态
@@ -754,6 +876,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		// 更新UI显示
 		pane.refresh();
+
 	});
 
 	// 比较按钮
@@ -761,25 +884,35 @@ window.addEventListener("load", () => load().then((assets) => {
 	const compareButton = pane.addButton({
 		title: "关闭SSAO（比较）"
 	}).on("click", () => {
+
 		compareMode = !compareMode;
 
 		// 获取SSAO效果所在的EffectPass
 		let ssaoPass = null;
 		composer.passes.forEach(pass => {
-			if (pass.effects && pass.effects.length > 0) {
-				if (pass.effects.some(effect => effect.constructor.name === "SSAOEffect")) {
+
+			if(pass.effects && pass.effects.length > 0) {
+
+				if(pass.effects.some(effect => effect.constructor.name === "SSAOEffect")) {
+
 					ssaoPass = pass;
+
 				}
+
 			}
+
 		});
 
-		if (ssaoPass) {
+		if(ssaoPass) {
+
 			// 切换效果
 			ssaoPass.enabled = !compareMode;
+
 		}
 
 		// 更新按钮文本
 		compareButton.title = compareMode ? "开启SSAO" : "关闭SSAO（比较）";
+
 	});
 
 	// 添加忽略模型相关功能的UI
@@ -789,16 +922,20 @@ window.addEventListener("load", () => load().then((assets) => {
 	});
 
 	// 添加说明文字
-	const instructionElem = document.createElement('div');
-	instructionElem.className = 'instruction-text';
-	instructionElem.textContent = '点击模型将其添加到AO忽略列表';
-	instructionElem.style.cssText = 'background: rgba(0,0,0,0.1); padding: 8px; border-radius: 4px; margin: 8px 0; text-align: center; font-size: 12px;';
+	const instructionElem = document.createElement("div");
+	instructionElem.className = "instruction-text";
+	instructionElem.textContent = "点击模型将其添加到AO忽略列表";
+	instructionElem.style.cssText = "background: rgba(0,0,0,0.1); padding: 8px; border-radius: 4px; margin: 8px 0; text-align: center; font-size: 12px;";
 	// 获取ignoreFolder的DOM元素并添加说明
 	setTimeout(() => {
+
 		const folderElem = ignoreFolder.element;
-		if (folderElem) {
+		if(folderElem) {
+
 			folderElem.prepend(instructionElem);
+
 		}
+
 	}, 100); // 短暂延时确保DOM已更新
 
 	// 显示当前忽略模型数量
@@ -819,12 +956,18 @@ window.addEventListener("load", () => load().then((assets) => {
 		min: 0.5, max: 2.0, step: 0.1,
 		label: "高亮强度"
 	}).on("change", (e) => {
+
 		try {
+
 			// 更新SSAO效果中的高亮值
 			ssaoEffect.highlightValue = e.value;
-		} catch (error) {
-			console.error('设置高亮值时出错:', error);
+
+		} catch(error) {
+
+			console.error("设置高亮值时出错:", error);
+
 		}
+
 	});
 
 	// 添加亮度阈值控制
@@ -832,14 +975,22 @@ window.addEventListener("load", () => load().then((assets) => {
 		min: 0.1, max: 1.0, step: 0.05,
 		label: "亮度阈值"
 	}).on("change", (e) => {
+
 		try {
+
 			// 更新着色器中的亮度阈值
-			if (ssaoEffect.brightnessThreshold !== undefined) {
+			if(ssaoEffect.brightnessThreshold !== undefined) {
+
 				ssaoEffect.brightnessThreshold = e.value;
+
 			}
-		} catch (error) {
-			console.error('设置亮度阈值时出错:', error);
+
+		} catch(error) {
+
+			console.error("设置亮度阈值时出错:", error);
+
 		}
+
 	});
 
 	// 添加调试面板
@@ -871,45 +1022,71 @@ window.addEventListener("load", () => load().then((assets) => {
 		},
 		label: "调试显示模式"
 	}).on("change", (e) => {
+
 		try {
+
 			// 更新SSAO效果中的调试模式
-			if (ssaoEffect.debugMode !== undefined) {
+			if(ssaoEffect.debugMode !== undefined) {
+
 				ssaoEffect.debugMode = e.value;
 				console.log(`切换到调试模式: ${e.value}`);
+
 			} else {
-				console.warn('SSAO效果不支持调试模式。请确保使用的是支持debugMode的AOEffect版本。');
+
+				console.warn("SSAO效果不支持调试模式。请确保使用的是支持debugMode的AOEffect版本。");
+
 			}
-		} catch (error) {
-			console.error('设置调试模式时出错:', error);
+
+		} catch(error) {
+
+			console.error("设置调试模式时出错:", error);
+
 		}
+
 	});
 
 	// 添加反转遮罩选项
 	debugFolder.addBinding(debugModes, "invertMask", {
 		label: "反转遮罩"
 	}).on("change", (e) => {
+
 		try {
-			if (ssaoEffect.inverted !== undefined) {
+
+			if(ssaoEffect.inverted !== undefined) {
+
 				ssaoEffect.inverted = e.value;
-				console.log(`${e.value ? '启用' : '禁用'}遮罩反转`);
+				console.log(`${e.value ? "启用" : "禁用"}遮罩反转`);
+
 			}
-		} catch (error) {
-			console.error('设置遮罩反转时出错:', error);
+
+		} catch(error) {
+
+			console.error("设置遮罩反转时出错:", error);
+
 		}
+
 	});
 
 	// 添加忽略背景选项
 	debugFolder.addBinding(debugModes, "ignoreBackground", {
 		label: "忽略背景"
 	}).on("change", (e) => {
+
 		try {
-			if (ssaoEffect.ignoreBackground !== undefined) {
+
+			if(ssaoEffect.ignoreBackground !== undefined) {
+
 				ssaoEffect.ignoreBackground = e.value;
-				console.log(`${e.value ? '启用' : '禁用'}背景忽略`);
+				console.log(`${e.value ? "启用" : "禁用"}背景忽略`);
+
 			}
-		} catch (error) {
-			console.error('设置背景忽略时出错:', error);
+
+		} catch(error) {
+
+			console.error("设置背景忽略时出错:", error);
+
 		}
+
 	});
 
 	// 添加遮罩阈值控制
@@ -917,78 +1094,108 @@ window.addEventListener("load", () => load().then((assets) => {
 		min: 0.001, max: 0.1, step: 0.001,
 		label: "遮罩阈值"
 	}).on("change", (e) => {
+
 		try {
-			if (ssaoEffect.maskThreshold !== undefined) {
+
+			if(ssaoEffect.maskThreshold !== undefined) {
+
 				ssaoEffect.maskThreshold = e.value;
 				console.log(`设置遮罩阈值为: ${e.value}`);
+
 			}
-		} catch (error) {
-			console.error('设置遮罩阈值时出错:', error);
+
+		} catch(error) {
+
+			console.error("设置遮罩阈值时出错:", error);
+
 		}
+
 	});
 
 	// 添加性能监视选项
 	debugFolder.addBinding(debugModes, "showInfo", {
 		label: "显示调试信息"
 	}).on("change", (e) => {
+
 		// 更新性能显示
-		const debugInfo = document.getElementById('debug-info');
-		if (debugInfo) {
-			debugInfo.style.display = e.value ? 'block' : 'none';
+		const debugInfo = document.getElementById("debug-info");
+		if(debugInfo) {
+
+			debugInfo.style.display = e.value ? "block" : "none";
+
 		}
+
 	});
 
 	// 添加调试信息面板
-	const debugInfo = document.createElement('div');
-	debugInfo.id = 'debug-info';
-	debugInfo.style.cssText = 'position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6); color: white; padding: 10px; font-family: monospace; font-size: 12px; border-radius: 4px; pointer-events: none; z-index: 1000;';
+	const debugInfo = document.createElement("div");
+	debugInfo.id = "debug-info";
+	debugInfo.style.cssText = "position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6); color: white; padding: 10px; font-family: monospace; font-size: 12px; border-radius: 4px; pointer-events: none; z-index: 1000;";
 	container.appendChild(debugInfo);
 
 	// 添加清空忽略列表的按钮
 	ignoreFolder.addButton({
 		title: "清空忽略列表"
 	}).on("click", () => {
+
 		try {
+
 			// 清空Selection
 			ssaoEffect.ignoreSelection.clear();
 
 			// 更新忽略计数
 			ignoreState.ignoredCount = getSelectionCount(ssaoEffect.ignoreSelection);
 			pane.refresh();
-		} catch (error) {
-			console.error('清空Selection时出错:', error);
+
+		} catch(error) {
+
+			console.error("清空Selection时出错:", error);
+
 		}
+
 	});
 
 	// 添加快捷键支持
 	window.addEventListener("keydown", (event) => {
+
 		// Alt+D 显示/隐藏开发者测试面板
-		if (event.key === "d" && event.altKey) {
+		if(event.key === "d" && event.altKey) {
+
 			debugFolder.expanded = !debugFolder.expanded;
 			pane.refresh();
+
 		}
 
 		// 数字键1-4切换调试模式
-		if (event.key >= "1" && event.key <= "4" && event.ctrlKey) {
+		if(event.key >= "1" && event.key <= "4" && event.ctrlKey) {
+
 			const mode = parseInt(event.key) - 1;
-			if (mode >= 0 && mode <= 3) {
+			if(mode >= 0 && mode <= 3) {
+
 				debugModes.debugMode = mode;
-				if (ssaoEffect.debugMode !== undefined) {
+				if(ssaoEffect.debugMode !== undefined) {
+
 					ssaoEffect.debugMode = mode;
 					console.log(`快捷键切换到调试模式: ${mode}`);
 					pane.refresh();
+
 				}
+
 			}
+
 		}
+
 	});
 
 	// 调整大小处理
 	function onResize() {
+
 		const width = container.clientWidth, height = container.clientHeight;
 		camera.aspect = width / height;
 		camera.fov = calculateVerticalFoV(90, Math.max(camera.aspect, 16 / 9));
 		camera.updateProjectionMatrix();
 		composer.setSize(width, height);
+
 	}
 
 	window.addEventListener("resize", onResize);
@@ -999,7 +1206,8 @@ window.addEventListener("load", () => load().then((assets) => {
 	const mouse = new Vector2();
 
 	// 添加点击事件处理
-	renderer.domElement.addEventListener('click', (event) => {
+	renderer.domElement.addEventListener("click", (event) => {
+
 		// 计算鼠标位置的归一化设备坐标 (-1 到 +1)
 		const rect = renderer.domElement.getBoundingClientRect();
 		mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -1011,37 +1219,51 @@ window.addEventListener("load", () => load().then((assets) => {
 		// 计算物体和射线的焦点
 		const intersects = raycaster.intersectObjects(scene.children, true);
 
-		if (intersects.length > 0) {
+		if(intersects.length > 0) {
+
 			const object = intersects[0].object;
-			if (object.isMesh) {
-				console.log('点击了模型:', object.name || '未命名模型');
+			if(object.isMesh) {
+
+				console.log("点击了模型:", object.name || "未命名模型");
 
 				try {
+
 					// 检查对象是否在Selection中
-					if (ssaoEffect.ignoreSelection.has(object)) {
-						console.log('从忽略列表中移除模型');
+					if(ssaoEffect.ignoreSelection.has(object)) {
+
+						console.log("从忽略列表中移除模型");
 						// 从Selection中移除对象
 						ssaoEffect.ignoreSelection.delete(object);
+
 					} else {
-						console.log('添加模型到忽略列表');
+
+						console.log("添加模型到忽略列表");
 						// 添加对象到Selection
 						ssaoEffect.ignoreSelection.add(object);
+
 					}
 
 					// 更新忽略计数
 					ignoreState.ignoredCount = getSelectionCount(ssaoEffect.ignoreSelection);
 					pane.refresh();
-				} catch (error) {
-					console.error('处理Selection时出错:', error);
+
+				} catch(error) {
+
+					console.error("处理Selection时出错:", error);
+
 				}
+
 			}
+
 		}
+
 	});
 
 	// 渲染循环
 	let t0 = 0;
 
 	requestAnimationFrame(function render(timestamp) {
+
 		const deltaTime = timestamp - t0;
 		t0 = timestamp;
 
@@ -1051,9 +1273,11 @@ window.addEventListener("load", () => load().then((assets) => {
 		composer.render();
 
 		// 更新调试信息面板
-		if (debugModes.showInfo) {
-			const debugInfo = document.getElementById('debug-info');
-			if (debugInfo) {
+		if(debugModes.showInfo) {
+
+			const debugInfo = document.getElementById("debug-info");
+			if(debugInfo) {
+
 				const currentMode = ["正常", "亮度可视化", "AO强度可视化", "AO值可视化"][debugModes.debugMode];
 
 				debugInfo.innerHTML = `
@@ -1066,9 +1290,13 @@ window.addEventListener("load", () => load().then((assets) => {
 					<div>模型总数: ${scene.children.reduce((count, child) => count + (child.isMesh ? 1 : 0), 0)}</div>
 					<div>忽略模型数: ${getSelectionCount(ssaoEffect.ignoreSelection)}</div>
 				`;
+
 			}
+
 		}
 
 		requestAnimationFrame(render);
+
 	});
+
 }));

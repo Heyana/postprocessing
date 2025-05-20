@@ -11,8 +11,8 @@ import {
 	TextureLoader,
 	Vector2,
 	WebGLRenderTarget
-} from "three"
-import { FullScreenQuad } from "three/examples/jsm/postprocessing/Pass.js"
+} from "three";
+import { FullScreenQuad } from "three/examples/jsm/postprocessing/Pass.js";
 
 export const utilsGLSL = /* glsl */ `
 
@@ -129,46 +129,68 @@ export const utilsGLSL = /* glsl */ `
 		return x < 0.5 ? sqrt( 2.0 * x ) - 1.0 : 1.0 - sqrt( 2.0 - ( 2.0 * x ) );
 
 	}
-`
+`;
 
 export class MaterialBase extends ShaderMaterial {
-	constructor(shader) {
-		super(shader)
 
-		// eslint-disable-next-line guard-for-in
-		for (const key in this.uniforms) {
+	constructor(shader) {
+
+		super(shader);
+
+
+		for(const key in this.uniforms) {
+
 			Object.defineProperty(this, key, {
 				get() {
-					return this.uniforms[key].value
+
+					return this.uniforms[key].value;
+
 				},
 
 				set(v) {
-					this.uniforms[key].value = v
+
+					this.uniforms[key].value = v;
+
 				}
-			})
+			});
+
 		}
+
 	}
 
 	// sets the given named define value and sets "needsUpdate" to true if it's different
 	setDefine(name, value = undefined) {
-		if (value === undefined || value === null) {
-			if (name in this.defines) {
-				delete this.defines[name]
-				this.needsUpdate = true
+
+		if(value === undefined || value === null) {
+
+			if(name in this.defines) {
+
+				delete this.defines[name];
+				this.needsUpdate = true;
+
 			}
+
 		} else {
-			if (this.defines[name] !== value) {
-				this.defines[name] = value
-				this.needsUpdate = true
+
+			if(this.defines[name] !== value) {
+
+				this.defines[name] = value;
+				this.needsUpdate = true;
+
 			}
+
 		}
+
 	}
+
 }
 
-import blueNoiseImage from "../src/utils/blue_noise_rgba.png"
+import blueNoiseImage from "../src/utils/blue_noise_rgba.png";
 
 class PMREMCopyMaterial extends MaterialBase {
+
 	constructor() {
+
 		super({
 			uniforms: {
 				envMap: { value: null },
@@ -268,91 +290,109 @@ class PMREMCopyMaterial extends MaterialBase {
 				}
 
 			`
-		})
+		});
+
 	}
+
 }
 
 export class BlurredEnvMapGenerator {
+
 	constructor(renderer) {
-		this.renderer = renderer
-		this.pmremGenerator = new PMREMGenerator(renderer)
-		this.copyQuad = new FullScreenQuad(new PMREMCopyMaterial())
-		this.renderTarget = new WebGLRenderTarget(1, 1, { type: FloatType, format: RGBAFormat })
+
+		this.renderer = renderer;
+		this.pmremGenerator = new PMREMGenerator(renderer);
+		this.copyQuad = new FullScreenQuad(new PMREMCopyMaterial());
+		this.renderTarget = new WebGLRenderTarget(1, 1, { type: FloatType, format: RGBAFormat });
+
 	}
 
 	async init() {
+
 		return new Promise(resolve => {
+
 			new TextureLoader().load(blueNoiseImage, blueNoiseTexture => {
-				if (this.copyQuad.material.uniforms.blueNoiseTexture.value) {
-					resolve()
-					return
+
+				if(this.copyQuad.material.uniforms.blueNoiseTexture.value) {
+
+					resolve();
+					return;
+
 				}
 
-				blueNoiseTexture.minFilter = NearestFilter
-				blueNoiseTexture.magFilter = NearestFilter
-				blueNoiseTexture.wrapS = RepeatWrapping
-				blueNoiseTexture.wrapT = RepeatWrapping
-				blueNoiseTexture.colorSpace = NoColorSpace
+				blueNoiseTexture.minFilter = NearestFilter;
+				blueNoiseTexture.magFilter = NearestFilter;
+				blueNoiseTexture.wrapS = RepeatWrapping;
+				blueNoiseTexture.wrapT = RepeatWrapping;
+				blueNoiseTexture.colorSpace = NoColorSpace;
 
-				this.copyQuad.material.uniforms.blueNoiseTexture.value = blueNoiseTexture
+				this.copyQuad.material.uniforms.blueNoiseTexture.value = blueNoiseTexture;
 
-				resolve()
-			})
-		})
+				resolve();
+
+			});
+
+		});
+
 	}
 
 	dispose() {
-		this.pmremGenerator.dispose()
-		this.copyQuad.dispose()
-		this.renderTarget.dispose()
+
+		this.pmremGenerator.dispose();
+		this.copyQuad.dispose();
+		this.renderTarget.dispose();
+
 	}
 
 	generate(texture, blur) {
-		console.time("blur")
-		const { pmremGenerator, renderTarget, copyQuad, renderer } = this
+
+		console.time("blur");
+		const { pmremGenerator, renderTarget, copyQuad, renderer } = this;
 
 		// get the pmrem target
-		const pmremTarget = pmremGenerator.fromEquirectangular(texture)
+		const pmremTarget = pmremGenerator.fromEquirectangular(texture);
 
-		const { width, height } = texture.image
-		renderTarget.setSize(width, height)
-		copyQuad.material.envMap = pmremTarget.texture
-		copyQuad.material.blur = blur
+		const { width, height } = texture.image;
+		renderTarget.setSize(width, height);
+		copyQuad.material.envMap = pmremTarget.texture;
+		copyQuad.material.blur = blur;
 
-		const { blueNoiseRepeat, blueNoiseTexture, resolution } = copyQuad.material.uniforms
+		const { blueNoiseRepeat, blueNoiseTexture, resolution } = copyQuad.material.uniforms;
 
-		blueNoiseRepeat.value.set(width / blueNoiseTexture.value.image.width, height / blueNoiseTexture.value.image.height)
+		blueNoiseRepeat.value.set(width / blueNoiseTexture.value.image.width, height / blueNoiseTexture.value.image.height);
 
-		resolution.value.set(width, height)
+		resolution.value.set(width, height);
 
 		// render
-		const prevRenderTarget = renderer.getRenderTarget()
-		const prevClear = renderer.autoClear
+		const prevRenderTarget = renderer.getRenderTarget();
+		const prevClear = renderer.autoClear;
 
-		renderer.setRenderTarget(renderTarget)
-		renderer.autoClear = true
-		copyQuad.render(renderer)
+		renderer.setRenderTarget(renderTarget);
+		renderer.autoClear = true;
+		copyQuad.render(renderer);
 
-		renderer.setRenderTarget(prevRenderTarget)
-		renderer.autoClear = prevClear
+		renderer.setRenderTarget(prevRenderTarget);
+		renderer.autoClear = prevClear;
 
 		// read the data back
-		const buffer = new Float32Array(width * height * 4)
-		renderer.readRenderTargetPixels(renderTarget, 0, 0, width, height, buffer)
+		const buffer = new Float32Array(width * height * 4);
+		renderer.readRenderTargetPixels(renderTarget, 0, 0, width, height, buffer);
 
-		const result = new DataTexture(buffer, width, height, RGBAFormat, FloatType)
-		result.minFilter = texture.minFilter
-		result.magFilter = texture.magFilter
-		result.wrapS = texture.wrapS
-		result.wrapT = texture.wrapT
-		result.mapping = EquirectangularReflectionMapping
-		result.needsUpdate = true
+		const result = new DataTexture(buffer, width, height, RGBAFormat, FloatType);
+		result.minFilter = texture.minFilter;
+		result.magFilter = texture.magFilter;
+		result.wrapS = texture.wrapS;
+		result.wrapT = texture.wrapT;
+		result.mapping = EquirectangularReflectionMapping;
+		result.needsUpdate = true;
 
 		// dispose of the now unneeded target
-		pmremTarget.dispose()
+		pmremTarget.dispose();
 
-		console.timeEnd("blur")
+		console.timeEnd("blur");
 
-		return result
+		return result;
+
 	}
+
 }

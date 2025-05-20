@@ -1,6 +1,6 @@
 import {
 	Vector2
-} from 'three';
+} from "three";
 
 /**
  * NVIDIA FXAA by Timothy Lottes
@@ -12,12 +12,12 @@ import {
 
 const FXAAShader = {
 
-	name: 'FXAAShader',
+	name: "FXAAShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'resolution': { value: new Vector2(1 / 1024, 1 / 512) }
+		"tDiffuse": { value: null },
+		"resolution": { value: new Vector2(1 / 1024, 1 / 512) }
 
 	},
 

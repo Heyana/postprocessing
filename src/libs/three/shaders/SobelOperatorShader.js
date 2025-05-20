@@ -1,6 +1,6 @@
 import {
 	Vector2
-} from 'three';
+} from "three";
 
 /**
  * Sobel Edge Detection (see https://youtu.be/uihBwtPIBxM)
@@ -11,12 +11,12 @@ import {
 
 const SobelOperatorShader = {
 
-	name: 'SobelOperatorShader',
+	name: "SobelOperatorShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'resolution': { value: new Vector2() }
+		"tDiffuse": { value: null },
+		"resolution": { value: new Vector2() }
 
 	},
 

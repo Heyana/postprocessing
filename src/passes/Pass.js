@@ -173,11 +173,11 @@ export class Pass {
 
 	set renderToScreen(value) {
 
-		if (this.rtt === value) {
+		if(this.rtt === value) {
 
 			const material = this.fullscreenMaterial;
 
-			if (material !== null) {
+			if(material !== null) {
 
 				material.needsUpdate = true;
 
@@ -260,7 +260,7 @@ export class Pass {
 
 		let screen = this.screen;
 
-		if (screen !== null) {
+		if(screen !== null) {
 
 			screen.material = value;
 
@@ -269,7 +269,7 @@ export class Pass {
 			screen = new Mesh(Pass.fullscreenGeometry, value);
 			screen.frustumCulled = false;
 
-			if (this.scene === null) {
+			if(this.scene === null) {
 
 				this.scene = new Scene();
 
@@ -408,7 +408,7 @@ export class Pass {
 
 	dispose() {
 
-		for (const key of Object.keys(this)) {
+		for(const key of Object.keys(this)) {
 
 			const property = this[key];
 			const isDisposable = (
@@ -418,7 +418,7 @@ export class Pass {
 				property instanceof Pass
 			);
 
-			if (isDisposable) {
+			if(isDisposable) {
 
 				this[key].dispose();
 
@@ -426,7 +426,7 @@ export class Pass {
 
 		}
 
-		if (this.fullscreenMaterial !== null) {
+		if(this.fullscreenMaterial !== null) {
 
 			this.fullscreenMaterial.dispose();
 

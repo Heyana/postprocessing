@@ -34,7 +34,7 @@ export function createLights() {
 
 	const backLight = new DirectionalLight(0xffbbaa, 0.1);
 	backLight.position.copy(mainLight.position).negate();
-	backLight.intensity = 10
+	backLight.intensity = 10;
 	const lights = new Group();
 	lights.add(mainLight, backLight, ambientLight);
 
@@ -85,7 +85,7 @@ export function createActors() {
 		)
 	);
 
-	for (const mesh of meshes.children) {
+	for(const mesh of meshes.children) {
 
 		mesh.receiveShadow = true;
 		mesh.castShadow = true;

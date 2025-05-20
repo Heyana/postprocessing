@@ -3,8 +3,8 @@ import {
 	Matrix4,
 	RepeatWrapping,
 	Vector2,
-	Vector3,
-} from 'three';
+	Vector3
+} from "three";
 
 /**
  * References:
@@ -38,16 +38,16 @@ import {
 
 const GTAOShader = {
 
-	name: 'GTAOShader',
+	name: "GTAOShader",
 
 	defines: {
 		PERSPECTIVE_CAMERA: 1,
 		SAMPLES: 16,
 		NORMAL_VECTOR_TYPE: 1,
-		DEPTH_SWIZZLING: 'x',
+		DEPTH_SWIZZLING: "x",
 		SCREEN_SPACE_RADIUS: 0,
 		SCREEN_SPACE_RADIUS_SCALE: 100.0,
-		SCENE_CLIP_BOX: 0,
+		SCENE_CLIP_BOX: 0
 	},
 
 	uniforms: {
@@ -65,8 +65,8 @@ const GTAOShader = {
 		thickness: { value: 1. },
 		distanceFallOff: { value: 1. },
 		scale: { value: 1. },
-		sceneBoxMin: { value: new Vector3(- 1, - 1, - 1) },
-		sceneBoxMax: { value: new Vector3(1, 1, 1) },
+		sceneBoxMin: { value: new Vector3(-1, -1, -1) },
+		sceneBoxMax: { value: new Vector3(1, 1, 1) }
 	},
 
 	vertexShader: /* glsl */`
@@ -260,7 +260,7 @@ const GTAOShader = {
 
 const GTAODepthShader = {
 
-	name: 'GTAODepthShader',
+	name: "GTAODepthShader",
 
 	defines: {
 		PERSPECTIVE_CAMERA: 1
@@ -269,7 +269,7 @@ const GTAODepthShader = {
 	uniforms: {
 		tDepth: { value: null },
 		cameraNear: { value: null },
-		cameraFar: { value: null },
+		cameraFar: { value: null }
 	},
 
 	vertexShader: /* glsl */`
@@ -308,7 +308,7 @@ const GTAODepthShader = {
 
 const GTAOBlendShader = {
 
-	name: 'GTAOBlendShader',
+	name: "GTAOBlendShader",
 
 	uniforms: {
 		tDiffuse: { value: null },
@@ -343,7 +343,7 @@ function generateMagicSquareNoise(size = 5) {
 	const noiseSquareSize = magicSquare.length;
 	const data = new Uint8Array(noiseSquareSize * 4);
 
-	for (let inx = 0; inx < noiseSquareSize; ++inx) {
+	for(let inx = 0; inx < noiseSquareSize; ++inx) {
 
 		const iAng = magicSquare[inx];
 		const angle = (2 * Math.PI * iAng) / noiseSquareSize;
@@ -376,22 +376,22 @@ function generateMagicSquare(size) {
 	let i = Math.floor(noiseSize / 2);
 	let j = noiseSize - 1;
 
-	for (let num = 1; num <= noiseSquareSize;) {
+	for(let num = 1; num <= noiseSquareSize;) {
 
-		if (i === - 1 && j === noiseSize) {
+		if(i === -1 && j === noiseSize) {
 
 			j = noiseSize - 2;
 			i = 0;
 
 		} else {
 
-			if (j === noiseSize) {
+			if(j === noiseSize) {
 
 				j = 0;
 
 			}
 
-			if (i < 0) {
+			if(i < 0) {
 
 				i = noiseSize - 1;
 
@@ -399,7 +399,7 @@ function generateMagicSquare(size) {
 
 		}
 
-		if (magicSquare[i * noiseSize + j] !== 0) {
+		if(magicSquare[i * noiseSize + j] !== 0) {
 
 			j -= 2;
 			i++;

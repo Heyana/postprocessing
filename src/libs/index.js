@@ -1,36 +1,36 @@
 export {
-    SSGIEffect
-} from "./realism-effects/src/ssgi/SSGIEffect"
+	SSGIEffect
+} from "./realism-effects/src/ssgi/SSGIEffect";
 export {
-    SSREffect
-} from "./realism-effects/src/ssgi/SSREffect"
-
-export {
-    HBAOEffect
-} from "./realism-effects/src/hbao/HBAOEffect"
-export {
-    VelocityDepthNormalPass
-} from "./realism-effects/src/temporal-reproject/pass/VelocityDepthNormalPass"
+	SSREffect
+} from "./realism-effects/src/ssgi/SSREffect";
 
 export {
-    SSAOEffect as RealismSSAOEffect
-} from "./realism-new/src/ao/SSAOEffect"
+	HBAOEffect
+} from "./realism-effects/src/hbao/HBAOEffect";
+export {
+	VelocityDepthNormalPass
+} from "./realism-effects/src/temporal-reproject/pass/VelocityDepthNormalPass";
 
-export * as  RealismNew from './realism-new/index'
-export { SSAOEffect as RSSAOEffect } from './realism-new/src/ao/SSAOEffect'
-export { SelectiveSSAOEffect } from './realism-new/src/ao/SelectiveSSAOEffect'
-export { MotionBlurEffect } from './realism-effects/src/motion-blur/MotionBlurEffect'
-export { VelocityPass } from './realism-effects/src/temporal-reproject/pass/VelocityPass'
-export { LensDistortionEffect } from './realism-effects/src/lens-distortion/LensDistortionEffect'
+export {
+	SSAOEffect as RealismSSAOEffect
+} from "./realism-new/src/ao/SSAOEffect";
+
+export * as RealismNew from "./realism-new/index";
+export { SSAOEffect as RSSAOEffect } from "./realism-new/src/ao/SSAOEffect";
+export { SelectiveSSAOEffect } from "./realism-new/src/ao/SelectiveSSAOEffect";
+export { MotionBlurEffect } from "./realism-effects/src/motion-blur/MotionBlurEffect";
+export { VelocityPass } from "./realism-effects/src/temporal-reproject/pass/VelocityPass";
+export { LensDistortionEffect } from "./realism-effects/src/lens-distortion/LensDistortionEffect";
 
 
-export { TRAAEffect } from './realism-effects/src/traa/TRAAEffect'
-export { SharpnessEffect } from './realism-effects/src/sharpness/SharpnessEffect'
+export { TRAAEffect } from "./realism-effects/src/traa/TRAAEffect";
+export { SharpnessEffect } from "./realism-effects/src/sharpness/SharpnessEffect";
 
-export { AOPass as RAOPass } from './realism-effects/src/ao/AOPass'
-export { PoissonDenoisePass } from './realism-effects/src/denoise/pass/PoissonDenoisePass'
-export { PoissionDenoisePass } from './realism-new/src/pass/PoissionDenoisePass'
-export { SSRPass } from './three/pass/SSRPass'
-export { ReflectorForSSRPass } from './three/objects/ReflectorForSSRPass'
-export { SelectiveSSRPass } from './three/pass/SelectiveSSRPass'
-export { SSDOEffect } from './realism-new/src/ao/SSDOEffect'
+export { AOPass as RAOPass } from "./realism-effects/src/ao/AOPass";
+export { PoissonDenoisePass } from "./realism-effects/src/denoise/pass/PoissonDenoisePass";
+export { PoissionDenoisePass } from "./realism-new/src/pass/PoissionDenoisePass";
+export { SSRPass } from "./three/pass/SSRPass";
+export { ReflectorForSSRPass } from "./three/objects/ReflectorForSSRPass";
+export { SelectiveSSRPass } from "./three/pass/SelectiveSSRPass";
+export { SSDOEffect } from "./realism-new/src/ao/SSDOEffect";

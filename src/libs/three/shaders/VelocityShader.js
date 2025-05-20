@@ -2,7 +2,7 @@ import {
 	UniformsLib,
 	UniformsUtils,
 	Matrix4
-} from 'three';
+} from "three";
 
 /**
  * Mesh Velocity Shader @bhouston
@@ -10,7 +10,7 @@ import {
 
 const VelocityShader = {
 
-	name: 'VelocityShader',
+	name: "VelocityShader",
 
 	uniforms: UniformsUtils.merge([
 		UniformsLib.common,

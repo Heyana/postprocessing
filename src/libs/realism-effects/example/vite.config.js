@@ -1,10 +1,10 @@
-import path from "path"
-import glsl from "vite-plugin-glsl"
-import viteCompression from "vite-plugin-compression"
-import { fileURLToPath } from "url"
+import path from "path";
+import glsl from "vite-plugin-glsl";
+import viteCompression from "vite-plugin-compression";
+import { fileURLToPath } from "url";
 
-const fileName = fileURLToPath(import.meta.url)
-const dirName = path.dirname(fileName)
+const fileName = fileURLToPath(import.meta.url);
+const dirName = path.dirname(fileName);
 
 export default {
 	plugins: [glsl.default(), viteCompression({ algorithm: "brotliCompress" })],
@@ -20,4 +20,4 @@ export default {
 			allow: [".."]
 		}
 	}
-}
+};

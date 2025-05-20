@@ -1,6 +1,6 @@
 import {
 	Vector2
-} from 'three';
+} from "three";
 
 /**
  * TODO
@@ -8,23 +8,23 @@ import {
 
 const DepthLimitedBlurShader = {
 
-	name: 'DepthLimitedBlurShader',
+	name: "DepthLimitedBlurShader",
 
 	defines: {
-		'KERNEL_RADIUS': 4,
-		'DEPTH_PACKING': 1,
-		'PERSPECTIVE_CAMERA': 1
+		"KERNEL_RADIUS": 4,
+		"DEPTH_PACKING": 1,
+		"PERSPECTIVE_CAMERA": 1
 	},
 
 	uniforms: {
-		'tDiffuse': { value: null },
-		'size': { value: new Vector2(512, 512) },
-		'sampleUvOffsets': { value: [new Vector2(0, 0)] },
-		'sampleWeights': { value: [1.0] },
-		'tDepth': { value: null },
-		'cameraNear': { value: 10 },
-		'cameraFar': { value: 1000 },
-		'depthCutoff': { value: 10 },
+		"tDiffuse": { value: null },
+		"size": { value: new Vector2(512, 512) },
+		"sampleUvOffsets": { value: [new Vector2(0, 0)] },
+		"sampleWeights": { value: [1.0] },
+		"tDepth": { value: null },
+		"cameraNear": { value: 10 },
+		"cameraFar": { value: 1000 },
+		"depthCutoff": { value: 10 }
 	},
 
 	vertexShader: /* glsl */`
@@ -123,11 +123,11 @@ const DepthLimitedBlurShader = {
 
 const BlurShaderUtils = {
 
-	createSampleWeights: function (kernelRadius, stdDev) {
+	createSampleWeights: function(kernelRadius, stdDev) {
 
 		const weights = [];
 
-		for (let i = 0; i <= kernelRadius; i++) {
+		for(let i = 0; i <= kernelRadius; i++) {
 
 			weights.push(gaussian(i, stdDev));
 
@@ -137,11 +137,11 @@ const BlurShaderUtils = {
 
 	},
 
-	createSampleOffsets: function (kernelRadius, uvIncrement) {
+	createSampleOffsets: function(kernelRadius, uvIncrement) {
 
 		const offsets = [];
 
-		for (let i = 0; i <= kernelRadius; i++) {
+		for(let i = 0; i <= kernelRadius; i++) {
 
 			offsets.push(uvIncrement.clone().multiplyScalar(i));
 
@@ -151,11 +151,11 @@ const BlurShaderUtils = {
 
 	},
 
-	configure: function (material, kernelRadius, stdDev, uvIncrement) {
+	configure: function(material, kernelRadius, stdDev, uvIncrement) {
 
-		material.defines['KERNEL_RADIUS'] = kernelRadius;
-		material.uniforms['sampleUvOffsets'].value = BlurShaderUtils.createSampleOffsets(kernelRadius, uvIncrement);
-		material.uniforms['sampleWeights'].value = BlurShaderUtils.createSampleWeights(kernelRadius, stdDev);
+		material.defines.KERNEL_RADIUS = kernelRadius;
+		material.uniforms.sampleUvOffsets.value = BlurShaderUtils.createSampleOffsets(kernelRadius, uvIncrement);
+		material.uniforms.sampleWeights.value = BlurShaderUtils.createSampleWeights(kernelRadius, stdDev);
 		material.needsUpdate = true;
 
 	}
@@ -164,7 +164,7 @@ const BlurShaderUtils = {
 
 function gaussian(x, stdDev) {
 
-	return Math.exp(- (x * x) / (2.0 * (stdDev * stdDev))) / (Math.sqrt(2.0 * Math.PI) * stdDev);
+	return Math.exp(-(x * x) / (2.0 * (stdDev * stdDev))) / (Math.sqrt(2.0 * Math.PI) * stdDev);
 
 }
 

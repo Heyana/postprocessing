@@ -3,7 +3,7 @@ import {
 	Float32BufferAttribute,
 	OrthographicCamera,
 	Mesh
-} from 'three';
+} from "three";
 
 class Pass {
 
@@ -25,11 +25,11 @@ class Pass {
 
 	}
 
-	setSize( /* width, height */) { }
+	setSize(/* width, height */) { }
 
-	render( /* renderer, writeBuffer, readBuffer, deltaTime, maskActive */) {
+	render(/* renderer, writeBuffer, readBuffer, deltaTime, maskActive */) {
 
-		console.error('THREE.Pass: .render() must be implemented in derived pass.');
+		console.error("THREE.Pass: .render() must be implemented in derived pass.");
 
 	}
 
@@ -39,7 +39,7 @@ class Pass {
 
 // Helper for passes that need to fill the viewport with a single quad.
 
-const _camera = new OrthographicCamera(- 1, 1, 1, - 1, 0, 1);
+const _camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
 // https://github.com/mrdoob/three.js/pull/21358
 
@@ -49,8 +49,8 @@ class FullscreenTriangleGeometry extends BufferGeometry {
 
 		super();
 
-		this.setAttribute('position', new Float32BufferAttribute([- 1, 3, 0, - 1, - 1, 0, 3, - 1, 0], 3));
-		this.setAttribute('uv', new Float32BufferAttribute([0, 2, 0, 0, 2, 0], 2));
+		this.setAttribute("position", new Float32BufferAttribute([-1, 3, 0, -1, -1, 0, 3, -1, 0], 3));
+		this.setAttribute("uv", new Float32BufferAttribute([0, 2, 0, 0, 2, 0], 2));
 
 	}
 

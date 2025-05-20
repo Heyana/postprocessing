@@ -64,18 +64,18 @@ export function createEnvironment(envMap) {
 	geometry.boundingBox.getBoundingSphere(geometry.boundingSphere);
 
 	// 4x4 instance clusters
-	for (let i = -2; i < 2; ++i) {
+	for(let i = -2; i < 2; ++i) {
 
-		for (let j = -2; j < 2; ++j) {
+		for(let j = -2; j < 2; ++j) {
 
 			const mesh = new InstancedMesh(geometry, material, n ** 2 * 2);
 
 			// nx2xn instances
-			for (let k = 0, x = 0; x < n; ++x) {
+			for(let k = 0, x = 0; x < n; ++x) {
 
-				for (let y = -1; y < 1; ++y) {
+				for(let y = -1; y < 1; ++y) {
 
-					for (let z = 0; z < n; ++z) {
+					for(let z = 0; z < n; ++z) {
 
 						s.set(instanceSizeXZ, Math.random() * (instanceHeight - clearance), instanceSizeXZ);
 						p.set(x * instanceSizeXZ, (y + 0.5) * instanceHeight, z * instanceSizeXZ);

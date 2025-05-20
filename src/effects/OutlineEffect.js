@@ -80,7 +80,7 @@ export class OutlineEffect extends Effect {
 		// Handle alpha blending.
 		this.blendMode.addEventListener("change", (event) => {
 
-			if (this.blendMode.blendFunction === BlendFunction.ALPHA) {
+			if(this.blendMode.blendFunction === BlendFunction.ALPHA) {
 
 				this.defines.set("ALPHA", "1");
 
@@ -544,9 +544,9 @@ export class OutlineEffect extends Effect {
 
 	set xRay(value) {
 
-		if (this.xRay !== value) {
+		if(this.xRay !== value) {
 
-			if (value) {
+			if(value) {
 
 				this.defines.set("X_RAY", "1");
 
@@ -602,7 +602,7 @@ export class OutlineEffect extends Effect {
 
 	set patternTexture(value) {
 
-		if (value !== null) {
+		if(value !== null) {
 
 			value.wrapS = value.wrapT = RepeatWrapping;
 			this.defines.set("USE_PATTERN", "1");
@@ -737,12 +737,12 @@ export class OutlineEffect extends Effect {
 		const background = scene.background;
 		const mask = camera.layers.mask;
 
-		if (this.forceUpdate || selection.size > 0) {
+		if(this.forceUpdate || selection.size > 0) {
 
 			scene.background = null;
 			pulse.value = 1;
 
-			if (this.pulseSpeed > 0) {
+			if(this.pulseSpeed > 0) {
 
 				pulse.value = Math.cos(this.time * this.pulseSpeed * 10.0) * 0.375 + 0.625;
 
@@ -766,7 +766,7 @@ export class OutlineEffect extends Effect {
 			// Detect the outline.
 			this.outlinePass.render(renderer, null, this.renderTargetOutline);
 
-			if (this.blurPass.enabled) {
+			if(this.blurPass.enabled) {
 
 				this.blurPass.render(renderer, this.renderTargetOutline, this.renderTargetOutline);
 
@@ -813,7 +813,7 @@ export class OutlineEffect extends Effect {
 		// No need for high precision: the blur pass operates on a mask texture.
 		this.blurPass.initialize(renderer, alpha, UnsignedByteType);
 
-		if (frameBufferType !== undefined) {
+		if(frameBufferType !== undefined) {
 
 			// These passes ignore the buffer type.
 			this.depthPass.initialize(renderer, alpha, frameBufferType);

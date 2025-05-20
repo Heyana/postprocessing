@@ -9,12 +9,12 @@
 
 const HorizontalBlurShader = {
 
-	name: 'HorizontalBlurShader',
+	name: "HorizontalBlurShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'h': { value: 1.0 / 512.0 }
+		"tDiffuse": { value: null },
+		"h": { value: 1.0 / 512.0 }
 
 	},
 

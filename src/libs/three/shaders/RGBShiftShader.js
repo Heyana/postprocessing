@@ -10,13 +10,13 @@
 
 const RGBShiftShader = {
 
-	name: 'RGBShiftShader',
+	name: "RGBShiftShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'amount': { value: 0.005 },
-		'angle': { value: 0.0 }
+		"tDiffuse": { value: null },
+		"amount": { value: 0.005 },
+		"angle": { value: 0.0 }
 
 	},
 

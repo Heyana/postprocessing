@@ -1,4 +1,4 @@
-/* eslint-disable max-len */
+
 /**
  * Options of the SSGI effect
  * @typedef {Object} SSGIOptions
@@ -67,4 +67,4 @@ export const defaultSSGIOptions = {
 	sigmaSpace: 3.0, // 空间高斯函数标准差
 	sigmaRange: 0.1, // 范围高斯函数标准差
 	outputTexture: null
-}
+};

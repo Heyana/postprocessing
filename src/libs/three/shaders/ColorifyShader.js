@@ -1,6 +1,6 @@
 import {
 	Color
-} from 'three';
+} from "three";
 
 /**
  * Colorify shader
@@ -8,12 +8,12 @@ import {
 
 const ColorifyShader = {
 
-	name: 'ColorifyShader',
+	name: "ColorifyShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'color': { value: new Color(0xffffff) }
+		"tDiffuse": { value: null },
+		"color": { value: new Color(0xffffff) }
 
 	},
 

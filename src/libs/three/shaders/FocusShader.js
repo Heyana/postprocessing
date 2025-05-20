@@ -6,15 +6,15 @@
 
 const FocusShader = {
 
-	name: 'FocusShader',
+	name: "FocusShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'screenWidth': { value: 1024 },
-		'screenHeight': { value: 1024 },
-		'sampleDistance': { value: 0.94 },
-		'waveFactor': { value: 0.00125 }
+		"tDiffuse": { value: null },
+		"screenWidth": { value: 1024 },
+		"screenHeight": { value: 1024 },
+		"sampleDistance": { value: 0.94 },
+		"waveFactor": { value: 0.00125 }
 
 	},
 

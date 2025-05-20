@@ -1,7 +1,7 @@
 // this shader is from: https://github.com/gkjohnson/threejs-sandbox
-/* eslint-disable camelcase */
 
-import { Matrix3, Matrix4, ShaderChunk, ShaderMaterial, UniformsUtils, Vector2 } from "three"
+
+import { Matrix3, Matrix4, ShaderChunk, ShaderMaterial, UniformsUtils, Vector2 } from "three";
 
 // Modified ShaderChunk.skinning_pars_vertex to handle
 // a second set of bone information from the previous frame
@@ -32,7 +32,7 @@ const prev_skinning_pars_vertex = /* glsl */ `
 			}
 		#endif
 		#endif
-`
+`;
 
 export const velocity_vertex_pars = /* glsl */ `
 #define MAX_BONES 64
@@ -46,7 +46,7 @@ varying vec4 prevPosition;
 varying vec4 newPosition;
 
 varying vec2 vHighPrecisionZW;
-`
+`;
 
 // Returns the body of the vertex shader for the velocity buffer
 export const velocity_vertex_main = /* glsl */ `
@@ -64,14 +64,14 @@ prevPosition = prevVelocityMatrix * vec4( transformed, 1.0 );
 gl_Position = newPosition;
 
 vHighPrecisionZW = gl_Position.zw;
-`
+`;
 
 export const velocity_fragment_pars = /* glsl */ `
 varying vec4 prevPosition;
 varying vec4 newPosition;
 
 varying vec2 vHighPrecisionZW;
-`
+`;
 
 export const velocity_fragment_main = /* glsl */ `
 vec2 pos0 = (prevPosition.xy / prevPosition.w) * 0.5 + 0.5;
@@ -82,7 +82,7 @@ vec2 vel = pos1 - pos0;
 float fragCoordZ = 0.5 * vHighPrecisionZW[0] / vHighPrecisionZW[1] + 0.5;
 
 gl_FragColor = vec4(vel.x, vel.y, 0., 0.);
-`
+`;
 
 export const velocity_uniforms = {
 	prevVelocityMatrix: { value: new Matrix4() },
@@ -93,10 +93,12 @@ export const velocity_uniforms = {
 	normalMap: { value: null },
 	normalScale: { value: new Vector2(1, 1) },
 	uvTransform: { value: new Matrix3() }
-}
+};
 
 export class VelocityDepthNormalMaterial extends ShaderMaterial {
+
 	constructor(camera) {
+
 		super({
 			uniforms: {
 				...UniformsUtils.clone(velocity_uniforms),
@@ -189,6 +191,8 @@ export class VelocityDepthNormalMaterial extends ShaderMaterial {
 						gl_FragColor.b = packNormal(worldNormal);
 						gl_FragColor.a = fragCoordZ;
                     }`
-		})
+		});
+
 	}
+
 }

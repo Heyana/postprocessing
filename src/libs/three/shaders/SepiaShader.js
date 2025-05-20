@@ -6,12 +6,12 @@
 
 const SepiaShader = {
 
-	name: 'SepiaShader',
+	name: "SepiaShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'amount': { value: 1.0 }
+		"tDiffuse": { value: null },
+		"amount": { value: 1.0 }
 
 	},
 

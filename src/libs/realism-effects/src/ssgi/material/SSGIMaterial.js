@@ -1,14 +1,16 @@
-/* eslint-disable camelcase */
-import { Color, Matrix4, NoBlending, ShaderMaterial, Uniform, Vector2, Vector3 } from "three"
-import vertexShader from "../../utils/shader/basic.vert"
-import fragmentShader from "../shader/ssgi.frag"
-import ssgi_utils from "../shader/ssgi_utils.frag"
-import { useBlueNoise } from "../../utils/BlueNoiseUtils"
-import gbuffer_packing from "../../gbuffer/shader/gbuffer_packing.glsl"
-import { EquirectHdrInfoUniform } from "../utils/EquirectHdrInfoUniform"
+
+import { Color, Matrix4, NoBlending, ShaderMaterial, Uniform, Vector2, Vector3 } from "three";
+import vertexShader from "../../utils/shader/basic.vert";
+import fragmentShader from "../shader/ssgi.frag";
+import ssgi_utils from "../shader/ssgi_utils.frag";
+import { useBlueNoise } from "../../utils/BlueNoiseUtils";
+import gbuffer_packing from "../../gbuffer/shader/gbuffer_packing.glsl";
+import { EquirectHdrInfoUniform } from "../utils/EquirectHdrInfoUniform";
 
 export class SSGIMaterial extends ShaderMaterial {
+
 	constructor() {
+
 		super({
 			type: "SSGIMaterial",
 
@@ -59,8 +61,10 @@ export class SSGIMaterial extends ShaderMaterial {
 			depthWrite: false,
 			depthTest: false,
 			toneMapped: false
-		})
+		});
 
-		useBlueNoise(this)
+		useBlueNoise(this);
+
 	}
+
 }

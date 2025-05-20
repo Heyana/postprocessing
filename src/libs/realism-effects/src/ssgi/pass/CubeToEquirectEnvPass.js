@@ -1,4 +1,4 @@
-import { Pass } from "postprocessing"
+import { Pass } from "postprocessing";
 import {
 	ClampToEdgeWrapping,
 	DataTexture,
@@ -9,14 +9,16 @@ import {
 	RGBAFormat,
 	ShaderMaterial,
 	WebGLRenderTarget
-} from "three"
-import basicVertexShader from "../../utils/shader/basic.vert"
+} from "three";
+import basicVertexShader from "../../utils/shader/basic.vert";
 
 export class CubeToEquirectEnvPass extends Pass {
-	constructor() {
-		super("CubeToEquirectEnvPass")
 
-		this.renderTarget = new WebGLRenderTarget(1, 1, { depthBuffer: false, type: FloatType })
+	constructor() {
+
+		super("CubeToEquirectEnvPass");
+
+		this.renderTarget = new WebGLRenderTarget(1, 1, { depthBuffer: false, type: FloatType });
 
 		this.fullscreenMaterial = new ShaderMaterial({
 			fragmentShader: /* glsl */ `
@@ -49,52 +51,62 @@ export class CubeToEquirectEnvPass extends Pass {
 			depthWrite: false,
 			depthTest: false,
 			toneMapped: false
-		})
+		});
+
 	}
 
 	dispose() {
-		this.renderTarget.dispose()
+
+		this.renderTarget.dispose();
+
 	}
 
 	generateEquirectEnvMap(renderer, cubeMap, width = null, height = null, maxWidth = 4096) {
-		if (width === null && height === null) {
-			const w = cubeMap.source.data[0].width
-			const widthEquirect = 2 ** Math.ceil(Math.log2(2 * w * 3 ** 0.5))
-			const heightEquirect = 2 ** Math.ceil(Math.log2(w * 3 ** 0.5))
 
-			width = widthEquirect
-			height = heightEquirect
+		if(width === null && height === null) {
+
+			const w = cubeMap.source.data[0].width;
+			const widthEquirect = 2 ** Math.ceil(Math.log2(2 * w * 3 ** 0.5));
+			const heightEquirect = 2 ** Math.ceil(Math.log2(w * 3 ** 0.5));
+
+			width = widthEquirect;
+			height = heightEquirect;
+
 		}
 
-		if (width > maxWidth) {
-			width = maxWidth
-			height = maxWidth / 2
+		if(width > maxWidth) {
+
+			width = maxWidth;
+			height = maxWidth / 2;
+
 		}
 
-		this.renderTarget.setSize(width, height)
-		this.fullscreenMaterial.uniforms.cubeMap.value = cubeMap
+		this.renderTarget.setSize(width, height);
+		this.fullscreenMaterial.uniforms.cubeMap.value = cubeMap;
 
-		const { renderTarget } = this
+		const { renderTarget } = this;
 
-		renderer.setRenderTarget(renderTarget)
-		renderer.render(this.scene, this.camera)
+		renderer.setRenderTarget(renderTarget);
+		renderer.render(this.scene, this.camera);
 
 		// Create a new Float32Array to store the pixel data
-		const pixelBuffer = new Float32Array(width * height * 4)
-		renderer.readRenderTargetPixels(renderTarget, 0, 0, width, height, pixelBuffer)
+		const pixelBuffer = new Float32Array(width * height * 4);
+		renderer.readRenderTargetPixels(renderTarget, 0, 0, width, height, pixelBuffer);
 
 		// Create a new data texture
-		const equirectEnvMap = new DataTexture(pixelBuffer, width, height, RGBAFormat, FloatType)
+		const equirectEnvMap = new DataTexture(pixelBuffer, width, height, RGBAFormat, FloatType);
 
 		// Set texture options
-		equirectEnvMap.wrapS = ClampToEdgeWrapping
-		equirectEnvMap.wrapT = ClampToEdgeWrapping
-		equirectEnvMap.minFilter = LinearMipMapLinearFilter
-		equirectEnvMap.magFilter = LinearMipMapLinearFilter
-		equirectEnvMap.needsUpdate = true
+		equirectEnvMap.wrapS = ClampToEdgeWrapping;
+		equirectEnvMap.wrapT = ClampToEdgeWrapping;
+		equirectEnvMap.minFilter = LinearMipMapLinearFilter;
+		equirectEnvMap.magFilter = LinearMipMapLinearFilter;
+		equirectEnvMap.needsUpdate = true;
 
-		equirectEnvMap.mapping = EquirectangularReflectionMapping
+		equirectEnvMap.mapping = EquirectangularReflectionMapping;
 
-		return equirectEnvMap
+		return equirectEnvMap;
+
 	}
+
 }

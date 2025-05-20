@@ -5,12 +5,12 @@
 
 const UnpackDepthRGBAShader = {
 
-	name: 'UnpackDepthRGBAShader',
+	name: "UnpackDepthRGBAShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'opacity': { value: 1.0 }
+		"tDiffuse": { value: null },
+		"opacity": { value: 1.0 }
 
 	},
 

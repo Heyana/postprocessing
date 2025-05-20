@@ -4,15 +4,15 @@ import fragmentShader from "./shaders/SandStormEffect.glsl";
 
 /**
  * 沙尘暴中的宇宙飞船效果
- * 
+ *
  * 基于Shadertoy效果移植，提供体积雾、光线散射和阴影效果
  * 支持相机旋转，效果会跟随相机视角变化
  */
 export class SandStormEffect extends Effect {
 
-    /**
+	/**
      * 构建一个新的沙尘暴中的宇宙飞船效果
-     * 
+     *
      * @param {Object} [options] - 效果选项
      * @param {Number} [options.volumeDensity=0.6] - 体积密度
      * @param {Number} [options.volumeAbsorbtion=1.0] - 体积吸收率
@@ -26,204 +26,256 @@ export class SandStormEffect extends Effect {
      * @param {Number} [options.fogMinDist=0.0] - 雾气最小距离（小于此距离不会有雾气）
      * @param {Object} [options.camera] - 相机对象，用于获取视图矩阵和位置
      */
-    constructor({
-        volumeDensity = 0.6,
-        volumeAbsorbtion = 1.0,
-        lightColor = 0xffba59,
-        shadowQuality = 1.5,
-        numSteps = 32,
-        enableDithering = true,
-        enableVolumetricLighting = true,
-        fogDensity = 1.0,
-        fogDecay = 0.9,
-        fogMinDist = 0.0,
-        camera = null
-    } = {}) {
+	constructor({
+		volumeDensity = 0.6,
+		volumeAbsorbtion = 1.0,
+		lightColor = 0xffba59,
+		shadowQuality = 1.5,
+		numSteps = 32,
+		enableDithering = true,
+		enableVolumetricLighting = true,
+		fogDensity = 1.0,
+		fogDecay = 0.9,
+		fogMinDist = 0.0,
+		camera = null
+	} = {}) {
 
-        // 转换颜色参数
-        const lightColorValue = new Color(lightColor);
+		// 转换颜色参数
+		const lightColorValue = new Color(lightColor);
 
-        super("SandStormEffect", fragmentShader, {
-            attributes: EffectAttribute.DEPTH,
-            defines: new Map([
-                ["USE_DEPTH", "1"]
-            ]),
-            uniforms: new Map([
-                ["resolution", new Uniform(new Vector2())],
-                ["time", new Uniform(0.0)],
-                ["mouse", new Uniform(new Vector2(0.0, 0.0))],
-                ["volumeDensity", new Uniform(volumeDensity)],
-                ["volumeAbsorbtion", new Uniform(volumeAbsorbtion)],
-                ["lightColor", new Uniform(new Vector3(lightColorValue.r, lightColorValue.g, lightColorValue.b))],
-                ["shadowQuality", new Uniform(shadowQuality)],
-                ["numSteps", new Uniform(numSteps)],
-                ["enableDithering", new Uniform(enableDithering ? 1.0 : 0.0)],
-                ["enableVolumetricLighting", new Uniform(enableVolumetricLighting ? 1.0 : 0.0)],
-                ["fogDensity", new Uniform(fogDensity)],
-                ["fogDecay", new Uniform(fogDecay)],
-                ["fogMinDist", new Uniform(fogMinDist)],
-                ["cameraPosition", new Uniform(new Vector3())],
-                ["viewMatrix", new Uniform(new Matrix4())],
-                ["cameraFov", new Uniform(45.0)],
-                ["cameraNear", new Uniform(0.1)],
-                ["cameraFar", new Uniform(1000.0)]
-            ])
-        });
+		super("SandStormEffect", fragmentShader, {
+			attributes: EffectAttribute.DEPTH,
+			defines: new Map([
+				["USE_DEPTH", "1"]
+			]),
+			uniforms: new Map([
+				["resolution", new Uniform(new Vector2())],
+				["time", new Uniform(0.0)],
+				["mouse", new Uniform(new Vector2(0.0, 0.0))],
+				["volumeDensity", new Uniform(volumeDensity)],
+				["volumeAbsorbtion", new Uniform(volumeAbsorbtion)],
+				["lightColor", new Uniform(new Vector3(lightColorValue.r, lightColorValue.g, lightColorValue.b))],
+				["shadowQuality", new Uniform(shadowQuality)],
+				["numSteps", new Uniform(numSteps)],
+				["enableDithering", new Uniform(enableDithering ? 1.0 : 0.0)],
+				["enableVolumetricLighting", new Uniform(enableVolumetricLighting ? 1.0 : 0.0)],
+				["fogDensity", new Uniform(fogDensity)],
+				["fogDecay", new Uniform(fogDecay)],
+				["fogMinDist", new Uniform(fogMinDist)],
+				["cameraPosition", new Uniform(new Vector3())],
+				["viewMatrix", new Uniform(new Matrix4())],
+				["cameraFov", new Uniform(45.0)],
+				["cameraNear", new Uniform(0.1)],
+				["cameraFar", new Uniform(1000.0)]
+			])
+		});
 
-        this.camera = camera;
-    }
+		this.camera = camera;
 
-    /**
+	}
+
+	/**
      * 更新效果
-     * 
+     *
      * @param {WebGLRenderer} renderer - WebGL渲染器
      * @param {WebGLRenderTarget} inputBuffer - 输入缓冲区
      * @param {Number} [deltaTime] - 自上一帧以来经过的时间（秒）
      */
-    update(renderer, inputBuffer, deltaTime) {
-        this.uniforms.get("time").value += deltaTime;
-        this.uniforms.get("resolution").value.set(
-            inputBuffer.width, inputBuffer.height
-        );
+	update(renderer, inputBuffer, deltaTime) {
 
-        // 如果有相机对象，更新相机相关的uniform
-        if (this.camera) {
-            this.uniforms.get("cameraPosition").value.copy(this.camera.position);
-            this.uniforms.get("viewMatrix").value.copy(this.camera.matrixWorld);
-            this.uniforms.get("cameraFov").value = this.camera.fov;
-            this.uniforms.get("cameraNear").value = this.camera.near;
-            this.uniforms.get("cameraFar").value = this.camera.far;
-        }
-    }
+		this.uniforms.get("time").value += deltaTime;
+		this.uniforms.get("resolution").value.set(
+			inputBuffer.width, inputBuffer.height
+		);
 
-    /**
+		// 如果有相机对象，更新相机相关的uniform
+		if(this.camera) {
+
+			this.uniforms.get("cameraPosition").value.copy(this.camera.position);
+			this.uniforms.get("viewMatrix").value.copy(this.camera.matrixWorld);
+			this.uniforms.get("cameraFov").value = this.camera.fov;
+			this.uniforms.get("cameraNear").value = this.camera.near;
+			this.uniforms.get("cameraFar").value = this.camera.far;
+
+		}
+
+	}
+
+	/**
      * 相机对象
      */
-    get camera() {
-        return this._camera;
-    }
+	get camera() {
 
-    set camera(value) {
-        this._camera = value;
-        if (value) {
-            // 初始化相机参数
-            this.uniforms.get("cameraPosition").value.copy(value.position);
-            this.uniforms.get("viewMatrix").value.copy(value.matrixWorld);
-            this.uniforms.get("cameraFov").value = value.fov;
-            this.uniforms.get("cameraNear").value = value.near;
-            this.uniforms.get("cameraFar").value = value.far;
-        }
-    }
+		return this._camera;
 
-    /**
+	}
+
+	set camera(value) {
+
+		this._camera = value;
+		if(value) {
+
+			// 初始化相机参数
+			this.uniforms.get("cameraPosition").value.copy(value.position);
+			this.uniforms.get("viewMatrix").value.copy(value.matrixWorld);
+			this.uniforms.get("cameraFov").value = value.fov;
+			this.uniforms.get("cameraNear").value = value.near;
+			this.uniforms.get("cameraFar").value = value.far;
+
+		}
+
+	}
+
+	/**
      * 体积密度
      */
-    get volumeDensity() {
-        return this.uniforms.get("volumeDensity").value;
-    }
+	get volumeDensity() {
 
-    set volumeDensity(value) {
-        this.uniforms.get("volumeDensity").value = value;
-    }
+		return this.uniforms.get("volumeDensity").value;
 
-    /**
+	}
+
+	set volumeDensity(value) {
+
+		this.uniforms.get("volumeDensity").value = value;
+
+	}
+
+	/**
      * 体积吸收率
      */
-    get volumeAbsorbtion() {
-        return this.uniforms.get("volumeAbsorbtion").value;
-    }
+	get volumeAbsorbtion() {
 
-    set volumeAbsorbtion(value) {
-        this.uniforms.get("volumeAbsorbtion").value = value;
-    }
+		return this.uniforms.get("volumeAbsorbtion").value;
 
-    /**
+	}
+
+	set volumeAbsorbtion(value) {
+
+		this.uniforms.get("volumeAbsorbtion").value = value;
+
+	}
+
+	/**
      * 光源颜色
      */
-    get lightColor() {
-        const lightColorVector = this.uniforms.get("lightColor").value;
-        return new Color(lightColorVector.x, lightColorVector.y, lightColorVector.z);
-    }
+	get lightColor() {
 
-    set lightColor(value) {
-        const color = new Color(value);
-        this.uniforms.get("lightColor").value.set(color.r, color.g, color.b);
-    }
+		const lightColorVector = this.uniforms.get("lightColor").value;
+		return new Color(lightColorVector.x, lightColorVector.y, lightColorVector.z);
 
-    /**
+	}
+
+	set lightColor(value) {
+
+		const color = new Color(value);
+		this.uniforms.get("lightColor").value.set(color.r, color.g, color.b);
+
+	}
+
+	/**
      * 阴影质量
      */
-    get shadowQuality() {
-        return this.uniforms.get("shadowQuality").value;
-    }
+	get shadowQuality() {
 
-    set shadowQuality(value) {
-        this.uniforms.get("shadowQuality").value = value;
-    }
+		return this.uniforms.get("shadowQuality").value;
 
-    /**
+	}
+
+	set shadowQuality(value) {
+
+		this.uniforms.get("shadowQuality").value = value;
+
+	}
+
+	/**
      * 采样步数
      */
-    get numSteps() {
-        return this.uniforms.get("numSteps").value;
-    }
+	get numSteps() {
 
-    set numSteps(value) {
-        this.uniforms.get("numSteps").value = value;
-    }
+		return this.uniforms.get("numSteps").value;
 
-    /**
+	}
+
+	set numSteps(value) {
+
+		this.uniforms.get("numSteps").value = value;
+
+	}
+
+	/**
      * 是否启用抖动
      */
-    get enableDithering() {
-        return this.uniforms.get("enableDithering").value > 0.5;
-    }
+	get enableDithering() {
 
-    set enableDithering(value) {
-        this.uniforms.get("enableDithering").value = value ? 1.0 : 0.0;
-    }
+		return this.uniforms.get("enableDithering").value > 0.5;
 
-    /**
+	}
+
+	set enableDithering(value) {
+
+		this.uniforms.get("enableDithering").value = value ? 1.0 : 0.0;
+
+	}
+
+	/**
      * 是否启用体积光照
      */
-    get enableVolumetricLighting() {
-        return this.uniforms.get("enableVolumetricLighting").value > 0.5;
-    }
+	get enableVolumetricLighting() {
 
-    set enableVolumetricLighting(value) {
-        this.uniforms.get("enableVolumetricLighting").value = value ? 1.0 : 0.0;
-    }
+		return this.uniforms.get("enableVolumetricLighting").value > 0.5;
 
-    /**
+	}
+
+	set enableVolumetricLighting(value) {
+
+		this.uniforms.get("enableVolumetricLighting").value = value ? 1.0 : 0.0;
+
+	}
+
+	/**
      * 雾气浓度
      */
-    get fogDensity() {
-        return this.uniforms.get("fogDensity").value;
-    }
+	get fogDensity() {
 
-    set fogDensity(value) {
-        this.uniforms.get("fogDensity").value = value;
-    }
+		return this.uniforms.get("fogDensity").value;
 
-    /**
+	}
+
+	set fogDensity(value) {
+
+		this.uniforms.get("fogDensity").value = value;
+
+	}
+
+	/**
      * 雾气衰减速度
      */
-    get fogDecay() {
-        return this.uniforms.get("fogDecay").value;
-    }
+	get fogDecay() {
 
-    set fogDecay(value) {
-        this.uniforms.get("fogDecay").value = value;
-    }
+		return this.uniforms.get("fogDecay").value;
 
-    /**
+	}
+
+	set fogDecay(value) {
+
+		this.uniforms.get("fogDecay").value = value;
+
+	}
+
+	/**
      * 雾气最小距离
      */
-    get fogMinDist() {
-        return this.uniforms.get("fogMinDist").value;
-    }
+	get fogMinDist() {
 
-    set fogMinDist(value) {
-        this.uniforms.get("fogMinDist").value = value;
-    }
-} 
+		return this.uniforms.get("fogMinDist").value;
+
+	}
+
+	set fogMinDist(value) {
+
+		this.uniforms.get("fogMinDist").value = value;
+
+	}
+
+}

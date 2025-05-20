@@ -1,6 +1,6 @@
 import {
 	Vector2
-} from 'three';
+} from "three";
 
 /**
  * WebGL port of Subpixel Morphological Antialiasing (SMAA) v2.8
@@ -10,18 +10,18 @@ import {
 
 const SMAAEdgesShader = {
 
-	name: 'SMAAEdgesShader',
+	name: "SMAAEdgesShader",
 
 	defines: {
 
-		'SMAA_THRESHOLD': '0.1'
+		"SMAA_THRESHOLD": "0.1"
 
 	},
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'resolution': { value: new Vector2(1 / 1024, 1 / 512) }
+		"tDiffuse": { value: null },
+		"resolution": { value: new Vector2(1 / 1024, 1 / 512) }
 
 	},
 
@@ -117,23 +117,23 @@ const SMAAEdgesShader = {
 
 const SMAAWeightsShader = {
 
-	name: 'SMAAWeightsShader',
+	name: "SMAAWeightsShader",
 
 	defines: {
 
-		'SMAA_MAX_SEARCH_STEPS': '8',
-		'SMAA_AREATEX_MAX_DISTANCE': '16',
-		'SMAA_AREATEX_PIXEL_SIZE': '( 1.0 / vec2( 160.0, 560.0 ) )',
-		'SMAA_AREATEX_SUBTEX_SIZE': '( 1.0 / 7.0 )'
+		"SMAA_MAX_SEARCH_STEPS": "8",
+		"SMAA_AREATEX_MAX_DISTANCE": "16",
+		"SMAA_AREATEX_PIXEL_SIZE": "( 1.0 / vec2( 160.0, 560.0 ) )",
+		"SMAA_AREATEX_SUBTEX_SIZE": "( 1.0 / 7.0 )"
 
 	},
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'tArea': { value: null },
-		'tSearch': { value: null },
-		'resolution': { value: new Vector2(1 / 1024, 1 / 512) }
+		"tDiffuse": { value: null },
+		"tArea": { value: null },
+		"tSearch": { value: null },
+		"resolution": { value: new Vector2(1 / 1024, 1 / 512) }
 
 	},
 
@@ -373,13 +373,13 @@ const SMAAWeightsShader = {
 
 const SMAABlendShader = {
 
-	name: 'SMAABlendShader',
+	name: "SMAABlendShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'tColor': { value: null },
-		'resolution': { value: new Vector2(1 / 1024, 1 / 512) }
+		"tDiffuse": { value: null },
+		"tColor": { value: null },
+		"resolution": { value: new Vector2(1 / 1024, 1 / 512) }
 
 	},
 

@@ -9,73 +9,83 @@ const NOISE_TEXTURE_SIZE = 64;
  * 实现SSDO效果的核心逻辑
  */
 export class SSDOPass extends Pass {
-    /**
+
+	/**
      * 创建一个SSDO通道
-     * 
+     *
      * @param {Camera} camera - 相机
      * @param {Texture} normalBuffer - 法线纹理
      * @param {Texture} colorBuffer - 颜色纹理
      */
-    constructor(camera, normalBuffer, colorBuffer) {
-        super("SSDOPass");
+	constructor(camera, normalBuffer, colorBuffer) {
 
-        this.needsSwap = false;
+		super("SSDOPass");
 
-        /**
+		this.needsSwap = false;
+
+		/**
          * 渲染目标
          * @type {WebGLRenderTarget}
          * @private
          */
-        this._renderTarget = new WebGLRenderTarget(1, 1, { depthBuffer: false });
-        this._renderTarget.texture.name = "SSDO.Target";
+		this._renderTarget = new WebGLRenderTarget(1, 1, { depthBuffer: false });
+		this._renderTarget.texture.name = "SSDO.Target";
 
-        /**
+		/**
          * SSDO材质
          * @private
          */
-        this._ssdomaterial = new SSDOMaterial(camera);
-        this._ssdomaterial.normalBuffer = normalBuffer;
-        this._ssdomaterial.colorBuffer = colorBuffer;
+		this._ssdomaterial = new SSDOMaterial(camera);
+		this._ssdomaterial.normalBuffer = normalBuffer;
+		this._ssdomaterial.colorBuffer = colorBuffer;
 
-        // 创建并配置噪声纹理
-        const noiseTexture = new NoiseTexture(NOISE_TEXTURE_SIZE, NOISE_TEXTURE_SIZE, RGBAFormat);
-        noiseTexture.wrapS = noiseTexture.wrapT = RepeatWrapping;
-        this._ssdomaterial.noiseTexture = noiseTexture;
+		// 创建并配置噪声纹理
+		const noiseTexture = new NoiseTexture(NOISE_TEXTURE_SIZE, NOISE_TEXTURE_SIZE, RGBAFormat);
+		noiseTexture.wrapS = noiseTexture.wrapT = RepeatWrapping;
+		this._ssdomaterial.noiseTexture = noiseTexture;
 
-        // 设置全屏材质
-        this.fullscreenMaterial = this._ssdomaterial;
-    }
+		// 设置全屏材质
+		this.fullscreenMaterial = this._ssdomaterial;
 
-    /**
+	}
+
+	/**
      * 获取SSDO纹理
      * @type {Texture}
      */
-    get texture() {
-        return this._renderTarget.texture;
-    }
+	get texture() {
 
-    /**
+		return this._renderTarget.texture;
+
+	}
+
+	/**
      * 设置大小
      * @param {Number} width - 宽度
      * @param {Number} height - 高度
      */
-    setSize(width, height) {
-        this._renderTarget.setSize(width, height);
-        this._ssdomaterial.setSize(width, height);
-    }
+	setSize(width, height) {
 
-    /**
+		this._renderTarget.setSize(width, height);
+		this._ssdomaterial.setSize(width, height);
+
+	}
+
+	/**
      * 渲染通道
      * @param {WebGLRenderer} renderer - 渲染器
      * @param {WebGLRenderTarget} inputBuffer - 输入缓冲
      * @param {WebGLRenderTarget} outputBuffer - 输出缓冲
      */
-    render(renderer, inputBuffer, outputBuffer) {
-        // 渲染SSDO效果到内部的渲染目标
-        renderer.setRenderTarget(this._renderTarget);
-        renderer.render(this.scene, this.camera);
-        renderer.setRenderTarget(null);
-    }
+	render(renderer, inputBuffer, outputBuffer) {
+
+		// 渲染SSDO效果到内部的渲染目标
+		renderer.setRenderTarget(this._renderTarget);
+		renderer.render(this.scene, this.camera);
+		renderer.setRenderTarget(null);
+
+	}
+
 }
 
 /**
@@ -83,52 +93,54 @@ export class SSDOPass extends Pass {
  * 实现屏幕空间方向性遮蔽的着色器逻辑
  */
 class SSDOMaterial extends ShaderMaterial {
-    /**
+
+	/**
      * 创建SSDO材质
      * @param {Camera} camera - 相机
      */
-    constructor(camera) {
-        super({
-            name: "SSDO",
-            defines: {
-                SPIRAL_TURNS: "7.0",
-                SAMPLES: "16"
-            },
-            uniforms: {
-                // 输入纹理
-                normalBuffer: new Uniform(null),
-                depthBuffer: new Uniform(null),
-                colorBuffer: new Uniform(null),
-                noiseTexture: new Uniform(null),
+	constructor(camera) {
 
-                // 相机参数
-                cameraNearFar: new Uniform(new Vector2(0.1, 1000.0)),
-                cameraProjectionMatrix: new Uniform(new Matrix4()),
-                cameraInverseProjectionMatrix: new Uniform(new Matrix4()),
+		super({
+			name: "SSDO",
+			defines: {
+				SPIRAL_TURNS: "7.0",
+				SAMPLES: "16"
+			},
+			uniforms: {
+				// 输入纹理
+				normalBuffer: new Uniform(null),
+				depthBuffer: new Uniform(null),
+				colorBuffer: new Uniform(null),
+				noiseTexture: new Uniform(null),
 
-                // SSDO参数
-                bias: new Uniform(0.025),
-                radius: new Uniform(0.18),
-                fade: new Uniform(0.01),
-                minRadiusScale: new Uniform(0.1),
-                worldDistanceThreshold: new Uniform(0.018),
-                worldDistanceFalloff: new Uniform(0.006),
-                worldProximityThreshold: new Uniform(0.0004),
-                worldProximityFalloff: new Uniform(0.0008),
+				// 相机参数
+				cameraNearFar: new Uniform(new Vector2(0.1, 1000.0)),
+				cameraProjectionMatrix: new Uniform(new Matrix4()),
+				cameraInverseProjectionMatrix: new Uniform(new Matrix4()),
 
-                // 间接光照参数
-                indirectLightIntensity: new Uniform(1.0),
-                indirectLightDistance: new Uniform(1.0),
+				// SSDO参数
+				bias: new Uniform(0.025),
+				radius: new Uniform(0.18),
+				fade: new Uniform(0.01),
+				minRadiusScale: new Uniform(0.1),
+				worldDistanceThreshold: new Uniform(0.018),
+				worldDistanceFalloff: new Uniform(0.006),
+				worldProximityThreshold: new Uniform(0.0004),
+				worldProximityFalloff: new Uniform(0.0008),
 
-                // 采样参数
-                samples: new Uniform(null),
-                samplesR: new Uniform(null),
+				// 间接光照参数
+				indirectLightIntensity: new Uniform(1.0),
+				indirectLightDistance: new Uniform(1.0),
 
-                // 屏幕和纹理参数
-                texelSize: new Uniform(new Vector2()),
-                resolution: new Uniform(new Vector2())
-            },
-            fragmentShader: `
+				// 采样参数
+				samples: new Uniform(null),
+				samplesR: new Uniform(null),
+
+				// 屏幕和纹理参数
+				texelSize: new Uniform(new Vector2()),
+				resolution: new Uniform(new Vector2())
+			},
+			fragmentShader: `
             #include <common>
             #include <packing>
 
@@ -302,7 +314,7 @@ class SSDOMaterial extends ShaderMaterial {
                 gl_FragColor = aoIndirect;
             }
             `,
-            vertexShader: `
+			vertexShader: `
             uniform vec2 texelSize;
 
             varying vec2 vUv;
@@ -314,39 +326,49 @@ class SSDOMaterial extends ShaderMaterial {
                 gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
             }
             `
-        });
+		});
 
-        this.toneMapped = false;
-        this.depthPacking = BasicDepthPacking;
+		this.toneMapped = false;
+		this.depthPacking = BasicDepthPacking;
 
-        // 如果提供了相机，设置相机参数
-        if (camera) {
-            this.copyCameraSettings(camera);
-        }
-    }
+		// 如果提供了相机，设置相机参数
+		if(camera) {
 
-    /**
+			this.copyCameraSettings(camera);
+
+		}
+
+	}
+
+	/**
      * 复制相机设置
      * @param {Camera} camera - 相机
      */
-    copyCameraSettings(camera) {
-        if (camera) {
-            this.uniforms.cameraNearFar.value.set(camera.near, camera.far);
-            this.uniforms.cameraProjectionMatrix.value.copy(camera.projectionMatrix);
-            this.uniforms.cameraInverseProjectionMatrix.value.copy(camera.projectionMatrixInverse);
-        }
-    }
+	copyCameraSettings(camera) {
 
-    /**
+		if(camera) {
+
+			this.uniforms.cameraNearFar.value.set(camera.near, camera.far);
+			this.uniforms.cameraProjectionMatrix.value.copy(camera.projectionMatrix);
+			this.uniforms.cameraInverseProjectionMatrix.value.copy(camera.projectionMatrixInverse);
+
+		}
+
+	}
+
+	/**
      * 设置大小
      * @param {Number} width - 宽度
      * @param {Number} height - 高度
      */
-    setSize(width, height) {
-        this.uniforms.texelSize.value.set(1.0 / width, 1.0 / height);
-        this.uniforms.resolution.value.set(width, height);
-    }
+	setSize(width, height) {
+
+		this.uniforms.texelSize.value.set(1.0 / width, 1.0 / height);
+		this.uniforms.resolution.value.set(width, height);
+
+	}
+
 }
 
 // 导入缺失的依赖
-import { Matrix4, ShaderMaterial, Vector2 } from "three"; 
+import { Matrix4, ShaderMaterial, Vector2 } from "three";

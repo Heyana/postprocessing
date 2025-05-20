@@ -1,5 +1,5 @@
-import { Effect } from "postprocessing"
-import { RepeatWrapping, TextureLoader, Vector2 } from "three"
+import { Effect } from "postprocessing";
+import { RepeatWrapping, TextureLoader, Vector2 } from "three";
 // import chessboard from "./chessboard.png"
 
 const fragmentShader = /* glsl */ `
@@ -42,9 +42,11 @@ const fragmentShader = /* glsl */ `
 
         outputColor = vec4(rValue.r, gValue.g, bValue.b, 1.0);
     }
-`
+`;
 export class LensDistortionEffect extends Effect {
+
 	constructor({ alphax = -0.05, alphay = -0.05, aberration = 1 } = {}) {
+
 		// const chessboardTexture = new TextureLoader().load(chessboard)
 		// chessboardTexture.wrapS = chessboardTexture.wrapT = RepeatWrapping
 
@@ -57,19 +59,27 @@ export class LensDistortionEffect extends Effect {
 				["alphay", { value: alphay }],
 				["aberration", { value: aberration }]
 			])
-		})
+		});
+
 	}
 
 	update(renderer, inputBuffer) {
-		this.uniforms.get("inputTexture").value = inputBuffer.texture
-		this.uniforms.get("resolution").value.set(inputBuffer.width, inputBuffer.height)
+
+		this.uniforms.get("inputTexture").value = inputBuffer.texture;
+		this.uniforms.get("resolution").value.set(inputBuffer.width, inputBuffer.height);
+
 	}
 
 	setAlphaX(value) {
-		this.uniforms.get("alphax").value = value
+
+		this.uniforms.get("alphax").value = value;
+
 	}
 
 	setAlphaY(value) {
-		this.uniforms.get("alphay").value = value
+
+		this.uniforms.get("alphay").value = value;
+
 	}
+
 }

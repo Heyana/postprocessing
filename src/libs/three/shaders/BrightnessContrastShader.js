@@ -7,13 +7,13 @@
 
 const BrightnessContrastShader = {
 
-	name: 'BrightnessContrastShader',
+	name: "BrightnessContrastShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'brightness': { value: 0 },
-		'contrast': { value: 0 }
+		"tDiffuse": { value: null },
+		"brightness": { value: 0 },
+		"contrast": { value: 0 }
 
 	},
 

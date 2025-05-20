@@ -4,7 +4,7 @@
 
 const BasicShader = {
 
-	name: 'BasicShader',
+	name: "BasicShader",
 
 	uniforms: {},
 

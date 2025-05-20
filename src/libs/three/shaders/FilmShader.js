@@ -1,13 +1,13 @@
 const FilmShader = {
 
-	name: 'FilmShader',
+	name: "FilmShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'time': { value: 0.0 },
-		'intensity': { value: 0.5 },
-		'grayscale': { value: false }
+		"tDiffuse": { value: null },
+		"time": { value: 0.0 },
+		"intensity": { value: 0.5 },
+		"grayscale": { value: false }
 
 	},
 
@@ -52,7 +52,7 @@ const FilmShader = {
 
 			gl_FragColor = vec4( color, base.a );
 
-		}`,
+		}`
 
 };
 

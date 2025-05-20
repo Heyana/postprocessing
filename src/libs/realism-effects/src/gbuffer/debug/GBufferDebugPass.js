@@ -1,21 +1,23 @@
-/* eslint-disable camelcase */
-import { Pass } from "postprocessing"
-import { FloatType, NearestFilter, NoBlending, ShaderMaterial, WebGLRenderTarget } from "three"
-import basicVertexShader from "../../utils/shader/basic.vert"
-import gbuffer_packing from "../shader/gbuffer_packing.glsl"
+
+import { Pass } from "postprocessing";
+import { FloatType, NearestFilter, NoBlending, ShaderMaterial, WebGLRenderTarget } from "three";
+import basicVertexShader from "../../utils/shader/basic.vert";
+import gbuffer_packing from "../shader/gbuffer_packing.glsl";
 
 export class GBufferDebugPass extends Pass {
+
 	constructor(gBufferTexture) {
-		super("GBufferDebugPass")
+
+		super("GBufferDebugPass");
 
 		this.renderTarget = new WebGLRenderTarget(1, 1, {
 			depthBuffer: false,
 			type: FloatType,
 			minFilter: NearestFilter,
 			magFilter: NearestFilter
-		})
+		});
 
-		this.renderTarget.texture.name = "GBufferDebugPass.Texture"
+		this.renderTarget.texture.name = "GBufferDebugPass.Texture";
 
 		this.fullscreenMaterial = new ShaderMaterial({
 			fragmentShader: /* glsl */ `
@@ -62,23 +64,33 @@ export class GBufferDebugPass extends Pass {
 			depthWrite: false,
 			depthTest: false,
 			toneMapped: false
-		})
+		});
+
 	}
 
 	get texture() {
-		return this.renderTarget.texture
+
+		return this.renderTarget.texture;
+
 	}
 
 	dispose() {
-		this.renderTarget.dispose()
+
+		this.renderTarget.dispose();
+
 	}
 
 	setSize(width, height) {
-		this.renderTarget.setSize(width, height)
+
+		this.renderTarget.setSize(width, height);
+
 	}
 
 	render(renderer) {
-		renderer.setRenderTarget(this.renderTarget)
-		renderer.render(this.scene, this.camera)
+
+		renderer.setRenderTarget(this.renderTarget);
+		renderer.render(this.scene, this.camera);
+
 	}
+
 }

@@ -8,21 +8,21 @@ export * from "./materials";
 export * from "./textures";
 export * from "./utils";
 export * from "./enums";
-export * from './libs'
+export * from "./libs";
 // 特别导出性能日志工具，方便使用
 export {
-    enableLogs,
-    disableLogs,
-    enableTimeCollection,
-    disableTimeCollection,
-    getTimeData,
-    clearTimeData,
-    printSummary
+	enableLogs,
+	disableLogs,
+	enableTimeCollection,
+	disableTimeCollection,
+	getTimeData,
+	clearTimeData,
+	printSummary
 } from "./utils/PerformanceLogger.js";
 
 
 export {
-    ThreeCompatPass
+	ThreeCompatPass
 } from "./passes/ThreeCompatPass.js";
 
 // 在效果导出部分添加SSREffect

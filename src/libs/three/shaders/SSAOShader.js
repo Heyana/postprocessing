@@ -1,7 +1,7 @@
 import {
 	Matrix4,
 	Vector2
-} from 'three';
+} from "three";
 
 /**
  * References:
@@ -12,27 +12,27 @@ import {
 
 const SSAOShader = {
 
-	name: 'SSAOShader',
+	name: "SSAOShader",
 
 	defines: {
-		'PERSPECTIVE_CAMERA': 1,
-		'KERNEL_SIZE': 32
+		"PERSPECTIVE_CAMERA": 1,
+		"KERNEL_SIZE": 32
 	},
 
 	uniforms: {
 
-		'tNormal': { value: null },
-		'tDepth': { value: null },
-		'tNoise': { value: null },
-		'kernel': { value: null },
-		'cameraNear': { value: null },
-		'cameraFar': { value: null },
-		'resolution': { value: new Vector2() },
-		'cameraProjectionMatrix': { value: new Matrix4() },
-		'cameraInverseProjectionMatrix': { value: new Matrix4() },
-		'kernelRadius': { value: 8 },
-		'minDistance': { value: 0.005 },
-		'maxDistance': { value: 0.05 },
+		"tNormal": { value: null },
+		"tDepth": { value: null },
+		"tNoise": { value: null },
+		"kernel": { value: null },
+		"cameraNear": { value: null },
+		"cameraFar": { value: null },
+		"resolution": { value: new Vector2() },
+		"cameraProjectionMatrix": { value: new Matrix4() },
+		"cameraInverseProjectionMatrix": { value: new Matrix4() },
+		"kernelRadius": { value: 8 },
+		"minDistance": { value: 0.005 },
+		"maxDistance": { value: 0.05 }
 
 	},
 
@@ -184,17 +184,17 @@ const SSAOShader = {
 
 const SSAODepthShader = {
 
-	name: 'SSAODepthShader',
+	name: "SSAODepthShader",
 
 	defines: {
-		'PERSPECTIVE_CAMERA': 1
+		"PERSPECTIVE_CAMERA": 1
 	},
 
 	uniforms: {
 
-		'tDepth': { value: null },
-		'cameraNear': { value: null },
-		'cameraFar': { value: null },
+		"tDepth": { value: null },
+		"cameraNear": { value: null },
+		"cameraFar": { value: null }
 
 	},
 
@@ -247,12 +247,12 @@ const SSAODepthShader = {
 
 const SSAOBlurShader = {
 
-	name: 'SSAOBlurShader',
+	name: "SSAOBlurShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'resolution': { value: new Vector2() }
+		"tDiffuse": { value: null },
+		"resolution": { value: new Vector2() }
 
 	},
 

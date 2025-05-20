@@ -100,7 +100,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	const radius = 4.0;
 	let angle = 0.0;
 
-	for (let i = 0; i < n; ++i) {
+	for(let i = 0; i < n; ++i) {
 
 		const orb = new Mesh(
 			new IcosahedronGeometry(1, 3),
@@ -151,7 +151,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		raycaster.setFromCamera(ndc, camera);
 		const intersects = raycaster.intersectObjects(orbs.children, true);
 
-		if (intersects.length > 0) {
+		if(intersects.length > 0) {
 
 			effect.selection.toggle(intersects[0].object);
 
@@ -173,21 +173,25 @@ window.addEventListener("load", () => load().then((assets) => {
 	// 添加辉光颜色控制 - 使用自定义对象来处理颜色
 	const colorConfig = {
 		color: effect.bloomColor.getHex(),
-		enableAnimation: false  // 添加动画控制开关
+		enableAnimation: false // 添加动画控制开关
 	};
 
 	folder.addBinding(colorConfig, "color", {
 		view: "color",
 		label: "辉光颜色"
 	}).on("change", (event) => {
+
 		effect.bloomColor = new Color(event.value);
+
 	});
 
 	// 添加颜色动画切换按钮
 	folder.addBinding(colorConfig, "enableAnimation", {
 		label: "颜色动画"
 	}).on("change", (event) => {
+
 		enableColorAnimation = event.value;
+
 	});
 
 	let subfolder = folder.addFolder({ title: "Luminance Filter" });
@@ -232,7 +236,8 @@ window.addEventListener("load", () => load().then((assets) => {
 		controls.update(timestamp);
 
 		// 如果启用了颜色动画，才执行颜色变化
-		if (enableColorAnimation) {
+		if(enableColorAnimation) {
+
 			// 平滑地在两种颜色之间切换
 			colorPhase = (colorPhase + 0.005) % (Math.PI * 2);
 			const mixFactor = (Math.sin(colorPhase) + 1) * 0.5;
@@ -240,6 +245,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			effect.bloomColor = currentColor;
 			// 更新控制面板中的颜色显示
 			colorConfig.color = currentColor.getHex();
+
 		}
 
 		composer.render();

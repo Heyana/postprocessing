@@ -1,99 +1,116 @@
 import {
-    Uniform,
-    Vector2
+	Uniform,
+	Vector2
 } from "three";
 
 import { DepthMaskMaterial } from "./DepthMaskMaterial.js";
 
 /**
  * 多采样深度掩码材质
- * 
+ *
  * 这个材质通过对周围像素进行采样来改善深度比较结果，
  * 减少锯齿和不规则图案。
  */
 export class MultiSampleDepthMaskMaterial extends DepthMaskMaterial {
 
-    /**
+	/**
      * 构造一个新的多采样深度掩码材质
      */
-    constructor() {
-        super();
+	constructor() {
 
-        // 更改材质名称
-        this.name = "MultiSampleDepthMaskMaterial";
+		super();
 
-        // 添加多采样相关定义
-        this.defines.USE_MULTISAMPLING = "";
-        this.defines.SAMPLES = "9"; // 默认采样数量
+		// 更改材质名称
+		this.name = "MultiSampleDepthMaskMaterial";
 
-        // 添加新的uniform
-        this.uniforms.samplingRadius = new Uniform(2.0); // 采样半径
-        this.uniforms.samplingThreshold = new Uniform(0.5); // 采样匹配阈值
-        this.uniforms.resolution = new Uniform(new Vector2(1, 1)); // 屏幕分辨率
+		// 添加多采样相关定义
+		this.defines.USE_MULTISAMPLING = "";
+		this.defines.SAMPLES = "9"; // 默认采样数量
 
-        // 更新着色器
-        this.fragmentShader = this.generateFragmentShader();
-        this.needsUpdate = true;
-    }
+		// 添加新的uniform
+		this.uniforms.samplingRadius = new Uniform(2.0); // 采样半径
+		this.uniforms.samplingThreshold = new Uniform(0.5); // 采样匹配阈值
+		this.uniforms.resolution = new Uniform(new Vector2(1, 1)); // 屏幕分辨率
 
-    /**
+		// 更新着色器
+		this.fragmentShader = this.generateFragmentShader();
+		this.needsUpdate = true;
+
+	}
+
+	/**
      * 采样数量
-     * 
+     *
      * @type {Number}
      */
-    get samplingCount() {
-        return Number(this.defines.SAMPLES);
-    }
+	get samplingCount() {
 
-    set samplingCount(value) {
-        this.defines.SAMPLES = Math.max(1, Math.floor(value)).toString();
-        this.needsUpdate = true;
-    }
+		return Number(this.defines.SAMPLES);
 
-    /**
+	}
+
+	set samplingCount(value) {
+
+		this.defines.SAMPLES = Math.max(1, Math.floor(value)).toString();
+		this.needsUpdate = true;
+
+	}
+
+	/**
      * 采样半径
-     * 
+     *
      * @type {Number}
      */
-    get samplingRadius() {
-        return this.uniforms.samplingRadius.value;
-    }
+	get samplingRadius() {
 
-    set samplingRadius(value) {
-        this.uniforms.samplingRadius.value = Math.max(0.1, value);
-    }
+		return this.uniforms.samplingRadius.value;
 
-    /**
+	}
+
+	set samplingRadius(value) {
+
+		this.uniforms.samplingRadius.value = Math.max(0.1, value);
+
+	}
+
+	/**
      * 采样匹配阈值
-     * 
+     *
      * @type {Number}
      */
-    get samplingThreshold() {
-        return this.uniforms.samplingThreshold.value;
-    }
+	get samplingThreshold() {
 
-    set samplingThreshold(value) {
-        this.uniforms.samplingThreshold.value = Math.min(Math.max(0, value), 1);
-    }
+		return this.uniforms.samplingThreshold.value;
 
-    /**
+	}
+
+	set samplingThreshold(value) {
+
+		this.uniforms.samplingThreshold.value = Math.min(Math.max(0, value), 1);
+
+	}
+
+	/**
      * 设置分辨率
-     * 
+     *
      * @param {Number} width - 宽度
      * @param {Number} height - 高度
      */
-    setResolution(width, height) {
-        this.uniforms.resolution.value.set(width, height);
-    }
+	setResolution(width, height) {
 
-    /**
+		this.uniforms.resolution.value.set(width, height);
+
+	}
+
+	/**
      * 生成带有多采样功能的片元着色器
-     * 
+     *
      * @return {String} 新的片元着色器代码
      */
-    generateFragmentShader() {
-        // 加载原始着色器代码
-        const originalShader = /* 从文件加载的原始着色器，此处需替换 */`
+	generateFragmentShader() {
+
+		// 加载原始着色器代码
+		const originalShader = /* 从文件加载的原始着色器，此处需替换 */`
 #include <common>
 #include <packing>
 
@@ -171,8 +188,8 @@ void main() {
     }
 }`;
 
-        // 添加多采样代码
-        const multiSamplingShader = `
+		// 添加多采样代码
+		const multiSamplingShader = `
 #include <common>
 #include <packing>
 
@@ -351,6 +368,8 @@ void main() {
 #endif
 }`;
 
-        return multiSamplingShader;
-    }
-} 
+		return multiSamplingShader;
+
+	}
+
+}

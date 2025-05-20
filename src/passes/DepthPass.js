@@ -39,14 +39,14 @@ export class DepthPass extends Pass {
 
 		/**
 		 * 标识这是一个深度通道，用于 EffectComposer 的优化
-		 * 
+		 *
 		 * @type {Boolean}
 		 */
 		this.isDepthPass = true;
 
 		/**
 		 * 深度打包方式
-		 * 
+		 *
 		 * @type {Number}
 		 */
 		this.depthPacking = RGBADepthPacking;
@@ -79,7 +79,7 @@ export class DepthPass extends Pass {
 
 		this.renderTarget = renderTarget;
 
-		if (this.renderTarget === undefined) {
+		if(this.renderTarget === undefined) {
 
 			this.renderTarget = new WebGLRenderTarget(1, 1, {
 				minFilter: NearestFilter,
@@ -194,8 +194,10 @@ export class DepthPass extends Pass {
 
 		// 获取场景中第一个子对象的类名（如果存在）
 		let childClassName = "无子对象";
-		if (this.renderPass.scene && this.renderPass.scene.children && this.renderPass.scene.children.length > 0) {
+		if(this.renderPass.scene && this.renderPass.scene.children && this.renderPass.scene.children.length > 0) {
+
 			childClassName = this.renderPass.scene.children[0].constructor.name;
+
 		}
 		log(`DepthPass 渲染场景, 第一个子对象类型: ${childClassName}`);
 

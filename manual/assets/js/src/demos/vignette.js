@@ -122,7 +122,9 @@ window.addEventListener("load", () => load().then((assets) => {
 	folder.addBinding(colorParams, "color", {
 		color: { type: "float" }
 	}).on("change", (e) => {
+
 		effect.color.setRGB(e.value.r, e.value.g, e.value.b);
+
 	});
 
 	folder.addBinding(effectPass, "dithering");

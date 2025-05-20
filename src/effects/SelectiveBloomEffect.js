@@ -286,7 +286,7 @@ export class SelectiveBloomEffect extends BloomEffect {
 		// 	scene: this.scene,
 		// 	forceState: false
 		// })
-		//准备修改
+		// 准备修改
 		// if (this.scene) {
 		// 	const oldMatrixAutoUpdate = this.scene.matrixWorldAutoUpdate;
 		// 	this.scene.matrixWorldAutoUpdate = false
@@ -299,25 +299,32 @@ export class SelectiveBloomEffect extends BloomEffect {
 		timeLog("SelectiveBloomEffect.update");
 		log("SelectiveBloomEffect update called, selection size:", selection.size);
 
-		if (this.ignoreBackground || !inverted || selection.size > 0) {
+		if(this.ignoreBackground || !inverted || selection.size > 0) {
 
 			// 使用共享的深度通道或渲染自己的深度
-			//用了会有bug 不能为true
-			if (false) {
+			// 用了会有bug 不能为true
+			if(false) {
+
 				timeLog("SelectiveBloomEffect.update.useSharedDepthPass");
 				// 根据 DepthMaskMaterial 源码，设置深度纹理有两种方式：
 				// 1. 使用 setDepthBuffer1 方法
 				// 2. 分别设置 depthBuffer1 和 depthPacking1 属性
-				if (typeof this.depthMaskMaterial.setDepthBuffer1 === 'function') {
+				if(typeof this.depthMaskMaterial.setDepthBuffer1 === "function") {
+
 					// 优先使用专门的设置方法
 					this.depthMaskMaterial.setDepthBuffer1(depthPass.texture, depthPass.depthPacking || RGBADepthPacking);
+
 				} else {
+
 					// 回退到单独设置属性
 					this.depthMaskMaterial.depthBuffer1 = depthPass.texture;
 					this.depthMaskMaterial.depthPacking1 = depthPass.depthPacking || RGBADepthPacking;
+
 				}
 				timeEndLog("SelectiveBloomEffect.update.useSharedDepthPass");
+
 			} else {
+
 				// 渲染选定对象的深度
 				timeLog("SelectiveBloomEffect.update.depthPass");
 				const mask = camera.layers.mask;
@@ -325,10 +332,11 @@ export class SelectiveBloomEffect extends BloomEffect {
 				this.depthPass.render(renderer, undefined, undefined, undefined, undefined, undefined, {
 					projectObject: true,
 					updateMatrixWorld: false,
-					useProgramCache: false,
+					useProgramCache: false
 				});
 				camera.layers.mask = mask;
 				timeEndLog("SelectiveBloomEffect.update.depthPass");
+
 			}
 
 			// 基于深度丢弃颜色
@@ -338,7 +346,7 @@ export class SelectiveBloomEffect extends BloomEffect {
 			this.depthMaskPass.render(renderer, inputBuffer, renderTarget, undefined, undefined, {
 				projectObject: true,
 				updateMatrixWorld: false,
-				useProgramCache: false,
+				useProgramCache: false
 			});
 			timeEndLog("SelectiveBloomEffect.update.maskRender");
 
@@ -350,8 +358,9 @@ export class SelectiveBloomEffect extends BloomEffect {
 		timeEndLog("SelectiveBloomEffect.update.superUpdate");
 
 		timeEndLog("SelectiveBloomEffect.update");
-		//准备修改
+		// 准备修改
 		// this.scene.matrixWorldAutoUpdate = oldMatrixAutoUpdate;
+
 	}
 
 	/**
@@ -385,17 +394,17 @@ export class SelectiveBloomEffect extends BloomEffect {
 		this.depthPass.initialize(renderer, alpha, frameBufferType);
 		this.depthMaskPass.initialize(renderer, alpha, frameBufferType);
 
-		if (renderer !== null && renderer.capabilities.logarithmicDepthBuffer) {
+		if(renderer !== null && renderer.capabilities.logarithmicDepthBuffer) {
 
 			this.depthMaskPass.fullscreenMaterial.defines.LOG_DEPTH = "1";
 
 		}
 
-		if (frameBufferType !== undefined) {
+		if(frameBufferType !== undefined) {
 
 			this.renderTargetMasked.texture.type = frameBufferType;
 
-			if (renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
+			if(renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
 
 				this.renderTargetMasked.texture.colorSpace = SRGBColorSpace;
 

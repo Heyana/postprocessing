@@ -6,13 +6,13 @@
 
 const AfterimageShader = {
 
-	name: 'AfterimageShader',
+	name: "AfterimageShader",
 
 	uniforms: {
 
-		'damp': { value: 0.96 },
-		'tOld': { value: null },
-		'tNew': { value: null }
+		"damp": { value: 0.96 },
+		"tOld": { value: null },
+		"tNew": { value: null }
 
 	},
 

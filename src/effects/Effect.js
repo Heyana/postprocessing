@@ -469,7 +469,7 @@ export class Effect extends EventDispatcher {
 
 	dispose() {
 
-		for (const key of Object.keys(this)) {
+		for(const key of Object.keys(this)) {
 
 			const property = this[key];
 			const isDisposable = (
@@ -479,7 +479,7 @@ export class Effect extends EventDispatcher {
 				property instanceof Pass
 			);
 
-			if (isDisposable) {
+			if(isDisposable) {
 
 				this[key].dispose();
 

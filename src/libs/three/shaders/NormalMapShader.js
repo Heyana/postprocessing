@@ -1,6 +1,6 @@
 import {
 	Vector2
-} from 'three';
+} from "three";
 
 /**
  * Normal map shader
@@ -9,14 +9,14 @@ import {
 
 const NormalMapShader = {
 
-	name: 'NormalMapShader',
+	name: "NormalMapShader",
 
 	uniforms: {
 
-		'heightMap': { value: null },
-		'resolution': { value: new Vector2(512, 512) },
-		'scale': { value: new Vector2(1, 1) },
-		'height': { value: 0.05 }
+		"heightMap": { value: null },
+		"resolution": { value: new Vector2(512, 512) },
+		"scale": { value: new Vector2(1, 1) },
+		"height": { value: 0.05 }
 
 	},
 

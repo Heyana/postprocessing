@@ -328,9 +328,11 @@
 
 1. 创建新的demo js文件，文件位于 `manual/assets/js/src/demos/当前.js`
 
-2. 材质demo应有自己的分类目录，以展示材质的独特特性和用途
+2. 该文件不能创建到创建新的demo js文件，文件位于 `manual/assets/js/src/demos/materials/当前.js`因为我只索引demos的js 不支持嵌套
 
-3. 模型材质demo内容结构示例：
+3. 材质demo应有自己的分类目录，以展示材质的独特特性和用途
+
+4. 模型材质demo内容结构示例：
 
    ```javascript
    import {

@@ -5,21 +5,21 @@
 
 // 导入通用的 Three.js 类型
 import {
-  Object3D,
-  Color,
-  Vector2,
-  Vector3,
-  Matrix4,
-  Texture,
-  Scene,
-  Camera,
-  PerspectiveCamera,
-  OrthographicCamera,
-  WebGLRenderer,
-  WebGLRenderTarget,
-  Uniform,
-  Material,
-  ShaderMaterial,
+	Object3D,
+	Color,
+	Vector2,
+	Vector3,
+	Matrix4,
+	Texture,
+	Scene,
+	Camera,
+	PerspectiveCamera,
+	OrthographicCamera,
+	WebGLRenderer,
+	WebGLRenderTarget,
+	Uniform,
+	Material,
+	ShaderMaterial
 } from "three";
 
 // 导入内部类型
@@ -34,29 +34,29 @@ import { KernelSize } from "./enums/KernelSize";
 
 // 导出类型辅助接口
 export interface TypesHelper {
-  // Three.js 类型
-  Object3D: Object3D;
-  Color: Color;
-  Vector2: Vector2;
-  Vector3: Vector3;
-  Matrix4: Matrix4;
-  Texture: Texture;
-  Scene: Scene;
-  Camera: Camera;
-  PerspectiveCamera: PerspectiveCamera;
-  OrthographicCamera: OrthographicCamera;
-  WebGLRenderer: WebGLRenderer;
-  WebGLRenderTarget: WebGLRenderTarget;
-  Uniform: Uniform;
-  Material: Material;
-  ShaderMaterial: ShaderMaterial;
+	// Three.js 类型
+	Object3D: Object3D;
+	Color: Color;
+	Vector2: Vector2;
+	Vector3: Vector3;
+	Matrix4: Matrix4;
+	Texture: Texture;
+	Scene: Scene;
+	Camera: Camera;
+	PerspectiveCamera: PerspectiveCamera;
+	OrthographicCamera: OrthographicCamera;
+	WebGLRenderer: WebGLRenderer;
+	WebGLRenderTarget: WebGLRenderTarget;
+	Uniform: Uniform;
+	Material: Material;
+	ShaderMaterial: ShaderMaterial;
 
-  // 内部类型
-  Effect: Effect;
-  Selection: Selection;
-  Resolution: Resolution;
-  BlendFunction: typeof BlendFunction;
-  KernelSize: typeof KernelSize;
+	// 内部类型
+	Effect: Effect;
+	Selection: Selection;
+	Resolution: Resolution;
+	BlendFunction: typeof BlendFunction;
+	KernelSize: typeof KernelSize;
 }
 
 // 这个导出不会被实际使用，只是为了让 TypeScript 自动包含所有上述类型

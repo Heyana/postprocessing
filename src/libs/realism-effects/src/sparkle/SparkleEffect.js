@@ -1,5 +1,5 @@
-import { Effect } from "postprocessing"
-import gbuffer_packing from "../gbuffer/shader/gbuffer_packing.glsl"
+import { Effect } from "postprocessing";
+import gbuffer_packing from "../gbuffer/shader/gbuffer_packing.glsl";
 
 const fragmentShader = /* glsl */ `
     #define luminance(c) dot(c.rgb, vec3(0.299, 0.587, 0.114))
@@ -90,9 +90,11 @@ const fragmentShader = /* glsl */ `
         vec3 color = inputColor.rgb + pow(inputColor.rgb, vec3(4.)) * sparkleFactor;
         outputColor = vec4(color, 1.);
     }
-`
+`;
 export class SparkleEffect extends Effect {
+
 	constructor(camera, velocityDepthNormalPass) {
+
 		super("SparkleEffect", fragmentShader, {
 			uniforms: new Map([
 				["projectionMatrix", { value: camera.projectionMatrix.clone() }],
@@ -103,27 +105,35 @@ export class SparkleEffect extends Effect {
 				["spread", { value: 1 }],
 				["intensity", { value: 1 }]
 			])
-		})
+		});
 
-		this._camera = camera
+		this._camera = camera;
+
 	}
 
 	update() {
-		const { view } = this._camera
-		view && this._camera.clearViewOffset()
 
-		this.uniforms.get("projectionMatrix").value.copy(this._camera.projectionMatrix)
-		this.uniforms.get("projectionMatrixInverse").value.copy(this._camera.projectionMatrixInverse)
+		const { view } = this._camera;
+		view && this._camera.clearViewOffset();
+
+		this.uniforms.get("projectionMatrix").value.copy(this._camera.projectionMatrix);
+		this.uniforms.get("projectionMatrixInverse").value.copy(this._camera.projectionMatrixInverse);
 
 		view &&
-			this._camera.setViewOffset(view.fullWidth, view.fullHeight, view.offsetX, view.offsetY, view.width, view.height)
+			this._camera.setViewOffset(view.fullWidth, view.fullHeight, view.offsetX, view.offsetY, view.width, view.height);
+
 	}
 
 	setSpread(spread) {
-		this.uniforms.get("spread").value = spread
+
+		this.uniforms.get("spread").value = spread;
+
 	}
 
 	setIntensity(intensity) {
-		this.uniforms.get("intensity").value = intensity
+
+		this.uniforms.get("intensity").value = intensity;
+
 	}
+
 }

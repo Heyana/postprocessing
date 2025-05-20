@@ -5,11 +5,11 @@
 
 const GammaCorrectionShader = {
 
-	name: 'GammaCorrectionShader',
+	name: "GammaCorrectionShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null }
+		"tDiffuse": { value: null }
 
 	},
 

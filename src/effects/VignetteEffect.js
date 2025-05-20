@@ -59,7 +59,7 @@ export class VignetteEffect extends Effect {
 
 	set technique(value) {
 
-		if (this.technique !== value) {
+		if(this.technique !== value) {
 
 			this.defines.set("VIGNETTE_TECHNIQUE", value.toFixed(0));
 			this.setChanged();

@@ -1,43 +1,51 @@
-/* eslint-disable camelcase */
-import { GLSL3, Matrix4, NoBlending } from "three"
-import { Vector3 } from "three"
-import { ShaderMaterial, Uniform, Vector2 } from "three"
-import vertexShader from "../../utils/shader/basic.vert"
-import fragmentShader from "../shader/temporal_reproject.frag"
-import reproject from "../shader/reproject.frag"
-import gbuffer_packing from "../../gbuffer/shader/gbuffer_packing.glsl"
-import { unrollLoops } from "../../ssgi/utils/Utils"
+
+import { GLSL3, Matrix4, NoBlending } from "three";
+import { Vector3 } from "three";
+import { ShaderMaterial, Uniform, Vector2 } from "three";
+import vertexShader from "../../utils/shader/basic.vert";
+import fragmentShader from "../shader/temporal_reproject.frag";
+import reproject from "../shader/reproject.frag";
+import gbuffer_packing from "../../gbuffer/shader/gbuffer_packing.glsl";
+import { unrollLoops } from "../../ssgi/utils/Utils";
 
 export class TemporalReprojectMaterial extends ShaderMaterial {
+
 	constructor(textureCount = 1) {
+
 		let finalFragmentShader = fragmentShader
 			.replace("#include <reproject>", reproject)
-			.replace("#include <gbuffer_packing>", gbuffer_packing)
+			.replace("#include <gbuffer_packing>", gbuffer_packing);
 
-		let definitions = ""
-		for (let i = 0; i < textureCount; i++) {
+		let definitions = "";
+		for(let i = 0; i < textureCount; i++) {
+
 			definitions += /* glsl */ `
 				uniform sampler2D accumulatedTexture${i};
 
 				layout(location = ${i}) out vec4 gOutput${i};
-			`
+			`;
+
 		}
 
-		finalFragmentShader = definitions + finalFragmentShader.replaceAll("textureCount", textureCount)
-		finalFragmentShader = unrollLoops(finalFragmentShader)
+		finalFragmentShader = definitions + finalFragmentShader.replaceAll("textureCount", textureCount);
+		finalFragmentShader = unrollLoops(finalFragmentShader);
 
-		const matches2 = finalFragmentShader.matchAll(/accumulatedTexture\[\s*[0-9]+\s*]/g)
+		const matches2 = finalFragmentShader.matchAll(/accumulatedTexture\[\s*[0-9]+\s*]/g);
 
-		for (const [key] of matches2) {
-			const number = key.replace(/[^0-9]/g, "")
-			finalFragmentShader = finalFragmentShader.replace(key, "accumulatedTexture" + number)
+		for(const [key] of matches2) {
+
+			const number = key.replace(/[^0-9]/g, "");
+			finalFragmentShader = finalFragmentShader.replace(key, "accumulatedTexture" + number);
+
 		}
 
-		const matches3 = finalFragmentShader.matchAll(/gOutput\[\s*[0-9]+\s*]/g)
+		const matches3 = finalFragmentShader.matchAll(/gOutput\[\s*[0-9]+\s*]/g);
 
-		for (const [key] of matches3) {
-			const number = key.replace(/[^0-9]/g, "")
-			finalFragmentShader = finalFragmentShader.replace(key, "gOutput" + number)
+		for(const [key] of matches3) {
+
+			const number = key.replace(/[^0-9]/g, "");
+			finalFragmentShader = finalFragmentShader.replace(key, "gOutput" + number);
+
 		}
 
 		super({
@@ -73,11 +81,15 @@ export class TemporalReprojectMaterial extends ShaderMaterial {
 			depthTest: false,
 			toneMapped: false,
 			glslVersion: GLSL3
-		})
+		});
 
-		for (let i = 0; i < textureCount; i++) {
-			this.uniforms["inputTexture" + i] = new Uniform(null)
-			this.uniforms["accumulatedTexture" + i] = new Uniform(null)
+		for(let i = 0; i < textureCount; i++) {
+
+			this.uniforms["inputTexture" + i] = new Uniform(null);
+			this.uniforms["accumulatedTexture" + i] = new Uniform(null);
+
 		}
+
 	}
+
 }

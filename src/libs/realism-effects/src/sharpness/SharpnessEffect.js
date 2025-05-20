@@ -1,5 +1,5 @@
-import { Effect } from "postprocessing"
-import { Uniform } from "three"
+import { Effect } from "postprocessing";
+import { Uniform } from "three";
 
 const fragmentShader = /* glsl */ `
 uniform sampler2D inputTexture;
@@ -28,31 +28,39 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
 
     outputColor = sharpenedPixel;
 }
-`
+`;
 
 const defaultOptions = {
 	sharpness: 1
-}
+};
 
 export class SharpnessEffect extends Effect {
+
 	constructor(options = defaultOptions) {
-		options = { ...defaultOptions, ...options }
+
+		options = { ...defaultOptions, ...options };
 
 		super("SharpnessEffect", fragmentShader, {
 			uniforms: new Map([
 				["sharpness", new Uniform(options.sharpness)],
 				["inputTexture", new Uniform(null)]
 			])
-		})
+		});
 
-		this.setSharpness(options.sharpness)
+		this.setSharpness(options.sharpness);
+
 	}
 
 	setSharpness(sharpness) {
-		this.uniforms.get("sharpness").value = sharpness
+
+		this.uniforms.get("sharpness").value = sharpness;
+
 	}
 
 	update(renderer, inputBuffer) {
-		this.uniforms.get("inputTexture").value = inputBuffer.texture
+
+		this.uniforms.get("inputTexture").value = inputBuffer.texture;
+
 	}
+
 }

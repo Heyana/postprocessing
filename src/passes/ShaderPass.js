@@ -63,7 +63,7 @@ export class ShaderPass extends Pass {
 
 		const uniforms = this.fullscreenMaterial.uniforms;
 
-		if (inputBuffer !== null && uniforms !== undefined && uniforms[this.input] !== undefined) {
+		if(inputBuffer !== null && uniforms !== undefined && uniforms[this.input] !== undefined) {
 
 			uniforms[this.input].value = inputBuffer.texture;
 
@@ -84,7 +84,7 @@ export class ShaderPass extends Pass {
 
 	initialize(renderer, alpha, frameBufferType) {
 
-		if (frameBufferType !== undefined && frameBufferType !== UnsignedByteType) {
+		if(frameBufferType !== undefined && frameBufferType !== UnsignedByteType) {
 
 			this.fullscreenMaterial.defines.FRAMEBUFFER_PRECISION_HIGH = "1";
 

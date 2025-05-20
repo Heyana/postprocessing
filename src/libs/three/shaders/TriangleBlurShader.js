@@ -1,6 +1,6 @@
 import {
 	Vector2
-} from 'three';
+} from "three";
 
 /**
  * Triangle blur shader
@@ -14,12 +14,12 @@ import {
 
 const TriangleBlurShader = {
 
-	name: 'TriangleBlurShader',
+	name: "TriangleBlurShader",
 
 	uniforms: {
 
-		'texture': { value: null },
-		'delta': { value: new Vector2(1, 1) }
+		"texture": { value: null },
+		"delta": { value: new Vector2(1, 1) }
 
 	},
 

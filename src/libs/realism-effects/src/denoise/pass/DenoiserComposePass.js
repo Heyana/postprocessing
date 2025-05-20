@@ -1,27 +1,29 @@
-/* eslint-disable camelcase */
-import { Pass } from "postprocessing"
-import { FloatType, NearestFilter, NoBlending, ShaderMaterial, WebGLRenderTarget } from "three"
-import gbuffer_packing from "../../gbuffer/shader/gbuffer_packing.glsl"
-import basicVertexShader from "../../utils/shader/basic.vert"
-import ssgi_poisson_compose_functions from "../shader/denoiser_compose_functions.glsl"
+
+import { Pass } from "postprocessing";
+import { FloatType, NearestFilter, NoBlending, ShaderMaterial, WebGLRenderTarget } from "three";
+import gbuffer_packing from "../../gbuffer/shader/gbuffer_packing.glsl";
+import basicVertexShader from "../../utils/shader/basic.vert";
+import ssgi_poisson_compose_functions from "../shader/denoiser_compose_functions.glsl";
 
 export class DenoiserComposePass extends Pass {
-	constructor(camera, textures, gBufferTexture, depthTexture, options = {}) {
-		super("DenoiserComposePass")
 
-		this._camera = camera
+	constructor(camera, textures, gBufferTexture, depthTexture, options = {}) {
+
+		super("DenoiserComposePass");
+
+		this._camera = camera;
 
 		this.renderTarget = new WebGLRenderTarget(1, 1, {
 			depthBuffer: false,
 			type: FloatType,
 			minFilter: NearestFilter,
 			magFilter: NearestFilter
-		})
+		});
 
-		this.renderTarget.texture.name = "DenoiserComposePass.Texture"
+		this.renderTarget.texture.name = "DenoiserComposePass.Texture";
 
-		let diffuseGiTexture
-		let specularGiTexture
+		let diffuseGiTexture;
+		let specularGiTexture;
 
 		// 保存原始纹理引用，用于更新
 		this.originalTextures = textures;
@@ -30,13 +32,19 @@ export class DenoiserComposePass extends Pass {
 		// 添加计数器以跟踪更新次数
 		this._updateCount = 0;
 
-		if (options.inputType === "diffuseSpecular") {
-			diffuseGiTexture = textures[0]
-			specularGiTexture = textures[1]
-		} else if (options.inputType === "diffuse") {
-			diffuseGiTexture = textures[0]
-		} else if (options.inputType === "specular") {
-			specularGiTexture = textures[0]
+		if(options.inputType === "diffuseSpecular") {
+
+			diffuseGiTexture = textures[0];
+			specularGiTexture = textures[1];
+
+		} else if(options.inputType === "diffuse") {
+
+			diffuseGiTexture = textures[0];
+
+		} else if(options.inputType === "specular") {
+
+			specularGiTexture = textures[0];
+
 		}
 
 		this.fullscreenMaterial = new ShaderMaterial({
@@ -139,58 +147,80 @@ export class DenoiserComposePass extends Pass {
 			depthWrite: false,
 			depthTest: false,
 			toneMapped: false
-		})
+		});
 
-		if (camera.isPerspectiveCamera) this.fullscreenMaterial.defines.PERSPECTIVE_CAMERA = ""
+		if(camera.isPerspectiveCamera) { this.fullscreenMaterial.defines.PERSPECTIVE_CAMERA = ""; }
+
 	}
 
 	// 更新纹理引用
 	updateTextures(textures) {
-		if (!textures) return;
+
+		if(!textures) { return; }
 
 		// 更新内部保存的纹理引用
 		this.originalTextures = textures;
 
 		// 根据输入类型重新分配纹理
-		if (this.options.inputType === "diffuseSpecular") {
+		if(this.options.inputType === "diffuseSpecular") {
+
 			this.fullscreenMaterial.uniforms.diffuseGiTexture.value = textures[0];
 			this.fullscreenMaterial.uniforms.specularGiTexture.value = textures[1];
-		} else if (this.options.inputType === "diffuse") {
+
+		} else if(this.options.inputType === "diffuse") {
+
 			this.fullscreenMaterial.uniforms.diffuseGiTexture.value = textures[0];
-		} else if (this.options.inputType === "specular") {
+
+		} else if(this.options.inputType === "specular") {
+
 			this.fullscreenMaterial.uniforms.specularGiTexture.value = textures[0];
+
 		}
 
 		// 递增更新计数并在第一次或过于频繁时记录
 		this._updateCount++;
-		if (this._updateCount === 1 || this._updateCount % 10 === 0) {
+		if(this._updateCount === 1 || this._updateCount % 10 === 0) {
+
 			console.log("DenoiserComposePass: 更新纹理引用 (次数: " + this._updateCount + ")");
+
 		}
+
 	}
 
 	get texture() {
-		return this.renderTarget.texture
+
+		return this.renderTarget.texture;
+
 	}
 
 	dispose() {
-		this.renderTarget.dispose()
+
+		this.renderTarget.dispose();
+
 	}
 
 	setSize(width, height) {
-		this.renderTarget.setSize(width, height)
+
+		this.renderTarget.setSize(width, height);
+
 	}
 
 	setSceneTexture(texture) {
-		this.fullscreenMaterial.uniforms.sceneTexture.value = texture
+
+		this.fullscreenMaterial.uniforms.sceneTexture.value = texture;
+
 	}
 
 	render(renderer) {
+
 		// 不再每帧检查纹理引用，改为依赖Denoiser类手动触发updateTextures方法
 
-		this.fullscreenMaterial.uniforms.cameraNear.value = this._camera.near
-		this.fullscreenMaterial.uniforms.cameraFar.value = this._camera.far
+		this.fullscreenMaterial.uniforms.cameraNear.value = this._camera.near;
+		this.fullscreenMaterial.uniforms.cameraFar.value = this._camera.far;
 
-		renderer.setRenderTarget(this.renderTarget)
-		renderer.render(this.scene, this.camera)
+		renderer.setRenderTarget(this.renderTarget);
+		renderer.render(this.scene, this.camera);
+
 	}
+
 }

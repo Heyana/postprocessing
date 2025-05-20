@@ -5,18 +5,22 @@ import { sampleBlueNoise } from "../../index.js";
 
 // 生成球面均匀分布的采样点
 function getPointsOnSphere(n) {
-    const points = [];
-    const inc = Math.PI * (3 - Math.sqrt(5));
-    const off = 2 / n;
 
-    for (let k = 0; k < n; k++) {
-        const y = k * off - 1 + off / 2;
-        const r = Math.sqrt(1 - y * y);
-        const phi = k * inc;
-        points.push(new Vector3(Math.cos(phi) * r, y, Math.sin(phi) * r));
-    }
+	const points = [];
+	const inc = Math.PI * (3 - Math.sqrt(5));
+	const off = 2 / n;
 
-    return points;
+	for(let k = 0; k < n; k++) {
+
+		const y = k * off - 1 + off / 2;
+		const r = Math.sqrt(1 - y * y);
+		const phi = k * inc;
+		points.push(new Vector3(Math.cos(phi) * r, y, Math.sin(phi) * r));
+
+	}
+
+	return points;
+
 }
 
 // SSDO片段着色器
@@ -188,43 +192,51 @@ void main() {
 `;
 
 export class SSDOPass extends AOPass {
-    constructor(camera, scene) {
-        // 将着色器中的包含指令替换为实际的GLSL代码
-        const processedFragmentShader = fragmentShader;
 
-        super(camera, scene, processedFragmentShader);
+	constructor(camera, scene) {
 
-        // 添加SSDO特有的Uniforms
-        this.fullscreenMaterial.uniforms.colorTexture = { value: null };
-        this.fullscreenMaterial.uniforms.indirectLightIntensity = { value: 1.0 };
-        this.fullscreenMaterial.uniforms.indirectLightDistance = { value: 1.0 };
-        this.fullscreenMaterial.uniforms.colorBleeding = { value: true };
+		// 将着色器中的包含指令替换为实际的GLSL代码
+		const processedFragmentShader = fragmentShader;
 
-        // 设置默认采样数
-        this.fullscreenMaterial.defines.spp = "16";
+		super(camera, scene, processedFragmentShader);
 
-        // 添加颜色纹理使用的定义
-        this.fullscreenMaterial.defines.USE_COLOR_TEXTURE = "";
+		// 添加SSDO特有的Uniforms
+		this.fullscreenMaterial.uniforms.colorTexture = { value: null };
+		this.fullscreenMaterial.uniforms.indirectLightIntensity = { value: 1.0 };
+		this.fullscreenMaterial.uniforms.indirectLightDistance = { value: 1.0 };
+		this.fullscreenMaterial.uniforms.colorBleeding = { value: true };
 
-        // 更新材质以应用新的宏定义
-        this.fullscreenMaterial.needsUpdate = true;
+		// 设置默认采样数
+		this.fullscreenMaterial.defines.spp = "16";
 
-        // 初始化采样点
-        this.setSamples(16);
-    }
+		// 添加颜色纹理使用的定义
+		this.fullscreenMaterial.defines.USE_COLOR_TEXTURE = "";
 
-    setSamples(count) {
-        // 生成球面采样点
-        const samples = getPointsOnSphere(count);
-        const samplesR = [];
+		// 更新材质以应用新的宏定义
+		this.fullscreenMaterial.needsUpdate = true;
 
-        for (let i = 0; i < count; i++) {
-            samplesR.push((i + 1) / count);
-        }
+		// 初始化采样点
+		this.setSamples(16);
 
-        this.fullscreenMaterial.uniforms.samples = { value: samples };
-        this.fullscreenMaterial.uniforms.samplesR = { value: samplesR };
-        this.fullscreenMaterial.defines.spp = count.toFixed(0);
-        this.fullscreenMaterial.needsUpdate = true;
-    }
-} 
+	}
+
+	setSamples(count) {
+
+		// 生成球面采样点
+		const samples = getPointsOnSphere(count);
+		const samplesR = [];
+
+		for(let i = 0; i < count; i++) {
+
+			samplesR.push((i + 1) / count);
+
+		}
+
+		this.fullscreenMaterial.uniforms.samples = { value: samples };
+		this.fullscreenMaterial.uniforms.samplesR = { value: samplesR };
+		this.fullscreenMaterial.defines.spp = count.toFixed(0);
+		this.fullscreenMaterial.needsUpdate = true;
+
+	}
+
+}

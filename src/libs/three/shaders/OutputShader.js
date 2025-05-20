@@ -1,11 +1,11 @@
 const OutputShader = {
 
-	name: 'OutputShader',
+	name: "OutputShader",
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'toneMappingExposure': { value: 1 }
+		"tDiffuse": { value: null },
+		"toneMappingExposure": { value: 1 }
 
 	},
 

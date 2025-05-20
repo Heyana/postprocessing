@@ -1,4 +1,4 @@
-import { Pass } from "postprocessing"
+import { Pass } from "postprocessing";
 import {
 	Color,
 	DataTexture,
@@ -10,110 +10,133 @@ import {
 	RGBAFormat,
 	Vector2,
 	WebGLRenderTarget
-} from "three"
-import { VelocityDepthNormalMaterial } from "../material/VelocityDepthNormalMaterial.js"
-import { copyNecessaryProps, keepMaterialMapUpdated } from "../../gbuffer/utils/GBufferUtils.js"
-import { getVisibleChildren } from "../../utils/SceneUtils.js"
-import { isChildMaterialRenderable } from "../../utils/SceneUtils.js"
+} from "three";
+import { VelocityDepthNormalMaterial } from "../material/VelocityDepthNormalMaterial.js";
+import { copyNecessaryProps, keepMaterialMapUpdated } from "../../gbuffer/utils/GBufferUtils.js";
+import { getVisibleChildren } from "../../utils/SceneUtils.js";
+import { isChildMaterialRenderable } from "../../utils/SceneUtils.js";
 
-const backgroundColor = new Color(0)
-const zeroVec2 = new Vector2()
-const tmpProjectionMatrix = new Matrix4()
-const tmpProjectionMatrixInverse = new Matrix4()
+const backgroundColor = new Color(0);
+const zeroVec2 = new Vector2();
+const tmpProjectionMatrix = new Matrix4();
+const tmpProjectionMatrixInverse = new Matrix4();
 
 const saveBoneTexture = object => {
-	let boneTexture = object.material.uniforms.prevBoneTexture.value
 
-	if (boneTexture && boneTexture.image.width === object.skeleton.boneTexture.width) {
-		boneTexture = object.material.uniforms.prevBoneTexture.value
-		boneTexture.image.data.set(object.skeleton.boneTexture.image.data)
+	let boneTexture = object.material.uniforms.prevBoneTexture.value;
+
+	if(boneTexture && boneTexture.image.width === object.skeleton.boneTexture.width) {
+
+		boneTexture = object.material.uniforms.prevBoneTexture.value;
+		boneTexture.image.data.set(object.skeleton.boneTexture.image.data);
+
 	} else {
-		boneTexture?.dispose()
 
-		const boneMatrices = object.skeleton.boneTexture.image.data.slice()
-		const size = object.skeleton.boneTexture.image.width
+		boneTexture?.dispose();
 
-		boneTexture = new DataTexture(boneMatrices, size, size, RGBAFormat, FloatType)
-		object.material.uniforms.prevBoneTexture.value = boneTexture
+		const boneMatrices = object.skeleton.boneTexture.image.data.slice();
+		const size = object.skeleton.boneTexture.image.width;
 
-		boneTexture.needsUpdate = true
+		boneTexture = new DataTexture(boneMatrices, size, size, RGBAFormat, FloatType);
+		object.material.uniforms.prevBoneTexture.value = boneTexture;
+
+		boneTexture.needsUpdate = true;
+
 	}
-}
+
+};
 
 const updateVelocityDepthNormalMaterialBeforeRender = (c, camera) => {
-	if (c.skeleton?.boneTexture) {
-		c.material.uniforms.boneTexture.value = c.skeleton.boneTexture
-		c.material.uniforms.boneTextureSize.value = c.skeleton.boneTexture.image.width
 
-		if (!("USE_SKINNING" in c.material.defines)) {
-			c.material.defines.USE_SKINNING = ""
-			c.material.defines.BONE_TEXTURE = ""
+	if(c.skeleton?.boneTexture) {
 
-			c.material.needsUpdate = true
+		c.material.uniforms.boneTexture.value = c.skeleton.boneTexture;
+		c.material.uniforms.boneTextureSize.value = c.skeleton.boneTexture.image.width;
+
+		if(!("USE_SKINNING" in c.material.defines)) {
+
+			c.material.defines.USE_SKINNING = "";
+			c.material.defines.BONE_TEXTURE = "";
+
+			c.material.needsUpdate = true;
+
 		}
+
 	}
 
-	c.modelViewMatrix.multiplyMatrices(camera.matrixWorldInverse, c.matrixWorld)
+	c.modelViewMatrix.multiplyMatrices(camera.matrixWorldInverse, c.matrixWorld);
 
-	c.material.uniforms.velocityMatrix.value.multiplyMatrices(camera.projectionMatrix, c.modelViewMatrix)
-}
+	c.material.uniforms.velocityMatrix.value.multiplyMatrices(camera.projectionMatrix, c.modelViewMatrix);
+
+};
 
 const updateVelocityDepthNormalMaterialAfterRender = (c, camera) => {
-	c.material.uniforms.prevVelocityMatrix.value.multiplyMatrices(camera.projectionMatrix, c.modelViewMatrix)
 
-	if (c.skeleton?.boneTexture) saveBoneTexture(c)
-}
+	c.material.uniforms.prevVelocityMatrix.value.multiplyMatrices(camera.projectionMatrix, c.modelViewMatrix);
+
+	if(c.skeleton?.boneTexture) { saveBoneTexture(c); }
+
+};
 
 export class VelocityDepthNormalPass extends Pass {
-	cachedMaterials = new WeakMap()
-	visibleMeshes = []
-	needsSwap = false
+
+	cachedMaterials = new WeakMap();
+	visibleMeshes = [];
+	needsSwap = false;
 
 	constructor(scene, camera) {
-		super("VelocityDepthNormalPass")
 
-		this._scene = scene
-		this._camera = camera
+		super("VelocityDepthNormalPass");
+
+		this._scene = scene;
+		this._camera = camera;
 
 		this.renderTarget = new WebGLRenderTarget(1, 1, {
 			type: FloatType,
 			minFilter: NearestFilter,
 			magFilter: NearestFilter
-		})
+		});
 
-		this.renderTarget.texture.name = "VelocityDepthNormalPass.Texture"
+		this.renderTarget.texture.name = "VelocityDepthNormalPass.Texture";
 
-		this.renderTarget.depthTexture = new DepthTexture(1, 1)
-		this.renderTarget.depthTexture.type = FloatType
+		this.renderTarget.depthTexture = new DepthTexture(1, 1);
+		this.renderTarget.depthTexture.type = FloatType;
+
 	}
 
 	get texture() {
-		return this.renderTarget.texture
+
+		return this.renderTarget.texture;
+
 	}
 
 	setVelocityDepthNormalMaterialInScene() {
-		this.visibleMeshes = getVisibleChildren(this._scene)
 
-		for (const c of this.visibleMeshes) {
-			const originalMaterial = c.material
+		this.visibleMeshes = getVisibleChildren(this._scene);
 
-			let [cachedOriginalMaterial, velocityDepthNormalMaterial] = this.cachedMaterials.get(c) || []
+		for(const c of this.visibleMeshes) {
 
-			if (originalMaterial !== cachedOriginalMaterial) {
-				velocityDepthNormalMaterial = new VelocityDepthNormalMaterial(this._camera)
+			const originalMaterial = c.material;
 
-				copyNecessaryProps(originalMaterial, velocityDepthNormalMaterial)
+			let [cachedOriginalMaterial, velocityDepthNormalMaterial] = this.cachedMaterials.get(c) || [];
 
-				c.material = velocityDepthNormalMaterial
+			if(originalMaterial !== cachedOriginalMaterial) {
 
-				if (c.skeleton?.boneTexture) saveBoneTexture(c)
+				velocityDepthNormalMaterial = new VelocityDepthNormalMaterial(this._camera);
 
-				this.cachedMaterials.set(c, [originalMaterial, velocityDepthNormalMaterial])
+				copyNecessaryProps(originalMaterial, velocityDepthNormalMaterial);
+
+				c.material = velocityDepthNormalMaterial;
+
+				if(c.skeleton?.boneTexture) { saveBoneTexture(c); }
+
+				this.cachedMaterials.set(c, [originalMaterial, velocityDepthNormalMaterial]);
+
 			}
 
-			c.material = velocityDepthNormalMaterial
+			c.material = velocityDepthNormalMaterial;
 
-			c.visible = isChildMaterialRenderable(c, originalMaterial)
+			c.visible = isChildMaterialRenderable(c, originalMaterial);
 
 			keepMaterialMapUpdated(
 				velocityDepthNormalMaterial,
@@ -121,85 +144,102 @@ export class VelocityDepthNormalPass extends Pass {
 				"normalMap",
 				"USE_NORMALMAP_TANGENTSPACE",
 				true
-			)
-			velocityDepthNormalMaterial.uniforms.normalMap.value = originalMaterial.normalMap
+			);
+			velocityDepthNormalMaterial.uniforms.normalMap.value = originalMaterial.normalMap;
 
 			const map =
 				originalMaterial.map ||
 				originalMaterial.normalMap ||
 				originalMaterial.roughnessMap ||
-				originalMaterial.metalnessMap
+				originalMaterial.metalnessMap;
 
-			if (map) velocityDepthNormalMaterial.uniforms.uvTransform.value = map.matrix
+			if(map) { velocityDepthNormalMaterial.uniforms.uvTransform.value = map.matrix; }
 
-			updateVelocityDepthNormalMaterialBeforeRender(c, this._camera)
+			updateVelocityDepthNormalMaterialBeforeRender(c, this._camera);
+
 		}
+
 	}
 
 	unsetVelocityDepthNormalMaterialInScene() {
-		for (const c of this.visibleMeshes) {
-			c.visible = true
 
-			updateVelocityDepthNormalMaterialAfterRender(c, this._camera)
+		for(const c of this.visibleMeshes) {
+
+			c.visible = true;
+
+			updateVelocityDepthNormalMaterialAfterRender(c, this._camera);
 
 			const cachedMaterials = this.cachedMaterials.get(c);
-			if (cachedMaterials && cachedMaterials[0]) {
+			if(cachedMaterials && cachedMaterials[0]) {
+
 				c.material = cachedMaterials[0];
-				if (c.material.needsUpdate !== undefined) {
+				if(c.material.needsUpdate !== undefined) {
+
 					c.material.needsUpdate = true;
+
 				}
+
 			}
+
 		}
 
 		this.visibleMeshes = [];
+
 	}
 
 	setSize(width, height) {
-		this.renderTarget.setSize(width, height)
 
-		this.lastVelocityTexture?.dispose()
+		this.renderTarget.setSize(width, height);
 
-		this.lastVelocityTexture = new FramebufferTexture(width, height, RGBAFormat)
-		this.lastVelocityTexture.type = FloatType
-		this.lastVelocityTexture.minFilter = NearestFilter
-		this.lastVelocityTexture.magFilter = NearestFilter
+		this.lastVelocityTexture?.dispose();
+
+		this.lastVelocityTexture = new FramebufferTexture(width, height, RGBAFormat);
+		this.lastVelocityTexture.type = FloatType;
+		this.lastVelocityTexture.minFilter = NearestFilter;
+		this.lastVelocityTexture.magFilter = NearestFilter;
+
 	}
 
 	dispose() {
-		super.dispose()
 
-		this.renderTarget.dispose()
+		super.dispose();
+
+		this.renderTarget.dispose();
+
 	}
 
 	render(renderer) {
-		tmpProjectionMatrix.copy(this._camera.projectionMatrix)
-		tmpProjectionMatrixInverse.copy(this._camera.projectionMatrixInverse)
 
-		if (this._camera.view) this._camera.view.enabled = false
-		this._camera.updateProjectionMatrix()
+		tmpProjectionMatrix.copy(this._camera.projectionMatrix);
+		tmpProjectionMatrixInverse.copy(this._camera.projectionMatrixInverse);
+
+		if(this._camera.view) { this._camera.view.enabled = false; }
+		this._camera.updateProjectionMatrix();
 		const originalAutoUpdate = renderer.shadowMap.autoUpdate;
 		renderer.shadowMap.autoUpdate = false;
 		// in case a RenderPass is not being used, so we need to update the camera's world matrix manually
-		this._camera.updateMatrixWorld()
+		this._camera.updateMatrixWorld();
 
-		this.setVelocityDepthNormalMaterialInScene()
+		this.setVelocityDepthNormalMaterialInScene();
 
-		const { background } = this._scene
+		const { background } = this._scene;
 
-		this._scene.background = backgroundColor
+		this._scene.background = backgroundColor;
 
-		renderer.setRenderTarget(this.renderTarget)
-		renderer.copyFramebufferToTexture(this.lastVelocityTexture, zeroVec2)
+		renderer.setRenderTarget(this.renderTarget);
+		renderer.copyFramebufferToTexture(this.lastVelocityTexture, zeroVec2);
 
-		renderer.render(this._scene, this._camera)
+		renderer.render(this._scene, this._camera);
 
-		this._scene.background = background
+		this._scene.background = background;
 
-		this.unsetVelocityDepthNormalMaterialInScene()
+		this.unsetVelocityDepthNormalMaterialInScene();
 
-		if (this._camera.view) this._camera.view.enabled = true
-		this._camera.projectionMatrix.copy(tmpProjectionMatrix)
-		this._camera.projectionMatrixInverse.copy(tmpProjectionMatrixInverse)
+		if(this._camera.view) { this._camera.view.enabled = true; }
+		this._camera.projectionMatrix.copy(tmpProjectionMatrix);
+		this._camera.projectionMatrixInverse.copy(tmpProjectionMatrixInverse);
 		renderer.shadowMap.autoUpdate = originalAutoUpdate;
+
 	}
+
 }
