@@ -80,13 +80,13 @@ function load() {
 
 		});
 
-		for(const entry of luts) {
+		for (const entry of luts) {
 
-			if(entry[1] === null) {
+			if (entry[1] === null) {
 
 				continue;
 
-			} else if(/.3dl$/im.test(entry[1])) {
+			} else if (/.3dl$/im.test(entry[1])) {
 
 				lut3dlLoader.load(`${document.baseURI}img/textures/lut/${entry[1]}`, (t) => {
 
@@ -95,7 +95,7 @@ function load() {
 
 				});
 
-			} else if(/.cube$/im.test(entry[1])) {
+			} else if (/.cube$/im.test(entry[1])) {
 
 				lutCubeLoader.load(`${document.baseURI}img/textures/lut/${entry[1]}`, (t) => {
 
@@ -227,7 +227,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		let promise;
 
-		if(scaleUp) {
+		if (scaleUp) {
 
 			const lut = (original instanceof LookupTexture) ? original : LookupTexture.from(original);
 			console.time("Tetrahedral Upscaling");
@@ -242,7 +242,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		promise.then((lut) => {
 
-			if(scaleUp) {
+			if (scaleUp) {
 
 				console.timeEnd("Tetrahedral Upscaling");
 				document.body.classList.remove("progress");
@@ -252,11 +252,10 @@ window.addEventListener("load", () => load().then((assets) => {
 			effect.lut.dispose();
 			params["base size"] = size;
 
-			if(renderer.capabilities.isWebGL2) {
+			if (renderer.capabilities.isWebGL2) {
 
-				if(renderer.getContext().getExtension("OES_texture_float_linear") === null) {
+				if (renderer.getContext().getExtension("OES_texture_float_linear") === null) {
 
-					console.log("Linear float filtering not supported, converting to Uint8");
 					lut.convertToUint8();
 
 				}
@@ -278,7 +277,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	const folder = pane.addFolder({ title: "Settings" });
 	folder.addBinding(params, "lut", { options: [...luts.keys()].reduce(toRecord, {}) }).on("change", changeLUT);
 
-	if(renderer.capabilities.isWebGL2) {
+	if (renderer.capabilities.isWebGL2) {
 
 		folder.addBinding(params, "3D texture").on("change", changeLUT);
 		folder.addBinding(effect, "tetrahedralInterpolation");

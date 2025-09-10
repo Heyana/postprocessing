@@ -1,41 +1,36 @@
 import {
 	AnimationMixer,
-	Color,
 	CubeTextureLoader,
 	GLTFLoader,
 	Group,
 	LoadingManager,
 	Mesh,
+	MeshStandardMaterial,
 	PerspectiveCamera,
-	Raycaster,
 	Scene,
 	SphereGeometry,
-	MeshStandardMaterial,
 	SRGBColorSpace,
 	TextureLoader,
-	Vector2,
-	Vector3,
 	VSMShadowMap,
 	WebGLRenderer
 } from "three";
 
-import * as THREE from "three";
 import {
 	BlendFunction,
-	SSGIEffect,
-	OverrideMaterialManager,
 	EffectComposer,
 	EffectPass,
-	SSREffect,
-	RenderPass
+	OverrideMaterialManager,
+	RenderPass,
+	SSGIEffect
 } from "postprocessing";
+import * as THREE from "three";
 
 // 导入 VelocityDepthNormalPass - 使用项目内的路径
 
-import { Pane } from "tweakpane";
 import { ControlMode, SpatialControls } from "spatial-controls";
-import { calculateVerticalFoV, FPSMeter } from "../utils";
+import { Pane } from "tweakpane";
 import * as Shapes from "../objects/Shapes";
+import { calculateVerticalFoV, FPSMeter } from "../utils";
 
 function load() {
 
@@ -62,7 +57,7 @@ function load() {
 
 			gltf.scene.traverse((object) => {
 
-				if(object.isMesh) {
+				if (object.isMesh) {
 
 					object.castShadow = object.receiveShadow = true;
 
@@ -103,7 +98,7 @@ function createMaterialSpheres() {
 	const spacing = 1.2;
 
 	// 创建一行具有不同粗糙度的球体（从光滑到粗糙）
-	for(let i = 0; i < sphereCount; i++) {
+	for (let i = 0; i < sphereCount; i++) {
 
 		const roughness = i / (sphereCount - 1);
 		const sphere = new Mesh(
@@ -121,7 +116,7 @@ function createMaterialSpheres() {
 	}
 
 	// 创建一行具有不同金属度的球体（从非金属到金属）
-	for(let i = 0; i < sphereCount; i++) {
+	for (let i = 0; i < sphereCount; i++) {
 
 		const metalness = i / (sphereCount - 1);
 		const sphere = new Mesh(
@@ -181,11 +176,11 @@ window.addEventListener("load", () => load().then((assets) => {
 	// 增强直接光照强度
 	lights.children.forEach(light => {
 
-		if(light.isDirectionalLight) {
+		if (light.isDirectionalLight) {
 
 			light.intensity *= 1.5; // 增强直射光强度
 
-		} else if(light.isAmbientLight) {
+		} else if (light.isAmbientLight) {
 
 			light.intensity *= 2.0; // 显著增强环境光
 
@@ -217,7 +212,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	const radius = 3.0;
 	let angle = 3.5;
 
-	for(const mesh of actors.children) {
+	for (const mesh of actors.children) {
 
 		// 将对象排列成圆形
 		mesh.position.set(radius * Math.cos(angle), 0, radius * Math.sin(angle));
@@ -290,7 +285,6 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	// 确保SSGI Pass被设置为最后一个通道
 	composer.addPass(new EffectPass(camera, ssgiEffect));
-	console.log("Log-- ", ssgiEffect, "ssgiEffect");
 
 	// UI控制面板
 	const fpsMeter = new FPSMeter();
@@ -306,11 +300,11 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	lights.children.forEach(light => {
 
-		if(light.isDirectionalLight) {
+		if (light.isDirectionalLight) {
 
 			directionalLight = light;
 
-		} else if(light.isAmbientLight) {
+		} else if (light.isAmbientLight) {
 
 			ambientLight = light;
 
@@ -318,7 +312,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	});
 
-	if(directionalLight) {
+	if (directionalLight) {
 
 		lightFolder.addBinding(directionalLight, "intensity", {
 			min: 0, max: 5, step: 0.1,
@@ -339,7 +333,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	}
 
-	if(ambientLight) {
+	if (ambientLight) {
 
 		lightFolder.addBinding(ambientLight, "intensity", {
 			min: 0, max: 5, step: 0.1,
@@ -377,10 +371,10 @@ window.addEventListener("load", () => load().then((assets) => {
 			// 通过控制EffectPass的enabled属性来安全地切换效果
 			composer.passes.forEach(pass => {
 
-				if(pass.effects && pass.effects.length > 0) {
+				if (pass.effects && pass.effects.length > 0) {
 
 					// 找到包含SSGI效果的EffectPass
-					if(pass.effects.some(effect => effect instanceof SSGIEffect)) {
+					if (pass.effects.some(effect => effect instanceof SSGIEffect)) {
 
 						pass.enabled = e.value;
 
@@ -412,7 +406,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 			ssgiEffect.blendMode.blendFunction = blendModes[e.value];
 
-		} catch(err) {
+		} catch (err) {
 
 			console.warn("更改混合模式时出错:", err);
 
@@ -449,8 +443,6 @@ window.addEventListener("load", () => load().then((assets) => {
 		// 需要重新创建效果的降噪部分
 		ssgiEffect.reset();
 
-		// 输出日志
-		console.log("切换到降噪算法:", e.value);
 
 		// 更新UI显示 - 在切换算法时显示/隐藏相关控件
 		gaussianBilateralFolder.hidden = e.value !== "gaussian-bilateral";
@@ -479,7 +471,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	}).on("change", (e) => {
 
 		// 应用预设
-		switch(e.value) {
+		switch (e.value) {
 
 			case "low":
 				ssgiEffect.steps = 10;
@@ -510,13 +502,13 @@ window.addEventListener("load", () => load().then((assets) => {
 	// 创建一个函数来遍历场景中的所有材质
 	function traverseMaterials(object, callback) {
 
-		if(object.material) {
+		if (object.material) {
 
 			callback(object.material);
 
 		}
 
-		if(object.children && object.children.length > 0) {
+		if (object.children && object.children.length > 0) {
 
 			object.children.forEach(child => traverseMaterials(child, callback));
 
@@ -529,11 +521,11 @@ window.addEventListener("load", () => load().then((assets) => {
 		roughness: 0.5,
 		metalness: 0.5,
 		color: "#ffffff",
-		applyToAll: function() {
+		applyToAll: function () {
 
 			traverseMaterials(scene, (material) => {
 
-				if(material.isMeshStandardMaterial) {
+				if (material.isMeshStandardMaterial) {
 
 					material.roughness = materialSettings.roughness;
 					material.metalness = materialSettings.metalness;
@@ -545,16 +537,16 @@ window.addEventListener("load", () => load().then((assets) => {
 			});
 
 		},
-		resetMaterials: function() {
+		resetMaterials: function () {
 
 			// 重置材质球体
 			materialSpheres.children.forEach((sphere, index) => {
 
 				const material = sphere.material;
-				if(material.isMeshStandardMaterial) {
+				if (material.isMeshStandardMaterial) {
 
 					// 根据位置设置合适的属性
-					if(index < 5) { // 上排 - 不同粗糙度
+					if (index < 5) { // 上排 - 不同粗糙度
 
 						material.roughness = index / 4;
 						material.metalness = 0.0;
@@ -586,7 +578,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		traverseMaterials(scene, (material) => {
 
-			if(material.isMeshStandardMaterial) {
+			if (material.isMeshStandardMaterial) {
 
 				material.roughness = materialSettings.roughness;
 				material.metalness = materialSettings.metalness;
@@ -607,10 +599,10 @@ window.addEventListener("load", () => load().then((assets) => {
 		materialSpheres.children.forEach((sphere, index) => {
 
 			const material = sphere.material;
-			if(material.isMeshStandardMaterial) {
+			if (material.isMeshStandardMaterial) {
 
 				// 根据位置设置合适的属性
-				if(index < 5) { // 上排 - 不同粗糙度
+				if (index < 5) { // 上排 - 不同粗糙度
 
 					material.roughness = index / 4;
 					material.metalness = 0.0;
@@ -661,7 +653,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		// 重置到原始输出
 		ssgiEffect.outputTexture = originalOutputTexture;
 
-		switch(debugSettings.currentView) {
+		switch (debugSettings.currentView) {
 
 			case "final":
 				// 使用最终合成结果
@@ -669,34 +661,31 @@ window.addEventListener("load", () => load().then((assets) => {
 				break;
 			case "ssgi_raw":
 				// 查看SSGI原始输出（未经降噪处理）
-				if(ssgiEffect.ssgiPass && ssgiEffect.ssgiPass.texture) {
+				if (ssgiEffect.ssgiPass && ssgiEffect.ssgiPass.texture) {
 
 					ssgiEffect.outputTexture = ssgiEffect.ssgiPass.texture;
-					console.log("显示SSGI原始输出");
 
 				}
 				break;
 			case "denoised":
 				// 查看降噪后的结果
-				if(ssgiEffect.denoiser && ssgiEffect.denoiser.texture) {
+				if (ssgiEffect.denoiser && ssgiEffect.denoiser.texture) {
 
 					ssgiEffect.outputTexture = ssgiEffect.denoiser.texture;
-					console.log("显示降噪后结果");
 
 				}
 				break;
 			case "denoise_step":
 				// 查看降噪中间步骤
-				if(ssgiEffect.denoiser && ssgiEffect.denoiser.denoisePass) {
+				if (ssgiEffect.denoiser && ssgiEffect.denoiser.denoisePass) {
 
 					// 尝试访问多步降噪的中间结果
 					const stepIndex = Math.min(debugSettings.denoiseMidStep, 1); // 限制到可用纹理
-					if(ssgiEffect.denoiser.denoisePass.renderTargetB &&
-                        ssgiEffect.denoiser.denoisePass.renderTargetB.texture &&
-                        ssgiEffect.denoiser.denoisePass.renderTargetB.texture[stepIndex]) {
+					if (ssgiEffect.denoiser.denoisePass.renderTargetB &&
+						ssgiEffect.denoiser.denoisePass.renderTargetB.texture &&
+						ssgiEffect.denoiser.denoisePass.renderTargetB.texture[stepIndex]) {
 
 						ssgiEffect.outputTexture = ssgiEffect.denoiser.denoisePass.renderTargetB.texture[stepIndex];
-						console.log(`显示降噪步骤 ${stepIndex} 的结果`);
 
 					}
 
@@ -707,7 +696,6 @@ window.addEventListener("load", () => load().then((assets) => {
 			case "metalness":
 				// 使用G-Buffer中的特定通道
 				ssgiEffect.outputTexture = debugSettings.currentView;
-				console.log(`显示G-Buffer ${debugSettings.currentView} 通道`);
 				break;
 
 		}
@@ -726,7 +714,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		hidden: debugSettings.currentView !== "denoise_step"
 	}).on("change", () => {
 
-		if(debugSettings.currentView === "denoise_step") {
+		if (debugSettings.currentView === "denoise_step") {
 
 			updateDebugView();
 
@@ -754,9 +742,8 @@ window.addEventListener("load", () => load().then((assets) => {
 		});
 
 		// 尝试直接切换到高斯双边降噪
-		if(ssgiEffect.denoiseAlgorithm !== "gaussian-bilateral") {
+		if (ssgiEffect.denoiseAlgorithm !== "gaussian-bilateral") {
 
-			console.log("自动切换到高斯双边降噪尝试解决黑点问题");
 
 			// 更新UI
 			denoiseAlgorithmSettings.algorithm = "gaussian-bilateral";
@@ -790,7 +777,6 @@ window.addEventListener("load", () => load().then((assets) => {
 		title: "紧急修复 - 切回泊松降噪"
 	}).on("click", () => {
 
-		console.log("执行紧急修复 - 切回泊松降噪算法");
 
 		// 更新UI选择
 		denoiseAlgorithmSettings.algorithm = "poisson";
@@ -945,7 +931,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		label: "修复类型"
 	}).on("change", () => {
 
-		if(fixSettings.fixEnabled) {
+		if (fixSettings.fixEnabled) {
 
 			applyBlackSpotFix(true);
 
@@ -958,7 +944,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		label: "亮度限制值"
 	}).on("change", () => {
 
-		if(fixSettings.fixEnabled && fixSettings.fixType === "clamp") {
+		if (fixSettings.fixEnabled && fixSettings.fixType === "clamp") {
 
 			applyBlackSpotFix(true);
 
@@ -971,7 +957,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		label: "最小亮度"
 	}).on("change", () => {
 
-		if(fixSettings.fixEnabled && fixSettings.fixType === "minLuminance") {
+		if (fixSettings.fixEnabled && fixSettings.fixType === "minLuminance") {
 
 			applyBlackSpotFix(true);
 
@@ -982,34 +968,33 @@ window.addEventListener("load", () => load().then((assets) => {
 	// 黑点修复逻辑
 	function applyBlackSpotFix(enable) {
 
-		if(enable) {
+		if (enable) {
 
-			console.log(`应用黑点修复: ${fixSettings.fixType}`);
 
 			// 根据修复类型应用不同的解决方案
-			switch(fixSettings.fixType) {
+			switch (fixSettings.fixType) {
 
 				case "clamp":
 					// 方案1: 限制SSGI的亮度值，防止过亮的值导致黑点
-					if(ssgiEffect.ssgiPass && ssgiEffect.ssgiPass.fullscreenMaterial) {
+					if (ssgiEffect.ssgiPass && ssgiEffect.ssgiPass.fullscreenMaterial) {
 
 						// 添加亮度限制到shader
 						const material = ssgiEffect.ssgiPass.fullscreenMaterial;
-						if(!material.defines.CLAMP_INTENSITY) {
+						if (!material.defines.CLAMP_INTENSITY) {
 
 							material.defines.CLAMP_INTENSITY = "";
 							material.uniforms.maxIntensity = { value: fixSettings.clampValue };
 
 							// 修补片段着色器，在输出之前添加亮度限制
 							const originalFragmentShader = material.fragmentShader;
-							if(!originalFragmentShader.includes("clamp(gl_FragColor.rgb, 0.0, maxIntensity)")) {
+							if (!originalFragmentShader.includes("clamp(gl_FragColor.rgb, 0.0, maxIntensity)")) {
 
 								const patchedShader = originalFragmentShader.replace(
 									/gl_FragColor\s*=\s*vec4\([^;]+;/g,
 									(match) => {
 
 										return match.slice(0, -1) +
-                                            ";\ngl_FragColor.rgb = clamp(gl_FragColor.rgb, 0.0, maxIntensity);";
+											";\ngl_FragColor.rgb = clamp(gl_FragColor.rgb, 0.0, maxIntensity);";
 
 									}
 								);
@@ -1032,21 +1017,21 @@ window.addEventListener("load", () => load().then((assets) => {
 
 				case "minLuminance":
 					// 方案2: 设置最小亮度，防止过暗的值
-					if(ssgiEffect.ssgiPass && ssgiEffect.ssgiPass.fullscreenMaterial) {
+					if (ssgiEffect.ssgiPass && ssgiEffect.ssgiPass.fullscreenMaterial) {
 
 						const material = ssgiEffect.ssgiPass.fullscreenMaterial;
-						if(!material.defines.MIN_LUMINANCE) {
+						if (!material.defines.MIN_LUMINANCE) {
 
 							material.defines.MIN_LUMINANCE = "";
 							material.uniforms.minLuminance = { value: fixSettings.minLuminance };
 
 							// 修补片段着色器，设置最小亮度
 							const originalFragmentShader = material.fragmentShader;
-							if(!originalFragmentShader.includes("max(luminance(gl_FragColor.rgb), minLuminance)")) {
+							if (!originalFragmentShader.includes("max(luminance(gl_FragColor.rgb), minLuminance)")) {
 
 								// 添加luminance函数（如果不存在）
 								let patchedShader = originalFragmentShader;
-								if(!patchedShader.includes("float luminance(vec3 color)")) {
+								if (!patchedShader.includes("float luminance(vec3 color)")) {
 
 									patchedShader = "float luminance(vec3 color) { return dot(color, vec3(0.299, 0.587, 0.114)); }\n" + patchedShader;
 
@@ -1058,7 +1043,7 @@ window.addEventListener("load", () => load().then((assets) => {
 									(match) => {
 
 										return match.slice(0, -1) +
-                                            ";\nfloat lum = luminance(gl_FragColor.rgb);\nif(lum > 0.0 && lum < minLuminance) { gl_FragColor.rgb *= minLuminance / lum; }";
+											";\nfloat lum = luminance(gl_FragColor.rgb);\nif(lum > 0.0 && lum < minLuminance) { gl_FragColor.rgb *= minLuminance / lum; }";
 
 									}
 								);
@@ -1095,10 +1080,9 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		} else {
 
-			console.log("禁用黑点修复");
 
 			// 移除所有修复
-			if(ssgiEffect.ssgiPass && ssgiEffect.ssgiPass.fullscreenMaterial) {
+			if (ssgiEffect.ssgiPass && ssgiEffect.ssgiPass.fullscreenMaterial) {
 
 				const material = ssgiEffect.ssgiPass.fullscreenMaterial;
 
@@ -1135,9 +1119,9 @@ window.addEventListener("load", () => load().then((assets) => {
 		let ssgiPass = null;
 		composer.passes.forEach(pass => {
 
-			if(pass.effects && pass.effects.length > 0) {
+			if (pass.effects && pass.effects.length > 0) {
 
-				if(pass.effects.some(effect => effect instanceof SSGIEffect)) {
+				if (pass.effects.some(effect => effect instanceof SSGIEffect)) {
 
 					ssgiPass = pass;
 
@@ -1147,7 +1131,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		});
 
-		if(ssgiPass) {
+		if (ssgiPass) {
 
 			// 切换效果
 			ssgiPass.enabled = !compareMode;

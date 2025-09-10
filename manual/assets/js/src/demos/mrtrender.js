@@ -237,7 +237,7 @@ function load() {
 
 			gltf.scene.traverse((object) => {
 
-				if(object.isMesh) {
+				if (object.isMesh) {
 
 					object.castShadow = object.receiveShadow = true;
 
@@ -639,7 +639,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		frameCount++;
 
 		// 确保尺寸正确初始化 - 在前几帧手动触发重新调整大小
-		if(frameCount < 5) {
+		if (frameCount < 5) {
 
 			onResize();
 
@@ -650,7 +650,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		animationMixer.update(deltaTime * 1e-3);
 
 		// 如果启用了旋转，则旋转材质球组
-		if(params.rotateObjects) {
+		if (params.rotateObjects) {
 
 			materialsGroup.rotation.y += 0.005;
 
@@ -658,26 +658,14 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		// 检查MRT缓冲区是否正确初始化
 		let bufferStatus = "MRT缓冲区:";
-		if(mrtRenderPass.buffers) {
+		if (mrtRenderPass.buffers) {
 
 			bufferStatus += ` 数量=${mrtRenderPass.buffers.length}`;
 
 			// 只在调试时输出一次所有纹理信息
-			if(frameCount === 10) {
+			if (frameCount === 10) {
 
-				console.log("MRT纹理信息:");
-				for(let i = 0; i < mrtRenderPass.buffers.length; i++) {
-
-					const tex = mrtRenderPass.getTexture(i);
-					if(tex) {
-
-						console.log(`通道${i}: 宽=${tex.image.width}, 高=${tex.image.height}, 格式=${tex.format}`);
-
-					} else {
-
-						console.log(`通道${i}: 未初始化`);
-
-					}
+				for (let i = 0; i < mrtRenderPass.buffers.length; i++) {
 
 				}
 
@@ -690,14 +678,14 @@ window.addEventListener("load", () => load().then((assets) => {
 		}
 
 		// 只在初始帧输出状态信息
-		if(frameCount <= 10) {
+		if (frameCount <= 10) {
 
 			console.log(bufferStatus);
 
 		}
 
 		// 更新MRT渲染通道的结果给显示着色器
-		if(mrtRenderPass.buffers && mrtRenderPass.buffers.length > 0) {
+		if (mrtRenderPass.buffers && mrtRenderPass.buffers.length > 0) {
 
 			// 获取可用的通道列表
 			const availableChannels = mrtRenderPass.getAvailableChannels();
@@ -733,17 +721,17 @@ window.addEventListener("load", () => load().then((assets) => {
 			availableChannels.forEach(channelType => {
 
 				const uniformName = channelMapping[channelType];
-				if(uniformName && displayMaterial.uniforms[uniformName]) {
+				if (uniformName && displayMaterial.uniforms[uniformName]) {
 
 					displayMaterial.uniforms[uniformName].value =
-                        mrtRenderPass.getChannelTexture(channelType);
+						mrtRenderPass.getChannelTexture(channelType);
 
 				}
 
 			});
 
 			// 输出可用通道信息
-			if(frameCount === 20) {
+			if (frameCount === 20) {
 
 				console.log("可用的渲染通道:", availableChannels);
 
@@ -759,9 +747,9 @@ window.addEventListener("load", () => load().then((assets) => {
 
 			composer.render();
 
-		} catch(e) {
+		} catch (e) {
 
-			if(frameCount % 60 === 0) { // 限制错误日志频率
+			if (frameCount % 60 === 0) { // 限制错误日志频率
 
 				console.error("渲染错误:", e);
 
@@ -818,7 +806,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		// 为每个可用通道添加选项
 		availableChannels.forEach(channelType => {
 
-			if(channelType in channelModeMap) {
+			if (channelType in channelModeMap) {
 
 				const displayName = channelDisplayNames[channelType] || `通道${channelType}`;
 				newOptions[displayName] = channelModeMap[channelType];
@@ -831,7 +819,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		newOptions["全部通道"] = 11; // 对应着色器中的多通道视图模式
 
 		// 确保"原始画面"选项存在
-		if(availableChannels.includes(MRTRenderPass.CHANNEL_ORIGINAL)) {
+		if (availableChannels.includes(MRTRenderPass.CHANNEL_ORIGINAL)) {
 
 			newOptions["原始画面"] = channelModeMap[MRTRenderPass.CHANNEL_ORIGINAL];
 
@@ -841,7 +829,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		const binding = folder.children.find(child =>
 			child.label === "显示通道" || child.label === "displayMode");
 
-		if(binding) {
+		if (binding) {
 
 			// 存储当前选择的值
 			const currentValue = params.displayMode;
@@ -861,7 +849,7 @@ window.addEventListener("load", () => load().then((assets) => {
 				const newBinding = folder.addBinding(params, "displayMode", config);
 
 				// 如果当前值不在新选项中，重置为第一个选项
-				if(!Object.values(newOptions).includes(currentValue)) {
+				if (!Object.values(newOptions).includes(currentValue)) {
 
 					params.displayMode = Object.values(newOptions)[0];
 
@@ -877,7 +865,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 				});
 
-			} catch(e) {
+			} catch (e) {
 
 				console.error("更新显示模式选项时出错:", e);
 

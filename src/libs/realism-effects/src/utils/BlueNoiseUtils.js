@@ -53,7 +53,6 @@ const blueNoiseTexturePromise = new Promise((resolve) => {
 		// 成功加载
 		(texture) => {
 
-			console.log("成功加载蓝噪声纹理");
 			texture.minFilter = NearestFilter;
 			texture.magFilter = NearestFilter;
 			texture.wrapS = RepeatWrapping;

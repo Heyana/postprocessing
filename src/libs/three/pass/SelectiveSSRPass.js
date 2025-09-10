@@ -31,7 +31,6 @@ import { DepthMaskMaterial, DepthPass, ShaderPass } from "postprocessing";
 // 导入深度测试策略
 import { renderUtils } from "../../../utils/RenderUtils.js";
 import { DepthTestStrategy } from "postprocessing";
-console.log("Log-- ", 1.4, "SSRPass");
 class SelectiveSSRPass extends Pass {
 
 	constructor({ renderer, scene, camera, width, height, selection, bouncing = false, groundReflector, composer }) {
@@ -93,7 +92,7 @@ class SelectiveSSRPass extends Pass {
 			},
 			set(val) {
 
-				if(this._distanceAttenuation === val) { return; }
+				if (this._distanceAttenuation === val) { return; }
 				this._distanceAttenuation = val;
 				this.ssrMaterial.defines.DISTANCE_ATTENUATION = val;
 				this.ssrMaterial.needsUpdate = true;
@@ -111,7 +110,7 @@ class SelectiveSSRPass extends Pass {
 			},
 			set(val) {
 
-				if(this._fresnel === val) { return; }
+				if (this._fresnel === val) { return; }
 				this._fresnel = val;
 				this.ssrMaterial.defines.FRESNEL = val;
 				this.ssrMaterial.needsUpdate = true;
@@ -128,7 +127,7 @@ class SelectiveSSRPass extends Pass {
 			},
 			set(val) {
 
-				if(this._infiniteThick === val) { return; }
+				if (this._infiniteThick === val) { return; }
 				this._infiniteThick = val;
 				this.ssrMaterial.defines.INFINITE_THICK = val;
 				this.ssrMaterial.needsUpdate = true;
@@ -146,9 +145,9 @@ class SelectiveSSRPass extends Pass {
 			},
 			set(val) {
 
-				if(this._reflectionStrength === val) { return; }
+				if (this._reflectionStrength === val) { return; }
 				this._reflectionStrength = val;
-				if(this.ssrMaterial) {
+				if (this.ssrMaterial) {
 
 					this.ssrMaterial.uniforms.reflectionStrength.value = val;
 
@@ -218,7 +217,7 @@ class SelectiveSSRPass extends Pass {
 			blending: NoBlending
 		});
 
-		if(!composer.depthTexture) { composer.createDepthTexture(); }
+		if (!composer.depthTexture) { composer.createDepthTexture(); }
 		this.ssrMaterial.uniforms.depthTexture = new Uniform(composer.depthTexture);
 		console.log("Log-- ", composer.depthTexture, "composer.depthTexture");
 		// this.uniforms.get("depthTexture").value = composer.depthTexture;
@@ -410,7 +409,7 @@ class SelectiveSSRPass extends Pass {
 		// 渲染beauty和depth
 		renderer.setRenderTarget(this.beautyRenderTarget);
 		renderer.clear();
-		if(this.groundReflector) {
+		if (this.groundReflector) {
 
 			this.groundReflector.visible = false;
 			this.groundReflector.doRender(this.renderer, this.scene, this.camera);
@@ -421,7 +420,7 @@ class SelectiveSSRPass extends Pass {
 		// 暂时移除背景以避免与反射混淆
 		this.scene.background = null;
 
-		if(this.groundReflector) { this.groundReflector.visible = false; }
+		if (this.groundReflector) { this.groundReflector.visible = false; }
 
 		// 渲染normals
 		this.renderOverride(
@@ -444,11 +443,11 @@ class SelectiveSSRPass extends Pass {
 		const otherModels = [];
 		this._selection.forEach((model) => {
 
-			if(model.children.length > 0) {
+			if (model.children.length > 0) {
 
 				model.traverse((child) => {
 
-					if(child.isMesh && !child.layers.isEnabled(this._selection.layer) && child.visible) {
+					if (child.isMesh && !child.layers.isEnabled(this._selection.layer) && child.visible) {
 
 						otherModels.push({
 							model: child,
@@ -520,7 +519,7 @@ class SelectiveSSRPass extends Pass {
 		this.ssrMaterial.needsUpdate = true;
 
 		// 如果使用外部深度纹理，则需要确保更新SSR材质
-		if(this.useExternalDepth && this.externalDepthTexture) {
+		if (this.useExternalDepth && this.externalDepthTexture) {
 
 			this.ssrMaterial.uniforms.tDepth.value = this.externalDepthTexture;
 
@@ -533,7 +532,7 @@ class SelectiveSSRPass extends Pass {
 		this.renderPass(renderer, this.ssrMaterial, this.ssrRenderTarget);
 
 		// 渲染blur
-		if(this.blur) {
+		if (this.blur) {
 
 			this.renderPass(renderer, this.blurMaterial, this.blurRenderTarget);
 			this.renderPass(renderer, this.blurMaterial2, this.blurRenderTarget2);
@@ -541,16 +540,16 @@ class SelectiveSSRPass extends Pass {
 		}
 
 		// 输出结果到屏幕
-		switch(this.output) {
+		switch (this.output) {
 
 			case SelectiveSSRPass.OUTPUT.Default:
-				if(this.bouncing) {
+				if (this.bouncing) {
 
 					this.copyMaterial.uniforms.tDiffuse.value = this.beautyRenderTarget.texture;
 					this.copyMaterial.blending = NoBlending;
 					this.renderPass(renderer, this.copyMaterial, this.prevRenderTarget);
 
-					if(this.blur) { this.copyMaterial.uniforms.tDiffuse.value = this.blurRenderTarget2.texture; } else { this.copyMaterial.uniforms.tDiffuse.value = this.ssrRenderTarget.texture; }
+					if (this.blur) { this.copyMaterial.uniforms.tDiffuse.value = this.blurRenderTarget2.texture; } else { this.copyMaterial.uniforms.tDiffuse.value = this.ssrRenderTarget.texture; }
 					this.copyMaterial.blending = NormalBlending;
 					this.renderPass(renderer, this.copyMaterial, this.prevRenderTarget);
 
@@ -564,7 +563,7 @@ class SelectiveSSRPass extends Pass {
 					this.copyMaterial.blending = NoBlending;
 					this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
 
-					if(this.blur) { this.copyMaterial.uniforms.tDiffuse.value = this.blurRenderTarget2.texture; } else { this.copyMaterial.uniforms.tDiffuse.value = this.ssrRenderTarget.texture; }
+					if (this.blur) { this.copyMaterial.uniforms.tDiffuse.value = this.blurRenderTarget2.texture; } else { this.copyMaterial.uniforms.tDiffuse.value = this.ssrRenderTarget.texture; }
 					this.copyMaterial.blending = NormalBlending;
 					this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
 
@@ -572,13 +571,13 @@ class SelectiveSSRPass extends Pass {
 				break;
 
 			case SelectiveSSRPass.OUTPUT.SSR:
-				if(this.blur) { this.copyMaterial.uniforms.tDiffuse.value = this.blurRenderTarget2.texture; } else { this.copyMaterial.uniforms.tDiffuse.value = this.ssrRenderTarget.texture; }
+				if (this.blur) { this.copyMaterial.uniforms.tDiffuse.value = this.blurRenderTarget2.texture; } else { this.copyMaterial.uniforms.tDiffuse.value = this.ssrRenderTarget.texture; }
 				this.copyMaterial.blending = NoBlending;
 				this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
 
-				if(this.bouncing) {
+				if (this.bouncing) {
 
-					if(this.blur) { this.copyMaterial.uniforms.tDiffuse.value = this.blurRenderTarget2.texture; } else { this.copyMaterial.uniforms.tDiffuse.value = this.beautyRenderTarget.texture; }
+					if (this.blur) { this.copyMaterial.uniforms.tDiffuse.value = this.blurRenderTarget2.texture; } else { this.copyMaterial.uniforms.tDiffuse.value = this.beautyRenderTarget.texture; }
 					this.copyMaterial.blending = NoBlending;
 					this.renderPass(renderer, this.copyMaterial, this.prevRenderTarget);
 
@@ -649,7 +648,7 @@ class SelectiveSSRPass extends Pass {
 
 		// setup pass state
 		renderer.autoClear = false;
-		if((clearColor !== undefined) && (clearColor !== null)) {
+		if ((clearColor !== undefined) && (clearColor !== null)) {
 
 			renderer.setClearColor(clearColor);
 			renderer.setClearAlpha(clearAlpha || 0.0);
@@ -689,7 +688,7 @@ class SelectiveSSRPass extends Pass {
 		clearColor = overrideMaterial.clearColor || clearColor;
 		clearAlpha = overrideMaterial.clearAlpha || clearAlpha;
 
-		if((clearColor !== undefined) && (clearColor !== null)) {
+		if ((clearColor !== undefined) && (clearColor !== null)) {
 
 			renderer.setClearColor(clearColor);
 			renderer.setClearAlpha(clearAlpha || 0.0);
@@ -706,8 +705,8 @@ class SelectiveSSRPass extends Pass {
 					updateMatrixWorld: false,
 					useProgramCache: false
 				}, {
-					subOptsState: false
-				}
+				subOptsState: false
+			}
 			));
 		this.scene.overrideMaterial = null;
 
@@ -731,7 +730,7 @@ class SelectiveSSRPass extends Pass {
 		clearColor = overrideMaterial.clearColor || clearColor;
 		clearAlpha = overrideMaterial.clearAlpha || clearAlpha;
 
-		if((clearColor !== undefined) && (clearColor !== null)) {
+		if ((clearColor !== undefined) && (clearColor !== null)) {
 
 			renderer.setClearColor(clearColor);
 			renderer.setClearAlpha(clearAlpha || 0.0);
@@ -745,7 +744,7 @@ class SelectiveSSRPass extends Pass {
 		this.scene.traverseVisible(child => {
 
 			child._SSRPassBackupMaterial = child.material;
-			if(selectedObjects.includes(child)) {
+			if (selectedObjects.includes(child)) {
 
 				child.material = this.metalnessOnMaterial;
 
@@ -792,21 +791,21 @@ class SelectiveSSRPass extends Pass {
 		this.blurRenderTarget2.setSize(width, height);
 
 		// 更新新添加的渲染目标尺寸
-		if(this.renderTargetMask) {
+		if (this.renderTargetMask) {
 
 			this.renderTargetMask.setSize(width, height);
 
 		}
 
 		// 更新深度通道尺寸
-		if(this.depthPass) {
+		if (this.depthPass) {
 
 			this.depthPass.setSize(width, height);
 
 		}
 
 		// 更新遮罩通道尺寸
-		if(this.maskPass) {
+		if (this.maskPass) {
 
 			this.maskPass.setSize(width, height);
 
@@ -824,26 +823,26 @@ class SelectiveSSRPass extends Pass {
 	}
 
 	/**
-     * 设置外部深度纹理
-     * @param {DepthTexture} depthTexture - 外部深度纹理
-     * @param {number} depthPacking - 深度打包格式 (e.g., BasicDepthPacking)
-     */
+	 * 设置外部深度纹理
+	 * @param {DepthTexture} depthTexture - 外部深度纹理
+	 * @param {number} depthPacking - 深度打包格式 (e.g., BasicDepthPacking)
+	 */
 	setDepthTexture(depthTexture, depthPacking) {
 
-		if(depthTexture) {
+		if (depthTexture) {
 
 			this.externalDepthTexture = depthTexture;
 			this.useExternalDepth = true;
 
 			// 更新SSR材质的深度纹理
-			if(this.ssrMaterial) {
+			if (this.ssrMaterial) {
 
 				this.ssrMaterial.uniforms.tDepth.value = depthTexture;
 
 			}
 
 			// 更新深度渲染材质的深度纹理
-			if(this.depthRenderMaterial) {
+			if (this.depthRenderMaterial) {
 
 				this.depthRenderMaterial.uniforms.tDepth.value = depthTexture;
 
@@ -856,14 +855,14 @@ class SelectiveSSRPass extends Pass {
 			this.useExternalDepth = false;
 
 			// 恢复为内部深度纹理
-			if(this.ssrMaterial && this.beautyRenderTarget) {
+			if (this.ssrMaterial && this.beautyRenderTarget) {
 
 				this.ssrMaterial.uniforms.tDepth.value = this.beautyRenderTarget.depthTexture;
 
 			}
 
 			// 恢复深度渲染材质的深度纹理
-			if(this.depthRenderMaterial && this.beautyRenderTarget) {
+			if (this.depthRenderMaterial && this.beautyRenderTarget) {
 
 				this.depthRenderMaterial.uniforms.tDepth.value = this.beautyRenderTarget.depthTexture;
 
@@ -876,17 +875,17 @@ class SelectiveSSRPass extends Pass {
 	}
 
 	/**
-     * 刷新反射效果，适用于修改selects后需要重新计算反射的情况
-     * 临时开启bouncing，渲染一帧，然后自动关闭
-     * @param {WebGLRenderer} renderer - 渲染器
-     * @param {WebGLRenderTarget} writeBuffer - 写入缓冲区
-     * @param {number} [refreshFrames=1] - 刷新帧数，默认为1
-     * @returns {Promise} 返回一个Promise，当刷新完成时解析
-     */
+	 * 刷新反射效果，适用于修改selects后需要重新计算反射的情况
+	 * 临时开启bouncing，渲染一帧，然后自动关闭
+	 * @param {WebGLRenderer} renderer - 渲染器
+	 * @param {WebGLRenderTarget} writeBuffer - 写入缓冲区
+	 * @param {number} [refreshFrames=1] - 刷新帧数，默认为1
+	 * @returns {Promise} 返回一个Promise，当刷新完成时解析
+	 */
 	refring = false;
 	refreshReflection() {
 
-		if(this.refring) { return; }
+		if (this.refring) { return; }
 		this.refring = true;
 		// 保存原始状态
 		const oldBouncing = this._bouncing;
@@ -905,9 +904,9 @@ class SelectiveSSRPass extends Pass {
 
 	setBouncing(val) {
 
-		if(this._bouncing === val) { return; }
+		if (this._bouncing === val) { return; }
 		this._bouncing = val;
-		if(val) {
+		if (val) {
 
 			this.ssrMaterial.uniforms.tDiffuse.value = this.prevRenderTarget.texture;
 
@@ -920,10 +919,10 @@ class SelectiveSSRPass extends Pass {
 	}
 
 	/**
-     * 指示遮罩是否应该反转（反转选择物体的反射效果）
-     *
-     * @type {Boolean}
-     */
+	 * 指示遮罩是否应该反转（反转选择物体的反射效果）
+	 *
+	 * @type {Boolean}
+	 */
 	get inverted() {
 
 		return this._inverted;
@@ -933,7 +932,7 @@ class SelectiveSSRPass extends Pass {
 	set inverted(value) {
 
 		this._inverted = value;
-		if(this.depthMaskMaterial) {
+		if (this.depthMaskMaterial) {
 
 			this.depthMaskMaterial.depthMode = value ? NotEqualDepth : EqualDepth;
 
@@ -942,10 +941,10 @@ class SelectiveSSRPass extends Pass {
 	}
 
 	/**
-     * 指示是否忽略背景（不对背景应用反射效果）
-     *
-     * @type {Boolean}
-     */
+	 * 指示是否忽略背景（不对背景应用反射效果）
+	 *
+	 * @type {Boolean}
+	 */
 	get ignoreBackground() {
 
 		return this._ignoreBackground;
@@ -955,7 +954,7 @@ class SelectiveSSRPass extends Pass {
 	set ignoreBackground(value) {
 
 		this._ignoreBackground = value;
-		if(this.depthMaskMaterial) {
+		if (this.depthMaskMaterial) {
 
 			this.depthMaskMaterial.maxDepthStrategy = value ?
 				DepthTestStrategy.DISCARD_MAX_DEPTH :
@@ -966,13 +965,13 @@ class SelectiveSSRPass extends Pass {
 	}
 
 	/**
-     * 向选择集添加对象
-     * @param {THREE.Object3D} object - 要添加的对象
-     */
+	 * 向选择集添加对象
+	 * @param {THREE.Object3D} object - 要添加的对象
+	 */
 	addToSelection(object) {
 
-		if(!object) { return; }
-		if(this._selection && typeof this._selection.add === "function") {
+		if (!object) { return; }
+		if (this._selection && typeof this._selection.add === "function") {
 
 			this._selection.add(object);
 			console.log(`已添加对象到SSR选择集: ${object.name || object.uuid}`);
@@ -986,13 +985,13 @@ class SelectiveSSRPass extends Pass {
 	}
 
 	/**
-     * 从选择集中移除对象
-     * @param {THREE.Object3D} object - 要移除的对象
-     */
+	 * 从选择集中移除对象
+	 * @param {THREE.Object3D} object - 要移除的对象
+	 */
 	removeFromSelection(object) {
 
-		if(!object) { return; }
-		if(this._selection && typeof this._selection.delete === "function") {
+		if (!object) { return; }
+		if (this._selection && typeof this._selection.delete === "function") {
 
 			this._selection.delete(object);
 			console.log(`已从SSR选择集移除对象: ${object.name || object.uuid}`);
@@ -1006,11 +1005,11 @@ class SelectiveSSRPass extends Pass {
 	}
 
 	/**
-     * 清空选择集
-     */
+	 * 清空选择集
+	 */
 	clearSelection() {
 
-		if(this._selection && typeof this._selection.clear === "function") {
+		if (this._selection && typeof this._selection.clear === "function") {
 
 			this._selection.clear();
 			console.log("已清空SSR选择集");
@@ -1024,15 +1023,15 @@ class SelectiveSSRPass extends Pass {
 	}
 
 	/**
-     * 切换对象在选择集中的状态
-     * @param {THREE.Object3D} object - 要切换状态的对象
-     */
+	 * 切换对象在选择集中的状态
+	 * @param {THREE.Object3D} object - 要切换状态的对象
+	 */
 	toggleSelection(object) {
 
-		if(!object) { return; }
-		if(this._selection) {
+		if (!object) { return; }
+		if (this._selection) {
 
-			if(this._selection.has(object)) {
+			if (this._selection.has(object)) {
 
 				this.removeFromSelection(object);
 
@@ -1047,40 +1046,40 @@ class SelectiveSSRPass extends Pass {
 	}
 
 	/**
-     * 获取当前选择集中的所有对象
-     * @returns {Array} - 选择集中的对象数组
-     */
+	 * 获取当前选择集中的所有对象
+	 * @returns {Array} - 选择集中的对象数组
+	 */
 	getSelectionItems() {
 
-		if(!this._selection) { return []; }
+		if (!this._selection) { return []; }
 
 		// 检查各种可能的访问方式
-		if(Array.isArray(this._selection.items)) {
+		if (Array.isArray(this._selection.items)) {
 
 			return this._selection.items;
 
 		}
 
-		if(Array.isArray(this._selection.objects)) {
+		if (Array.isArray(this._selection.objects)) {
 
 			return this._selection.objects;
 
 		}
 
-		if(typeof this._selection.getItems === "function") {
+		if (typeof this._selection.getItems === "function") {
 
 			return this._selection.getItems();
 
 		}
 
-		if(typeof this._selection.getSelection === "function") {
+		if (typeof this._selection.getSelection === "function") {
 
 			return this._selection.getSelection();
 
 		}
 
 		// 如果Selection是一个可迭代对象
-		if(typeof this._selection[Symbol.iterator] === "function") {
+		if (typeof this._selection[Symbol.iterator] === "function") {
 
 			return Array.from(this._selection);
 
@@ -1092,31 +1091,31 @@ class SelectiveSSRPass extends Pass {
 	}
 
 	/**
-     * 初始化效果
-     *
-     * @param {WebGLRenderer} renderer - 渲染器
-     * @param {Boolean} alpha - 是否有alpha通道
-     * @param {Number} frameBufferType - 帧缓冲区类型
-     */
+	 * 初始化效果
+	 *
+	 * @param {WebGLRenderer} renderer - 渲染器
+	 * @param {Boolean} alpha - 是否有alpha通道
+	 * @param {Number} frameBufferType - 帧缓冲区类型
+	 */
 	initialize(renderer, alpha, frameBufferType) {
 
 		// 确保所有通道和材质正确初始化
-		if(this.depthPass) {
+		if (this.depthPass) {
 
 			this.depthPass.initialize(renderer, alpha, frameBufferType);
 
 		}
 
-		if(this.maskPass) {
+		if (this.maskPass) {
 
 			this.maskPass.initialize(renderer, alpha, frameBufferType);
 
 		}
 
 		// 检查渲染器是否支持对数深度缓冲
-		if(renderer.capabilities.logarithmicDepthBuffer) {
+		if (renderer.capabilities.logarithmicDepthBuffer) {
 
-			if(this.depthMaskMaterial) {
+			if (this.depthMaskMaterial) {
 
 				this.depthMaskMaterial.defines.LOG_DEPTH = "1";
 				this.depthMaskMaterial.needsUpdate = true;
@@ -1128,12 +1127,12 @@ class SelectiveSSRPass extends Pass {
 	}
 
 	/**
-     * 基于金属度自动选择对象并添加到selection
-     * @param {Number} threshold - 金属度阈值，超过该值的对象将被选中
-     */
+	 * 基于金属度自动选择对象并添加到selection
+	 * @param {Number} threshold - 金属度阈值，超过该值的对象将被选中
+	 */
 	updateSelectionBasedOnMetalness(threshold = 0.5) {
 
-		if(!this._selection || !this.scene) { return; }
+		if (!this._selection || !this.scene) { return; }
 
 		// 清空当前选择
 		this.clearSelection();
@@ -1142,14 +1141,14 @@ class SelectiveSSRPass extends Pass {
 		this.scene.traverseVisible(object => {
 
 			// 检查对象是否有材质且是网格
-			if(object.isMesh && object.material) {
+			if (object.isMesh && object.material) {
 
 				let metalness = 0;
 
 				// 处理单一材质
-				if(!Array.isArray(object.material)) {
+				if (!Array.isArray(object.material)) {
 
-					if(object.material.metalness !== undefined) {
+					if (object.material.metalness !== undefined) {
 
 						metalness = object.material.metalness;
 
@@ -1162,9 +1161,9 @@ class SelectiveSSRPass extends Pass {
 					let totalMetalness = 0;
 					let validMaterials = 0;
 
-					for(const mat of object.material) {
+					for (const mat of object.material) {
 
-						if(mat.metalness !== undefined) {
+						if (mat.metalness !== undefined) {
 
 							totalMetalness += mat.metalness;
 							validMaterials++;
@@ -1173,7 +1172,7 @@ class SelectiveSSRPass extends Pass {
 
 					}
 
-					if(validMaterials > 0) {
+					if (validMaterials > 0) {
 
 						metalness = totalMetalness / validMaterials;
 
@@ -1182,7 +1181,7 @@ class SelectiveSSRPass extends Pass {
 				}
 
 				// 如果金属度超过阈值，添加到选择中
-				if(metalness >= threshold) {
+				if (metalness >= threshold) {
 
 					this.addToSelection(object);
 
@@ -1197,9 +1196,9 @@ class SelectiveSSRPass extends Pass {
 	}
 
 	/**
-     * 设置金属度阈值，并更新选择
-     * @param {Number} threshold - 金属度阈值
-     */
+	 * 设置金属度阈值，并更新选择
+	 * @param {Number} threshold - 金属度阈值
+	 */
 	setMetalnessThreshold(threshold) {
 
 		this.updateSelectionBasedOnMetalness(threshold);
@@ -1207,16 +1206,16 @@ class SelectiveSSRPass extends Pass {
 	}
 
 	/**
-     * 设置是否高亮显示选中的对象
-     * @param {Boolean} highlight - 是否高亮显示
-     * @param {Number} [emissiveValue=2.0] - 高亮的发光值
-     */
+	 * 设置是否高亮显示选中的对象
+	 * @param {Boolean} highlight - 是否高亮显示
+	 * @param {Number} [emissiveValue=2.0] - 高亮的发光值
+	 */
 	setHighlightSelected(highlight, emissiveValue = 2.0) {
 
 		const selectedObjects = this.getSelectionItems();
 
 		// 存储原始材质状态
-		if(!this.originalEmissives) {
+		if (!this.originalEmissives) {
 
 			this.originalEmissives = new Map();
 
@@ -1224,17 +1223,17 @@ class SelectiveSSRPass extends Pass {
 
 		selectedObjects.forEach(object => {
 
-			if(object.isMesh && object.material) {
+			if (object.isMesh && object.material) {
 
 				// 存储原始发光值（如果尚未存储）
-				if(!this.originalEmissives.has(object.uuid)) {
+				if (!this.originalEmissives.has(object.uuid)) {
 
-					if(Array.isArray(object.material)) {
+					if (Array.isArray(object.material)) {
 
 						const emissives = [];
 						object.material.forEach(mat => {
 
-							if(mat.emissive) {
+							if (mat.emissive) {
 
 								emissives.push(mat.emissive.clone());
 
@@ -1247,7 +1246,7 @@ class SelectiveSSRPass extends Pass {
 						});
 						this.originalEmissives.set(object.uuid, emissives);
 
-					} else if(object.material.emissive) {
+					} else if (object.material.emissive) {
 
 						this.originalEmissives.set(object.uuid, object.material.emissive.clone());
 
@@ -1256,20 +1255,20 @@ class SelectiveSSRPass extends Pass {
 				}
 
 				// 应用或恢复发光值
-				if(Array.isArray(object.material)) {
+				if (Array.isArray(object.material)) {
 
 					object.material.forEach((mat, index) => {
 
-						if(mat.emissive) {
+						if (mat.emissive) {
 
-							if(highlight) {
+							if (highlight) {
 
 								mat.emissive.set(emissiveValue, emissiveValue, emissiveValue);
 
 							} else {
 
 								const original = this.originalEmissives.get(object.uuid);
-								if(original && original[index]) {
+								if (original && original[index]) {
 
 									mat.emissive.copy(original[index]);
 
@@ -1281,16 +1280,16 @@ class SelectiveSSRPass extends Pass {
 
 					});
 
-				} else if(object.material.emissive) {
+				} else if (object.material.emissive) {
 
-					if(highlight) {
+					if (highlight) {
 
 						object.material.emissive.set(emissiveValue, emissiveValue, emissiveValue);
 
 					} else {
 
 						const original = this.originalEmissives.get(object.uuid);
-						if(original) {
+						if (original) {
 
 							object.material.emissive.copy(original);
 
@@ -1309,12 +1308,12 @@ class SelectiveSSRPass extends Pass {
 	}
 
 	/**
-     * 设置掩码阈值
-     * @param {Number} threshold - 掩码阈值
-     */
+	 * 设置掩码阈值
+	 * @param {Number} threshold - 掩码阈值
+	 */
 	setMaskThreshold(threshold) {
 
-		if(this.ssrMaterial) {
+		if (this.ssrMaterial) {
 
 			this.ssrMaterial.uniforms.maskThreshold.value = threshold;
 			console.log(`设置掩码阈值为 ${threshold}`);
@@ -1340,7 +1339,7 @@ SelectiveSSRPass.OUTPUT = {
  * 设置输出模式
  * @param {Number} mode - 输出模式，使用SelectiveSSRPass.OUTPUT枚举
  */
-SelectiveSSRPass.prototype.setOutputMode = function(mode) {
+SelectiveSSRPass.prototype.setOutputMode = function (mode) {
 
 	this.output = mode;
 	console.log(`已设置输出模式：${Object.keys(SelectiveSSRPass.OUTPUT).find(key => SelectiveSSRPass.OUTPUT[key] === mode) || "未知"}`);
@@ -1350,7 +1349,7 @@ SelectiveSSRPass.prototype.setOutputMode = function(mode) {
 /**
  * 循环切换输出模式，便于调试
  */
-SelectiveSSRPass.prototype.cycleOutputMode = function() {
+SelectiveSSRPass.prototype.cycleOutputMode = function () {
 
 	const modes = Object.values(SelectiveSSRPass.OUTPUT);
 	const currentIndex = modes.indexOf(this.output);

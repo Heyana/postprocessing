@@ -34,7 +34,6 @@ import { ControlMode, SpatialControls } from "spatial-controls";
 import { calculateVerticalFoV, FPSMeter } from "../utils";
 import * as Shapes from "../objects/Shapes";
 
-console.log("Log-- ", Shapes, Shapes.createLights, "Shapes");
 function load() {
 
 	const assets = new Map();
@@ -60,7 +59,7 @@ function load() {
 
 			gltf.scene.traverse((object) => {
 
-				if(object.isMesh) {
+				if (object.isMesh) {
 
 					object.castShadow = object.receiveShadow = true;
 
@@ -100,7 +99,7 @@ function createMovingObjects() {
 	const sphereGeometry = new SphereGeometry(0.6, 32, 32);
 
 	// 创建一些不同材质的物体
-	for(let i = 0; i < 8; i++) {
+	for (let i = 0; i < 8; i++) {
 
 		const material = new MeshStandardMaterial({
 			color: Math.random() * 0xffffff,
@@ -349,7 +348,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	// 动画更新函数
 	function updateObjects(deltaTime, timeElapsed) {
 
-		if(animationSettings.pause) { return; }
+		if (animationSettings.pause) { return; }
 
 		const speed = animationSettings.speed;
 
@@ -372,7 +371,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		});
 
 		// 相机旋转
-		if(cameraSettings.enableRotation) {
+		if (cameraSettings.enableRotation) {
 
 			controls.position.x = Math.sin(timeElapsed * 0.2) * 8;
 			controls.position.z = Math.cos(timeElapsed * 0.2) * 8;
@@ -393,7 +392,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		fpsMeter.update(timestamp);
 
-		if(!cameraSettings.enableRotation) {
+		if (!cameraSettings.enableRotation) {
 
 			controls.update(timestamp);
 

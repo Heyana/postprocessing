@@ -40,7 +40,6 @@ import { calculateVerticalFoV, FPSMeter } from "../utils";
 import * as Shapes from "../objects/Shapes";
 
 
-console.log("Log-- ", CustomSSGIEffect, "CustomSSGIEffect");
 function load() {
 
 	const assets = new Map();
@@ -66,7 +65,7 @@ function load() {
 
 			gltf.scene.traverse((object) => {
 
-				if(object.isMesh) {
+				if (object.isMesh) {
 
 					object.castShadow = object.receiveShadow = true;
 
@@ -107,7 +106,7 @@ function createMaterialSpheres() {
 	const spacing = 1.2;
 
 	// 创建一行具有不同粗糙度的球体（从光滑到粗糙）
-	for(let i = 0; i < sphereCount; i++) {
+	for (let i = 0; i < sphereCount; i++) {
 
 		const roughness = i / (sphereCount - 1);
 		const sphere = new Mesh(
@@ -125,7 +124,7 @@ function createMaterialSpheres() {
 	}
 
 	// 创建一行具有不同金属度的球体（从非金属到金属）
-	for(let i = 0; i < sphereCount; i++) {
+	for (let i = 0; i < sphereCount; i++) {
 
 		const metalness = i / (sphereCount - 1);
 		const sphere = new Mesh(
@@ -185,11 +184,11 @@ window.addEventListener("load", () => load().then((assets) => {
 	// 增强直接光照强度
 	lights.children.forEach(light => {
 
-		if(light.isDirectionalLight) {
+		if (light.isDirectionalLight) {
 
 			light.intensity *= 1.5; // 增强直射光强度
 
-		} else if(light.isAmbientLight) {
+		} else if (light.isAmbientLight) {
 
 			light.intensity *= 2.0; // 显著增强环境光
 
@@ -221,7 +220,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	const radius = 3.0;
 	let angle = 3.5;
 
-	for(const mesh of actors.children) {
+	for (const mesh of actors.children) {
 
 		// 将对象排列成圆形
 		mesh.position.set(radius * Math.cos(angle), 0, radius * Math.sin(angle));
@@ -285,7 +284,6 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	// 添加效果通道
 	composer.addPass(new EffectPass(camera, ssgiEffect));
-	console.log("Log-- ", ssgiEffect, "自定义SSGI效果已应用");
 
 	// UI控制面板
 	const fpsMeter = new FPSMeter();
@@ -301,11 +299,11 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	lights.children.forEach(light => {
 
-		if(light.isDirectionalLight) {
+		if (light.isDirectionalLight) {
 
 			directionalLight = light;
 
-		} else if(light.isAmbientLight) {
+		} else if (light.isAmbientLight) {
 
 			ambientLight = light;
 
@@ -313,7 +311,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	});
 
-	if(directionalLight) {
+	if (directionalLight) {
 
 		lightFolder.addBinding(directionalLight, "intensity", {
 			min: 0, max: 5, step: 0.1,
@@ -322,7 +320,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	}
 
-	if(ambientLight) {
+	if (ambientLight) {
 
 		lightFolder.addBinding(ambientLight, "intensity", {
 			min: 0, max: 5, step: 0.1,
@@ -357,9 +355,9 @@ window.addEventListener("load", () => load().then((assets) => {
 
 			composer.passes.forEach(pass => {
 
-				if(pass.effects && pass.effects.length > 0) {
+				if (pass.effects && pass.effects.length > 0) {
 
-					if(pass.effects.some(effect => effect instanceof CustomSSGIEffect)) {
+					if (pass.effects.some(effect => effect instanceof CustomSSGIEffect)) {
 
 						pass.enabled = e.value;
 
@@ -391,7 +389,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 			ssgiEffect.blendMode.blendFunction = blendModes[e.value];
 
-		} catch(err) {
+		} catch (err) {
 
 			console.warn("更改混合模式时出错:", err);
 
@@ -410,7 +408,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	const denoiseFolder = pane.addFolder({ title: "降噪设置" });
 
 	// 只添加适合调整的降噪参数，避免过于复杂
-	if(ssgiEffect.denoiser.denoisePass) {
+	if (ssgiEffect.denoiser.denoisePass) {
 
 		denoiseFolder.addBinding(ssgiEffect.denoiser.denoisePass.fullscreenMaterial.uniforms.normalPhi, "value", {
 			min: 0.1, max: 100, step: 0.1,
@@ -443,13 +441,13 @@ window.addEventListener("load", () => load().then((assets) => {
 	}).on("change", (e) => {
 
 		// 应用预设
-		switch(e.value) {
+		switch (e.value) {
 
 			case "low":
 				ssgiEffect.steps = 10;
 				ssgiEffect.refineSteps = 2;
 				ssgiEffect.resolutionScale = 0.5;
-				if(ssgiEffect.denoiser.denoisePass) {
+				if (ssgiEffect.denoiser.denoisePass) {
 
 					ssgiEffect.denoiser.denoisePass.iterations = 1;
 
@@ -459,7 +457,7 @@ window.addEventListener("load", () => load().then((assets) => {
 				ssgiEffect.steps = 20;
 				ssgiEffect.refineSteps = 4;
 				ssgiEffect.resolutionScale = 0.75;
-				if(ssgiEffect.denoiser.denoisePass) {
+				if (ssgiEffect.denoiser.denoisePass) {
 
 					ssgiEffect.denoiser.denoisePass.iterations = 1;
 
@@ -469,7 +467,7 @@ window.addEventListener("load", () => load().then((assets) => {
 				ssgiEffect.steps = 40;
 				ssgiEffect.refineSteps = 4;
 				ssgiEffect.resolutionScale = 1;
-				if(ssgiEffect.denoiser.denoisePass) {
+				if (ssgiEffect.denoiser.denoisePass) {
 
 					ssgiEffect.denoiser.denoisePass.iterations = 2;
 
@@ -497,9 +495,9 @@ window.addEventListener("load", () => load().then((assets) => {
 		let ssgiPass = null;
 		composer.passes.forEach(pass => {
 
-			if(pass.effects && pass.effects.length > 0) {
+			if (pass.effects && pass.effects.length > 0) {
 
-				if(pass.effects.some(effect => effect instanceof CustomSSGIEffect)) {
+				if (pass.effects.some(effect => effect instanceof CustomSSGIEffect)) {
 
 					ssgiPass = pass;
 
@@ -509,7 +507,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		});
 
-		if(ssgiPass) {
+		if (ssgiPass) {
 
 			// 切换效果
 			ssgiPass.enabled = !compareMode;

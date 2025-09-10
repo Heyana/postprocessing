@@ -79,7 +79,6 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	const camera = new PerspectiveCamera(70, window.innerWidth / window.innerHeight, 10, 30000);
 	camera.position.set(0, 0, 1000);
-	console.log("Log-- ", camera, "camera");
 
 	// 使用OrbitControls替代SpatialControls
 	const controls = new OrbitControls(camera, renderer.domElement);
@@ -92,7 +91,6 @@ window.addEventListener("load", () => load().then((assets) => {
 	// Scene, Lights, Objects
 
 	const scene = new Scene();
-	console.log("Log-- ", scene, "scene");
 	// scene.fog = new FogExp2(0x373134, 0.0006); // 降低雾效强度适应大场景
 	scene.background = assets.get("sky");
 	scene.add(Domain.createLights());
@@ -280,7 +278,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		focusTarget.position.setZ(z);
 
 		// 更新焦距信息
-		if(autoFocusSettings.enabled) {
+		if (autoFocusSettings.enabled) {
 
 			const worldDistance = camera.position.distanceTo(focusTarget.position);
 			infoSettings.currentDistance = parseFloat(worldDistance.toFixed(0));

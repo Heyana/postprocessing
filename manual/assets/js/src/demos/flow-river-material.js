@@ -88,7 +88,6 @@ window.addEventListener("load", () => {
             b: river.material.uniforms.waterColor.value.b
         }
     };
-    console.log('Log-- ', params, 'params');
     const folder = pane.addFolder({ title: "河流材质参数" });
     folder.addBinding(params, "flowSpeed", {
         label: "流速",

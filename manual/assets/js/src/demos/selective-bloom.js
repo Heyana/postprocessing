@@ -54,7 +54,7 @@ function load() {
 
 			gltf.scene.traverse((object) => {
 
-				if(object.isMesh) {
+				if (object.isMesh) {
 
 					object.castShadow = object.receiveShadow = true;
 
@@ -150,7 +150,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	const radius = 3.0;
 	let angle = 3.5;
 
-	for(const mesh of actors.children) {
+	for (const mesh of actors.children) {
 
 		// Arrange the objects in a circle.
 		mesh.position.set(radius * Math.cos(angle), 0, radius * Math.sin(angle));
@@ -181,7 +181,6 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	// Enable dithering for smoother bloom
 	bloomEffect.mipmapBlurPass.dithering = true;
-	console.log("Log-- ", bloomEffect, "bloomEffect");
 
 	composer.addPass(new RenderPass(scene, camera));
 	composer.addPass(new EffectPass(camera, bloomEffect));
@@ -200,12 +199,12 @@ window.addEventListener("load", () => load().then((assets) => {
 		raycaster.setFromCamera(ndc, camera);
 		const intersects = raycaster.intersectObjects(scene.children, true);
 
-		if(intersects.length > 0) {
+		if (intersects.length > 0) {
 
 			const object = intersects[0].object;
 
 			// Toggle the selection
-			if(bloomEffect.selection.has(object)) {
+			if (bloomEffect.selection.has(object)) {
 
 				bloomEffect.selection.delete(object);
 

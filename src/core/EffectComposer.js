@@ -246,7 +246,6 @@ export class EffectComposer {
 			}
 			this.depthPass = new DepthPass(this.scene, this.camera);
 			this.depthPass.initialize(renderer, false, 0);
-			console.log("Log-- ", this.depthPass, this.scene, this.camera, "this.depthPass,this.scene,this.");
 
 		}
 
@@ -297,8 +296,6 @@ export class EffectComposer {
 
 	createDepthTexture() {
 
-		console.log("Log-- ", this.scene, "this.mainScene");
-		console.log("Log-- ", 890, "890");
 		const depthTexture = this.depthTexture = new DepthTexture();
 
 		// Hack: Make sure the input buffer uses the depth texture.
@@ -393,7 +390,6 @@ export class EffectComposer {
 		};
 
 		const renderTarget = new WebGLRenderTarget(size.width, size.height, options);
-		console.log("Log-- ", renderTarget, "renderTarget");
 
 		if(!renderTarget.textures) {
 

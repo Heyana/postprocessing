@@ -111,7 +111,6 @@ function createScene(textures) {
 
 }
 
-console.log("Log-- ", 123, "123");
 window.addEventListener("load", () => {
 
 	// 加载纹理

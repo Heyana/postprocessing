@@ -187,7 +187,7 @@ function load() {
 
 			gltf.scene.traverse((object) => {
 
-				if(object.isMesh) {
+				if (object.isMesh) {
 
 					object.castShadow = object.receiveShadow = true;
 
@@ -380,7 +380,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	// 为四个视图区域创建渲染目标
 	const renderTargets = [];
-	for(let i = 0; i < 4; i++) {
+	for (let i = 0; i < 4; i++) {
 
 		renderTargets.push(new WebGLRenderTarget(viewportWidth, viewportHeight));
 
@@ -440,7 +440,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		// 更新深度可视化区域尺寸
 		const viewportWidth = width / 2;
 		const viewportHeight = height / 2;
-		for(const rt of renderTargets) {
+		for (const rt of renderTargets) {
 
 			rt.setSize(viewportWidth, viewportHeight);
 
@@ -472,35 +472,31 @@ window.addEventListener("load", () => load().then((assets) => {
 		// 计算物体和射线的焦点
 		const intersects = raycaster.intersectObjects(scene.children, true);
 
-		if(intersects.length > 0) {
+		if (intersects.length > 0) {
 
 			const object = intersects[0].object;
-			if(object.isMesh) {
+			if (object.isMesh) {
 
-				console.log("点击了模型:", object.name || "未命名模型");
 
 				try {
 
 					// 检查对象是否在Selection中
-					if(ssaoEffect.ignoreSelection.has(object)) {
+					if (ssaoEffect.ignoreSelection.has(object)) {
 
-						console.log("从忽略列表中移除模型");
 						// 从Selection中移除对象
 						ssaoEffect.ignoreSelection.delete(object);
 
 					} else {
 
-						console.log("添加模型到忽略列表");
 						// 添加对象到Selection
 						ssaoEffect.ignoreSelection.add(object);
 
 					}
 
-					console.log("Log-- ", ssaoEffect.ignoreSelection, " ssaoEffect.ignoreSelection");
 					// 更新忽略计数
 					pane.refresh();
 
-				} catch(error) {
+				} catch (error) {
 
 					console.error("处理Selection时出错:", error);
 
@@ -519,25 +515,25 @@ window.addEventListener("load", () => load().then((assets) => {
 		depthVisualizerMaterial.uniforms.cameraFar.value = camera.far;
 
 		// 获取深度纹理
-		if(ssaoEffect.aoPass && ssaoEffect.aoPass.fullscreenMaterial) {
+		if (ssaoEffect.aoPass && ssaoEffect.aoPass.fullscreenMaterial) {
 
 			// 全局深度纹理
 			const composerDepthTexture = composer.depthTexture;
-			if(composerDepthTexture) {
+			if (composerDepthTexture) {
 
 				depthVisualizerMaterial.uniforms.depthBuffer0.value = composerDepthTexture;
 
 			}
 
 			// 选定层深度纹理
-			if(ssaoEffect.depthPass && ssaoEffect.depthPass.renderTarget) {
+			if (ssaoEffect.depthPass && ssaoEffect.depthPass.renderTarget) {
 
 				depthVisualizerMaterial.uniforms.depthBuffer1.value = ssaoEffect.depthPass.renderTarget.texture;
 
 			}
 
 			// 遮罩纹理
-			if(ssaoEffect.renderTargetMask) {
+			if (ssaoEffect.renderTargetMask) {
 
 				depthVisualizerMaterial.uniforms.maskTexture.value = ssaoEffect.renderTargetMask.texture;
 

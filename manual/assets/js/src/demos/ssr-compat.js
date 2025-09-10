@@ -42,7 +42,6 @@ import {
 
 // 直接获取VENDOR对象中需要的类
 
-console.log("Log-- ", ReflectorForSSRPass, "ReflectorForSSRPass");
 
 import { ControlMode, SpatialControls } from "spatial-controls";
 import { Pane } from "tweakpane";
@@ -91,7 +90,7 @@ function load() {
 		loadingManager.onLoad = () => {
 
 			// 即使有一些资源加载失败，我们也会继续
-			if(loadErrors.length > 0) {
+			if (loadErrors.length > 0) {
 
 				console.warn(`Some resources failed to load: ${loadErrors.join(", ")}`);
 
@@ -159,7 +158,7 @@ function createTestObjects() {
 	objects.add(coneMesh);
 
 	// 添加一组具有不同金属度和粗糙度的球体
-	for(let i = 0; i < 5; i++) {
+	for (let i = 0; i < 5; i++) {
 
 		const sphereGeometry = new SphereGeometry(0.025, 64, 64); // 增加细分提高精度
 		// 根据SSRPass工作原理优化材质
@@ -272,7 +271,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	scene.fog = new Fog(0x443333, 1, 4);
 
 	// 加载环境贴图后，应用到场景
-	if(assets.get("sky")) {
+	if (assets.get("sky")) {
 
 		scene.background = assets.get("sky");
 		scene.environment = assets.get("sky"); // 添加环境贴图用于反射和照明
@@ -343,18 +342,18 @@ window.addEventListener("load", () => load().then((assets) => {
 		// 检测与场景中物体的交点
 		const intersects = raycaster.intersectObjects(testObjects.children, true);
 
-		if(intersects.length > 0) {
+		if (intersects.length > 0) {
 
 			const object = intersects[0].object;
 
 			// 切换选中状态
-			if(selectedObjects.has(object)) {
+			if (selectedObjects.has(object)) {
 
 				// 移除对象
 				selectedObjects.delete(object);
 
 				// 恢复原始材质
-				if(object._originalEmissive) {
+				if (object._originalEmissive) {
 
 					object.material.emissive.copy(object._originalEmissive);
 
@@ -366,7 +365,7 @@ window.addEventListener("load", () => load().then((assets) => {
 				selectedObjects.add(object);
 
 				// 保存原始发光颜色并设置高亮
-				if(!object._originalEmissive) {
+				if (!object._originalEmissive) {
 
 					object._originalEmissive = object.material.emissive.clone();
 
@@ -376,10 +375,9 @@ window.addEventListener("load", () => load().then((assets) => {
 			}
 
 			// 更新SSRPass的selects数组
-			if(compatSSRPass && compatSSRPass.threePass) {
+			if (compatSSRPass && compatSSRPass.threePass) {
 
 				compatSSRPass.threePass.selects = Array.from(selectedObjects);
-				console.log("选中物体数量:", selectedObjects.size, "SSRPass selective模式:", compatSSRPass.threePass.selective);
 
 				// 添加自动刷新反射
 				refreshSSRReflection();
@@ -393,7 +391,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	// 添加点击事件监听器
 	renderer.domElement.addEventListener("click", onMouseClick);
 
-	if(ReflectorForSSRPass) {
+	if (ReflectorForSSRPass) {
 
 		// 使用更大的反射平面
 		const geometry = new PlaneGeometry(2, 2);
@@ -409,7 +407,6 @@ window.addEventListener("load", () => load().then((assets) => {
 		groundReflector.visible = false;
 		scene.add(groundReflector);
 
-		console.log("Log-- ", groundReflector, "groundReflector");
 		// 注意：不要手动设置visible=true，让SSRPass内部控制其可见性
 		// groundReflector在SSRPass内部渲染时会临时设置为可见，然后恢复为不可见
 
@@ -461,7 +458,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	try {
 
 		// 检查SSRPass是否可用
-		if(!SSRPass) {
+		if (!SSRPass) {
 
 			throw new Error("SSRPass is not available in the VENDOR object");
 
@@ -491,7 +488,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		ssrPass.blur = true; // 确保模糊开启
 
 		// 调整SSRPass的材质参数，解决白色条纹问题
-		if(ssrPass.ssrMaterial) {
+		if (ssrPass.ssrMaterial) {
 
 			// 调整SSR材质属性
 			ssrPass.ssrMaterial.defines.MAX_STEP = Math.sqrt(window.innerWidth * window.innerWidth + window.innerHeight * window.innerHeight);
@@ -501,7 +498,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			// 重要：确保SSR材质更新
 			ssrPass.ssrMaterial.needsUpdate = true;
 
-			if(ssrPass.copyMaterial) {
+			if (ssrPass.copyMaterial) {
 
 				// 确保复制材质的混合模式正确
 				ssrPass.copyMaterial.blending = NormalBlending;
@@ -509,16 +506,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 			}
 
-			// 打印材质状态用于调试
-			console.log("SSR材质配置:", {
-				maxDistance: ssrPass.ssrMaterial.uniforms.maxDistance.value,
-				thickness: ssrPass.ssrMaterial.uniforms.thickness.value,
-				reflectionStrength: ssrPass.ssrMaterial.uniforms.reflectionStrength.value,
-				MAX_STEP: ssrPass.ssrMaterial.defines.MAX_STEP,
-				FRESNEL: ssrPass.ssrMaterial.defines.FRESNEL,
-				INFINITE_THICK: ssrPass.ssrMaterial.defines.INFINITE_THICK,
-				SELECTIVE: ssrPass.ssrMaterial.defines.SELECTIVE
-			});
+
 
 		}
 
@@ -539,11 +527,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		// 启用调试日志来跟踪问题
 		compatSSRPass.setDebug(true);
 
-		console.log("配置渲染通道：", {
-			bloomPass,
-			compatSSRPass,
-			brightnessContrastPass
-		});
+
 
 		// 首先添加基本渲染Pass
 		const renderPass = new RenderPass(scene, camera);
@@ -681,7 +665,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			// 添加已选择的对象
 			testObjects.children.forEach(object => {
 
-				if(object._selectedForBloom) {
+				if (object._selectedForBloom) {
 
 					bloomEffect.selection.add(object);
 
@@ -712,7 +696,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			ssrPass.infiniteThick = false;
 			ssrPass.blur = true;
 
-			if(groundReflector) {
+			if (groundReflector) {
 
 				// 单独对Y轴进行操作，其他参数保持不变
 				groundReflector.material.uniforms.textureMatrix.value.elements[5] = 1;
@@ -728,7 +712,7 @@ window.addEventListener("load", () => load().then((assets) => {
 				reflectionParams.curveSampling = true; // 保持曲面优化为激活状态
 
 				// 强制更新矩阵
-				if(groundReflector.updateMatrices) {
+				if (groundReflector.updateMatrices) {
 
 					groundReflector.updateMatrices();
 
@@ -740,7 +724,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			const spheres = [];
 			testObjects.children.forEach(child => {
 
-				if(child.geometry instanceof SphereGeometry) {
+				if (child.geometry instanceof SphereGeometry) {
 
 					spheres.push(child);
 
@@ -764,7 +748,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		folder.addBinding(params, "groundReflector", { label: "启用地面反射" })
 			.on("change", (e) => {
 
-				if(e.value) {
+				if (e.value) {
 
 					compatSSRPass.threePass.groundReflector = groundReflector;
 					// 使用当前的选择集合
@@ -872,14 +856,14 @@ window.addEventListener("load", () => load().then((assets) => {
 		settingsFolder.addBinding(reflectionParams, "invertY", { label: "反转Y轴反射" })
 			.on("change", (e) => {
 
-				if(groundReflector) {
+				if (groundReflector) {
 
 					// 只修改Y轴缩放因子，保留其他变换
 					groundReflector.material.uniforms.textureMatrix.value.elements[5] = e.value ? -1 : 1;
 					groundReflector.material.uniformsNeedUpdate = true;
 
 					// 触发反射器更新
-					if(groundReflector.updateMatrices) {
+					if (groundReflector.updateMatrices) {
 
 						groundReflector.updateMatrices();
 
@@ -893,10 +877,10 @@ window.addEventListener("load", () => load().then((assets) => {
 		settingsFolder.addBinding(reflectionParams, "flipReflector", { label: "翻转整个反射平面" })
 			.on("change", (e) => {
 
-				if(groundReflector) {
+				if (groundReflector) {
 
 					// 通过旋转反射平面实现反转
-					if(e.value) {
+					if (e.value) {
 
 						// 翻转反射平面
 						groundReflector.rotation.z = Math.PI;
@@ -909,7 +893,7 @@ window.addEventListener("load", () => load().then((assets) => {
 					}
 
 					// 强制更新
-					if(groundReflector.updateMatrices) {
+					if (groundReflector.updateMatrices) {
 
 						groundReflector.updateMatrices();
 
@@ -927,7 +911,7 @@ window.addEventListener("load", () => load().then((assets) => {
 				const spheres = [];
 				testObjects.children.forEach(child => {
 
-					if(child.geometry instanceof SphereGeometry) {
+					if (child.geometry instanceof SphereGeometry) {
 
 						spheres.push(child);
 
@@ -938,7 +922,7 @@ window.addEventListener("load", () => load().then((assets) => {
 				// 更新球体的材质属性
 				spheres.forEach((sphere, i) => {
 
-					if(e.value) {
+					if (e.value) {
 
 						// 增强模式：更高金属度，更低粗糙度
 						sphere.material.metalness = 0.95;
@@ -963,7 +947,7 @@ window.addEventListener("load", () => load().then((assets) => {
 				const ssrPass = compatSSRPass.threePass;
 
 				// 这里修改SSRPass的内部参数以优化曲面反射
-				if(e.value) {
+				if (e.value) {
 
 					// 增强曲面反射质量的参数
 					ssrPass.thickness = 0.035; // 保持适中厚度
@@ -984,13 +968,13 @@ window.addEventListener("load", () => load().then((assets) => {
 				// 更新所有复杂几何体的材质
 				testObjects.children.forEach(child => {
 
-					if(
+					if (
 						child.geometry instanceof TorusGeometry ||
-                        child.geometry instanceof TorusKnotGeometry ||
-                        child.geometry instanceof IcosahedronGeometry
+						child.geometry instanceof TorusKnotGeometry ||
+						child.geometry instanceof IcosahedronGeometry
 					) {
 
-						if(e.value) {
+						if (e.value) {
 
 							// 优化曲面物体的材质参数
 							child.material.roughness = Math.max(0.05, child.material.roughness * 0.7);
@@ -999,17 +983,17 @@ window.addEventListener("load", () => load().then((assets) => {
 						} else {
 
 							// 还原基本材质参数
-							if(child.geometry instanceof TorusGeometry) {
+							if (child.geometry instanceof TorusGeometry) {
 
 								child.material.roughness = 0.07;
 								child.material.metalness = 1.0;
 
-							} else if(child.geometry instanceof TorusKnotGeometry) {
+							} else if (child.geometry instanceof TorusKnotGeometry) {
 
 								child.material.roughness = 0.2;
 								child.material.metalness = 0.8;
 
-							} else if(child.geometry instanceof IcosahedronGeometry) {
+							} else if (child.geometry instanceof IcosahedronGeometry) {
 
 								child.material.roughness = 0.2;
 								child.material.metalness = 0.8;
@@ -1033,7 +1017,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		}).on("change", (e) => {
 
 			// 使用延迟刷新
-			if(thicknessTimeout) {
+			if (thicknessTimeout) {
 
 				clearTimeout(thicknessTimeout);
 
@@ -1057,14 +1041,14 @@ window.addEventListener("load", () => load().then((assets) => {
 			step: 0.001
 		}).on("change", (e) => {
 
-			if(groundReflector) {
+			if (groundReflector) {
 
 				groundReflector.maxDistance = e.value;
 
 			}
 
 			// 使用延迟刷新
-			if(maxDistanceTimeout) {
+			if (maxDistanceTimeout) {
 
 				clearTimeout(maxDistanceTimeout);
 
@@ -1084,7 +1068,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			step: 0.01
 		}).on("change", (e) => {
 
-			if(groundReflector) {
+			if (groundReflector) {
 
 				groundReflector.opacity = e.value;
 
@@ -1096,7 +1080,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			label: "菲涅尔效应"
 		}).on("change", (e) => {
 
-			if(groundReflector) {
+			if (groundReflector) {
 
 				groundReflector.fresnel = e.value;
 
@@ -1108,7 +1092,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			label: "距离衰减"
 		}).on("change", (e) => {
 
-			if(groundReflector) {
+			if (groundReflector) {
 
 				groundReflector.distanceAttenuation = e.value;
 
@@ -1141,7 +1125,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			// 恢复所有物体的原始材质
 			selectedObjects.forEach(obj => {
 
-				if(obj._originalEmissive) {
+				if (obj._originalEmissive) {
 
 					obj.material.emissive.copy(obj._originalEmissive);
 
@@ -1153,10 +1137,9 @@ window.addEventListener("load", () => load().then((assets) => {
 			selectedObjects.clear();
 
 			// 更新SSRPass的selects数组
-			if(compatSSRPass && compatSSRPass.threePass) {
+			if (compatSSRPass && compatSSRPass.threePass) {
 
 				compatSSRPass.threePass.selects = [];
-				console.log("已清空选择列表，SSRPass selective模式:", compatSSRPass.threePass.selective);
 
 				// 添加自动刷新反射
 				refreshSSRReflection();
@@ -1175,12 +1158,12 @@ window.addEventListener("load", () => load().then((assets) => {
 			// 选择所有测试对象
 			testObjects.children.forEach(obj => {
 
-				if(!selectedObjects.has(obj)) {
+				if (!selectedObjects.has(obj)) {
 
 					selectedObjects.add(obj);
 
 					// 保存原始发光颜色并设置高亮
-					if(!obj._originalEmissive) {
+					if (!obj._originalEmissive) {
 
 						obj._originalEmissive = obj.material.emissive.clone();
 
@@ -1192,10 +1175,9 @@ window.addEventListener("load", () => load().then((assets) => {
 			});
 
 			// 更新SSRPass的selects数组
-			if(compatSSRPass && compatSSRPass.threePass) {
+			if (compatSSRPass && compatSSRPass.threePass) {
 
 				compatSSRPass.threePass.selects = Array.from(selectedObjects);
-				console.log("已选择所有物体，数量:", selectedObjects.size, "SSRPass selective模式:", compatSSRPass.threePass.selective);
 
 				// 添加自动刷新反射
 				refreshSSRReflection();
@@ -1285,10 +1267,10 @@ window.addEventListener("load", () => load().then((assets) => {
 			// 更新所有使用环境贴图的材质
 			scene.traverse((obj) => {
 
-				if(obj.isMesh && obj.material) {
+				if (obj.isMesh && obj.material) {
 
 					// 对于标准材质和物理材质
-					if(obj.material.envMap !== undefined || obj.material.envMapIntensity !== undefined) {
+					if (obj.material.envMap !== undefined || obj.material.envMapIntensity !== undefined) {
 
 						obj.material.envMapIntensity = e.value;
 						obj.material.needsUpdate = true;
@@ -1341,7 +1323,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			step: 0.1
 		}).on("change", (e) => {
 
-			if(groundReflector) {
+			if (groundReflector) {
 
 				// 如果有地面反射器，也同步更新其反射强度
 				groundReflector.reflectionStrength = e.value;
@@ -1349,7 +1331,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			}
 
 			// 自动刷新反射 - 但使用较轻的延迟刷新以避免拖动滑块时频繁刷新
-			if(reflectionStrengthTimeout) {
+			if (reflectionStrengthTimeout) {
 
 				clearTimeout(reflectionStrengthTimeout);
 
@@ -1374,7 +1356,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		}).on("change", (e) => {
 
 			// 使用延迟刷新
-			if(thicknessTimeout) {
+			if (thicknessTimeout) {
 
 				clearTimeout(thicknessTimeout);
 
@@ -1398,14 +1380,14 @@ window.addEventListener("load", () => load().then((assets) => {
 			step: 0.001
 		}).on("change", (e) => {
 
-			if(groundReflector) {
+			if (groundReflector) {
 
 				groundReflector.maxDistance = e.value;
 
 			}
 
 			// 使用延迟刷新
-			if(maxDistanceTimeout) {
+			if (maxDistanceTimeout) {
 
 				clearTimeout(maxDistanceTimeout);
 
@@ -1439,9 +1421,9 @@ window.addEventListener("load", () => load().then((assets) => {
 			{ label: "仅选中物体反射" }
 		).on("change", (e) => {
 
-			if(compatSSRPass && compatSSRPass.threePass) {
+			if (compatSSRPass && compatSSRPass.threePass) {
 
-				if(e.value) {
+				if (e.value) {
 
 					// 启用selective模式，使用当前选中的物体
 					compatSSRPass.threePass.selects = Array.from(selectedObjects);
@@ -1462,7 +1444,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		});
 
-	} catch(error) {
+	} catch (error) {
 
 		console.error("Error setting up SSRPass:", error);
 		// 创建一个错误信息面板
@@ -1497,13 +1479,13 @@ window.addEventListener("load", () => load().then((assets) => {
 		// }
 
 		// 更新SelectiveBloom效果的尺寸
-		if(bloomEffect) {
+		if (bloomEffect) {
 
 			bloomEffect.setSize(width, height);
 
 		}
 
-		if(groundReflector) {
+		if (groundReflector) {
 
 			groundReflector.getRenderTarget().setSize(width, height);
 			groundReflector.resolution.set(width, height);
@@ -1526,7 +1508,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		fpsMeter.update(timestamp);
 
 		// 处理自动旋转
-		if(params.autoRotate) {
+		if (params.autoRotate) {
 
 			const timer = timestamp * 0.0003;
 			camera.position.x = Math.sin(timer) * 0.5;

@@ -108,7 +108,6 @@ export class DepthMaskMaterial extends ShaderMaterial {
 
 	set depthBuffer1(value) {
 
-		console.log("Log-- ", value, "value");
 		this.uniforms.depthBuffer1.value = value;
 
 	}

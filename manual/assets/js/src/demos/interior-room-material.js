@@ -33,7 +33,6 @@ function loadTexture(url) {
             (texture) => {
                 texture.wrapS = RepeatWrapping;
                 texture.wrapT = RepeatWrapping;
-                console.log(`纹理加载成功: ${url}`);
                 resolve(texture);
             },
             undefined,
@@ -101,7 +100,6 @@ function createScene(texture) {
 }
 
 window.addEventListener("load", () => {
-    console.log("页面加载，开始初始化场景");
 
     // 基本设置
     const renderer = new WebGLRenderer({
@@ -122,11 +120,9 @@ window.addEventListener("load", () => {
     controls.position.set(0, 0, 2);
     controls.lookAt(0, 0, 0);
 
-    console.log("开始加载纹理...");
     // 加载纹理并创建场景
     loadTexture("img/InteriorMappingMaterial/wall.png")
         .then(texture => {
-            console.log("纹理加载完成，创建场景");
             const { scene, windowPlane } = createScene(texture);
 
             // 设置时钟
@@ -153,7 +149,6 @@ window.addEventListener("load", () => {
                 camera.updateProjectionMatrix();
                 renderer.setSize(width, height);
 
-                console.log(`更新分辨率: ${width}x${height}`);
                 // 更新材质的分辨率
                 windowPlane.material.setResolution(width, height);
             }

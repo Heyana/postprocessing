@@ -35,7 +35,6 @@ const defaultAOOptions = {
 	...PoissionDenoisePass.DefaultOptions
 };
 
-console.log("Log-- ", 0.22, "SelectiveAOEffect");
 export class SelectiveAOEffect extends Effect {
 
 	constructor(composer, camera, scene, aoPass, options = defaultAOOptions) {
@@ -106,7 +105,7 @@ export class SelectiveAOEffect extends Effect {
 
 		console.log("Log-- ", options.useMultisampling, "options.useMultisampling");
 		// 创建深度遮罩材质（根据配置决定是否使用多采样）
-		if(options.useMultisampling) {
+		if (options.useMultisampling) {
 
 			this.depthMaskMaterial = new MultiSampleDepthMaskMaterial();
 
@@ -124,7 +123,7 @@ export class SelectiveAOEffect extends Effect {
 		this.depthMaskMaterial.epsilon = 0.000009; // 默认使用相等深度模式
 
 		// 如果使用多采样，设置多采样参数
-		if(options.useMultisampling && this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
+		if (options.useMultisampling && this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
 
 			this.depthMaskMaterial.samplingCount = options.samplingCount || 9;
 			this.depthMaskMaterial.samplingRadius = options.samplingRadius || 2.0;
@@ -149,14 +148,14 @@ export class SelectiveAOEffect extends Effect {
 		this.originalEmissives = new Map();
 
 		// 设置深度纹理
-		if(!composer.depthTexture) { composer.createDepthTexture(); }
+		if (!composer.depthTexture) { composer.createDepthTexture(); }
 		this.aoPass.fullscreenMaterial.uniforms.depthTexture.value = composer.depthTexture;
 		this.uniforms.get("depthTexture").value = composer.depthTexture;
 
 		// 设置法线纹理（如果需要）
-		if(options.useNormalPass || options.normalTexture) {
+		if (options.useNormalPass || options.normalTexture) {
 
-			if(options.useNormalPass) {
+			if (options.useNormalPass) {
 
 				this.normalPass = new NormalPass(scene, camera);
 
@@ -171,9 +170,9 @@ export class SelectiveAOEffect extends Effect {
 		this.poissionDenoisePass = new PoissionDenoisePass(camera, this.aoPass.texture, composer.depthTexture);
 
 		// 检查降噪通道是否正确初始化
-		if(this.poissionDenoisePass) {
+		if (this.poissionDenoisePass) {
 
-			if(!this.poissionDenoisePass.renderTarget) {
+			if (!this.poissionDenoisePass.renderTarget) {
 
 				console.warn("PoissionDenoisePass创建后renderTarget未定义，尝试通过设置尺寸初始化");
 				// 强制设置初始尺寸，以确保渲染目标被创建
@@ -184,7 +183,7 @@ export class SelectiveAOEffect extends Effect {
 					this.poissionDenoisePass.setSize(initialWidth, initialHeight);
 					console.log("PoissionDenoisePass渲染目标初始化成功");
 
-				} catch(error) {
+				} catch (error) {
 
 					console.error("初始化PoissionDenoisePass渲染目标失败:", error);
 
@@ -209,10 +208,10 @@ export class SelectiveAOEffect extends Effect {
 	// 初始化Selection对象，移除图层依赖
 	initializeSelectionLayer() {
 
-		if(!this._ignoreSelection) { return; }
+		if (!this._ignoreSelection) { return; }
 
 		// 确保Selection有正确的方法
-		if(!this._ignoreSelection.add && typeof this._ignoreSelection.add !== "function") {
+		if (!this._ignoreSelection.add && typeof this._ignoreSelection.add !== "function") {
 
 			console.warn("Selection对象缺少add方法，可能无法正常添加对象");
 
@@ -223,7 +222,7 @@ export class SelectiveAOEffect extends Effect {
 		console.log(`AO初始化: 忽略对象数量=${itemCount}`);
 
 		// 如果选择为空，打印警告
-		if(itemCount === 0) {
+		if (itemCount === 0) {
 
 			console.warn("Selection为空，所有物体都将参与AO计算");
 
@@ -249,13 +248,13 @@ export class SelectiveAOEffect extends Effect {
 
 	makeOptionsReactive(options) {
 
-		for(const key of Object.keys(options)) {
+		for (const key of Object.keys(options)) {
 
 			Object.defineProperty(this, key, {
 				get() {
 
 					// 为ignoreSelection属性提供特殊处理
-					if(key === "ignoreSelection") {
+					if (key === "ignoreSelection") {
 
 						return this._ignoreSelection;
 
@@ -266,10 +265,10 @@ export class SelectiveAOEffect extends Effect {
 
 				set(value) {
 
-					if(value === null || value === undefined) { return; }
+					if (value === null || value === undefined) { return; }
 					options[key] = value;
 
-					switch(key) {
+					switch (key) {
 
 						case "spp":
 							this.aoPass.fullscreenMaterial.defines.spp = value.toFixed(0);
@@ -300,7 +299,7 @@ export class SelectiveAOEffect extends Effect {
 							this.uniforms.get("debugMode").value = value;
 							break;
 
-							// 处理closeAutoUpdate变化
+						// 处理closeAutoUpdate变化
 						case "closeAutoUpdate":
 							// 不再需要处理enableEffect
 							break;
@@ -314,7 +313,7 @@ export class SelectiveAOEffect extends Effect {
 							// 更新高亮值
 							break;
 
-							// 降噪参数
+						// 降噪参数
 						case "iterations":
 						case "radius":
 						case "rings":
@@ -330,7 +329,7 @@ export class SelectiveAOEffect extends Effect {
 
 						case "useMultisampling":
 							// 切换多采样模式需要重新创建材质
-							if(value && !(this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial)) {
+							if (value && !(this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial)) {
 
 								const oldMaterial = this.depthMaskMaterial;
 								this.depthMaskMaterial = new MultiSampleDepthMaskMaterial();
@@ -348,7 +347,7 @@ export class SelectiveAOEffect extends Effect {
 								// 更新遮罩通道的材质
 								this.maskPass.fullscreenMaterial = this.depthMaskMaterial;
 
-							} else if(!value && this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
+							} else if (!value && this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
 
 								const oldMaterial = this.depthMaskMaterial;
 								this.depthMaskMaterial = new DepthMaskMaterial();
@@ -367,7 +366,7 @@ export class SelectiveAOEffect extends Effect {
 							break;
 
 						case "samplingCount":
-							if(this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
+							if (this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
 
 								this.depthMaskMaterial.samplingCount = value;
 
@@ -375,7 +374,7 @@ export class SelectiveAOEffect extends Effect {
 							break;
 
 						case "samplingRadius":
-							if(this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
+							if (this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
 
 								this.depthMaskMaterial.samplingRadius = value;
 
@@ -383,7 +382,7 @@ export class SelectiveAOEffect extends Effect {
 							break;
 
 						case "samplingThreshold":
-							if(this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
+							if (this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
 
 								this.depthMaskMaterial.samplingThreshold = value;
 
@@ -391,7 +390,7 @@ export class SelectiveAOEffect extends Effect {
 							break;
 
 						default:
-							if(key in this.aoPass.fullscreenMaterial.uniforms) {
+							if (key in this.aoPass.fullscreenMaterial.uniforms) {
 
 								this.aoPass.fullscreenMaterial.uniforms[key].value = value;
 
@@ -413,48 +412,48 @@ export class SelectiveAOEffect extends Effect {
 
 	setSize(width, height) {
 
-		if(width === undefined || height === undefined) { return; }
+		if (width === undefined || height === undefined) { return; }
 
-		if(width === this.lastSize.width && height === this.lastSize.height && this.resolutionScale === this.lastSize.resolutionScale) {
+		if (width === this.lastSize.width && height === this.lastSize.height && this.resolutionScale === this.lastSize.resolutionScale) {
 
 			return;
 
 		}
 
 		// 更新法线通道尺寸
-		if(this.normalPass) {
+		if (this.normalPass) {
 
 			this.normalPass.setSize(width, height);
 
 		}
 
 		// 更新AO通道尺寸
-		if(this.aoPass) {
+		if (this.aoPass) {
 
 			this.aoPass.setSize(width * this.resolutionScale, height * this.resolutionScale);
 
 		}
 
 		// 更新遮罩渲染目标尺寸
-		if(this.renderTargetMask) {
+		if (this.renderTargetMask) {
 
 			this.renderTargetMask.setSize(width * this.resolutionScale, height * this.resolutionScale);
 
 		}
 
 		// 更新降噪通道尺寸
-		if(this.poissionDenoisePass) {
+		if (this.poissionDenoisePass) {
 
 			try {
 
 				this.poissionDenoisePass.setSize(width, height);
-				if(!this.poissionDenoisePass.renderTarget) {
+				if (!this.poissionDenoisePass.renderTarget) {
 
 					console.warn("调整大小后，PoissionDenoisePass的renderTarget仍然未定义");
 
 				}
 
-			} catch(error) {
+			} catch (error) {
 
 				console.error("设置PoissionDenoisePass大小时出错:", error);
 
@@ -463,21 +462,21 @@ export class SelectiveAOEffect extends Effect {
 		}
 
 		// 更新渲染目标尺寸
-		if(this.renderTargetAO) {
+		if (this.renderTargetAO) {
 
 			this.renderTargetAO.setSize(width * this.resolutionScale, height * this.resolutionScale);
 
 		}
 
 		// 更新深度通道尺寸
-		if(this.depthPass) {
+		if (this.depthPass) {
 
 			this.depthPass.setSize(width, height);
 
 		}
 
 		// 更新遮罩通道尺寸
-		if(this.maskPass) {
+		if (this.maskPass) {
 
 			this.maskPass.setSize(width, height);
 
@@ -495,35 +494,35 @@ export class SelectiveAOEffect extends Effect {
 	// 获取Selection中的对象
 	getSelectionItems() {
 
-		if(!this._ignoreSelection) { return []; }
+		if (!this._ignoreSelection) { return []; }
 
 		// 检查各种可能的访问方式
-		if(Array.isArray(this._ignoreSelection.items)) {
+		if (Array.isArray(this._ignoreSelection.items)) {
 
 			return this._ignoreSelection.items;
 
 		}
 
-		if(Array.isArray(this._ignoreSelection.objects)) {
+		if (Array.isArray(this._ignoreSelection.objects)) {
 
 			return this._ignoreSelection.objects;
 
 		}
 
-		if(typeof this._ignoreSelection.getItems === "function") {
+		if (typeof this._ignoreSelection.getItems === "function") {
 
 			return this._ignoreSelection.getItems();
 
 		}
 
-		if(typeof this._ignoreSelection.getSelection === "function") {
+		if (typeof this._ignoreSelection.getSelection === "function") {
 
 			return this._ignoreSelection.getSelection();
 
 		}
 
 		// 如果Selection是一个可迭代对象
-		if(typeof this._ignoreSelection[Symbol.iterator] === "function") {
+		if (typeof this._ignoreSelection[Symbol.iterator] === "function") {
 
 			return Array.from(this._ignoreSelection);
 
@@ -541,7 +540,7 @@ export class SelectiveAOEffect extends Effect {
 		this.originalMaterials = new Map();
 
 		// 创建用于标记忽略对象的高亮材质（如果还未创建）
-		if(!this.ignoreMaterial) {
+		if (!this.ignoreMaterial) {
 
 			this.ignoreMaterial = {
 				originalMaterialEnabled: true,
@@ -556,7 +555,7 @@ export class SelectiveAOEffect extends Effect {
 		// 为忽略列表中的对象应用特殊材质或标记
 		selectionItems.forEach(object => {
 
-			if(object && object.isMesh) {
+			if (object && object.isMesh) {
 
 				// 保存原始材质
 				this.originalMaterials.set(object.uuid, {
@@ -565,12 +564,12 @@ export class SelectiveAOEffect extends Effect {
 				});
 
 				// 设置超高亮度，但保持原始材质外观
-				if(Array.isArray(object.material)) {
+				if (Array.isArray(object.material)) {
 
 					// 处理多材质对象
 					object.material.forEach(mat => {
 
-						if(mat.emissive) {
+						if (mat.emissive) {
 
 							// 临时保存原始发光值并设置极高亮度
 							mat._originalEmissive = mat.emissive.clone();
@@ -581,7 +580,7 @@ export class SelectiveAOEffect extends Effect {
 
 					});
 
-				} else if(object.material.emissive) {
+				} else if (object.material.emissive) {
 
 					// 单材质对象
 					object.material._originalEmissive = object.material.emissive.clone();
@@ -600,20 +599,20 @@ export class SelectiveAOEffect extends Effect {
 	restoreScene() {
 
 		// 恢复原始材质
-		if(this.originalMaterials) {
+		if (this.originalMaterials) {
 
-			for(const [uuid, data] of this.originalMaterials.entries()) {
+			for (const [uuid, data] of this.originalMaterials.entries()) {
 
 				const object = this.scene.getObjectByProperty("uuid", uuid);
-				if(object) {
+				if (object) {
 
 					// 恢复发光值
-					if(Array.isArray(object.material)) {
+					if (Array.isArray(object.material)) {
 
 						// 处理多材质对象
 						object.material.forEach(mat => {
 
-							if(mat._originalEmissive) {
+							if (mat._originalEmissive) {
 
 								mat.emissive.copy(mat._originalEmissive);
 								delete mat._originalEmissive;
@@ -622,7 +621,7 @@ export class SelectiveAOEffect extends Effect {
 
 						});
 
-					} else if(object.material._originalEmissive) {
+					} else if (object.material._originalEmissive) {
 
 						// 单材质对象
 						object.material.emissive.copy(object.material._originalEmissive);
@@ -645,13 +644,13 @@ export class SelectiveAOEffect extends Effect {
 		this.depthMaskMaterial.copyCameraSettings(this.camera);
 
 		// 更新多采样深度掩码材质的分辨率
-		if(this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
+		if (this.depthMaskMaterial instanceof MultiSampleDepthMaskMaterial) {
 
 			const size = renderer.getSize(new THREE.Vector2());
 			this.depthMaskMaterial.setResolution(size.x, size.y);
 
 			// 视角自适应逻辑 - 当视角接近平行时增加采样
-			if(this.camera) {
+			if (this.camera) {
 
 				const cameraForward = new THREE.Vector3(0, 0, -1);
 				cameraForward.applyQuaternion(this.camera.quaternion);
@@ -661,7 +660,7 @@ export class SelectiveAOEffect extends Effect {
 				const angleFactor = Math.abs(cameraForward.dot(groundNormal));
 
 				// 在接近平行视角时增加采样数量和半径
-				if(angleFactor < 0.3) { // 视线接近平行于地面
+				if (angleFactor < 0.3) { // 视线接近平行于地面
 
 					this.depthMaskMaterial.samplingCount = Math.max(9, this.samplingCount);
 					this.depthMaskMaterial.samplingRadius = Math.max(2.0, this.samplingRadius);
@@ -679,7 +678,7 @@ export class SelectiveAOEffect extends Effect {
 		}
 
 		// 准备场景 - 设置高亮对象等
-		if(!this.aoPass.fullscreenMaterial.uniforms.inputBuffer) {
+		if (!this.aoPass.fullscreenMaterial.uniforms.inputBuffer) {
 
 			this.aoPass.fullscreenMaterial.uniforms.inputBuffer = {
 				value: null
@@ -689,7 +688,7 @@ export class SelectiveAOEffect extends Effect {
 		this.aoPass.fullscreenMaterial.uniforms.inputBuffer.value = inputBuffer.texture;
 
 		// 更新深度参数
-		if(this.camera) {
+		if (this.camera) {
 
 			this.uniforms.get("depthNear").value = this.camera.near;
 			this.uniforms.get("depthFar").value = this.camera.far;
@@ -704,18 +703,18 @@ export class SelectiveAOEffect extends Effect {
 
 			const effects = pass.effects;
 			return pass.enabled && !pass.skipRendering &&
-                effects && effects.some(effect => effect instanceof TRAAEffect);
+				effects && effects.some(effect => effect instanceof TRAAEffect);
 
 		});
 
 		// 设置动画噪声
 		this.aoPass.fullscreenMaterial.needsUpdate = true;
-		if(hasTRAA && !("animatedNoise" in this.aoPass.fullscreenMaterial.defines)) {
+		if (hasTRAA && !("animatedNoise" in this.aoPass.fullscreenMaterial.defines)) {
 
 			this.aoPass.fullscreenMaterial.defines.animatedNoise = "";
 			this.aoPass.fullscreenMaterial.needsUpdate = true;
 
-		} else if(!hasTRAA && "animatedNoise" in this.aoPass.fullscreenMaterial.defines) {
+		} else if (!hasTRAA && "animatedNoise" in this.aoPass.fullscreenMaterial.defines) {
 
 			delete this.aoPass.fullscreenMaterial.defines.animatedNoise;
 
@@ -748,11 +747,11 @@ export class SelectiveAOEffect extends Effect {
 			this.camera.layers.set(selection.layer);
 			selection.forEach((model) => {
 
-				if(model.children.length > 0) {
+				if (model.children.length > 0) {
 
 					model.traverse((child) => {
 
-						if(child.isMesh && !child.layers.isEnabled(selection.layer) && child.visible) {
+						if (child.isMesh && !child.layers.isEnabled(selection.layer) && child.visible) {
 
 							otherModels.push({
 								model: child,
@@ -818,7 +817,7 @@ export class SelectiveAOEffect extends Effect {
 			this.uniforms.get("inputTexture").value = this.poissionDenoisePass.texture;
 			this.uniforms.get("inputBuffer").value = inputBuffer.texture;
 
-		} catch(error) {
+		} catch (error) {
 
 			console.error("渲染AO效果时出错:", error);
 
@@ -850,9 +849,9 @@ export class SelectiveAOEffect extends Effect {
 			];
 
 			// 遍历所有渲染目标并清理
-			for(const target of targets) {
+			for (const target of targets) {
 
-				if(target) {
+				if (target) {
 
 					renderer.setRenderTarget(target);
 					renderer.clear(true, true, true);
@@ -861,7 +860,7 @@ export class SelectiveAOEffect extends Effect {
 
 			}
 
-		} catch(error) {
+		} catch (error) {
 
 			console.error("清理渲染目标时出错:", error);
 
@@ -875,12 +874,12 @@ export class SelectiveAOEffect extends Effect {
 	}
 
 	/**
-     * 初始化效果
-     *
-     * @param {WebGLRenderer} renderer - 渲染器
-     * @param {Boolean} alpha - 是否有alpha通道
-     * @param {Number} frameBufferType - 帧缓冲区类型
-     */
+	 * 初始化效果
+	 *
+	 * @param {WebGLRenderer} renderer - 渲染器
+	 * @param {Boolean} alpha - 是否有alpha通道
+	 * @param {Number} frameBufferType - 帧缓冲区类型
+	 */
 	initialize(renderer, alpha, frameBufferType) {
 
 		// 确保所有通道和材质正确初始化
@@ -888,16 +887,16 @@ export class SelectiveAOEffect extends Effect {
 		this.maskPass.initialize(renderer, alpha, frameBufferType);
 		this.aoPass.initialize(renderer, alpha, frameBufferType);
 
-		if(this.poissionDenoisePass) {
+		if (this.poissionDenoisePass) {
 
 			this.poissionDenoisePass.initialize(renderer, alpha, frameBufferType);
 
 		}
 
 		// 检查渲染器是否支持对数深度缓冲
-		if(renderer.capabilities.logarithmicDepthBuffer) {
+		if (renderer.capabilities.logarithmicDepthBuffer) {
 
-			if(this.depthMaskMaterial) {
+			if (this.depthMaskMaterial) {
 
 				this.depthMaskMaterial.defines.LOG_DEPTH = "1";
 				this.depthMaskMaterial.needsUpdate = true;
@@ -911,20 +910,20 @@ export class SelectiveAOEffect extends Effect {
 	// 存储原始发光值的方法
 	storeOriginalEmissive(object) {
 
-		if(!this.originalEmissives.has(object.uuid)) {
+		if (!this.originalEmissives.has(object.uuid)) {
 
-			if(object.material) {
+			if (object.material) {
 
-				if(object.material.emissive) {
+				if (object.material.emissive) {
 
 					this.originalEmissives.set(object.uuid, object.material.emissive.clone());
 
-				} else if(Array.isArray(object.material)) {
+				} else if (Array.isArray(object.material)) {
 
 					const emissives = [];
 					object.material.forEach(mat => {
 
-						if(mat.emissive) {
+						if (mat.emissive) {
 
 							emissives.push(mat.emissive.clone());
 
@@ -951,11 +950,11 @@ export class SelectiveAOEffect extends Effect {
 		// 确保存储了原始发光值
 		this.storeOriginalEmissive(object);
 
-		if(object.material) {
+		if (object.material) {
 
-			if(object.material.emissive) {
+			if (object.material.emissive) {
 
-				if(highlight) {
+				if (highlight) {
 
 					object.material.emissive.set(
 						this.highlightValue,
@@ -966,7 +965,7 @@ export class SelectiveAOEffect extends Effect {
 				} else {
 
 					const originalEmissive = this.originalEmissives.get(object.uuid);
-					if(originalEmissive) {
+					if (originalEmissive) {
 
 						object.material.emissive.copy(originalEmissive);
 
@@ -974,14 +973,14 @@ export class SelectiveAOEffect extends Effect {
 
 				}
 
-			} else if(Array.isArray(object.material)) {
+			} else if (Array.isArray(object.material)) {
 
 				const originalEmissives = this.originalEmissives.get(object.uuid);
 				object.material.forEach((mat, index) => {
 
-					if(mat.emissive) {
+					if (mat.emissive) {
 
-						if(highlight) {
+						if (highlight) {
 
 							mat.emissive.set(
 								this.highlightValue,
@@ -989,7 +988,7 @@ export class SelectiveAOEffect extends Effect {
 								this.highlightValue
 							);
 
-						} else if(originalEmissives && originalEmissives[index]) {
+						} else if (originalEmissives && originalEmissives[index]) {
 
 							mat.emissive.copy(originalEmissives[index]);
 
@@ -1008,9 +1007,9 @@ export class SelectiveAOEffect extends Effect {
 	// 添加一个对象到忽略列表
 	addToIgnoreList(object) {
 
-		if(!object) { return; }
+		if (!object) { return; }
 
-		if(this._ignoreSelection && typeof this._ignoreSelection.add === "function") {
+		if (this._ignoreSelection && typeof this._ignoreSelection.add === "function") {
 
 			this._ignoreSelection.add(object);
 			console.log(`已添加对象到AO忽略列表: ${object.name || object.uuid}`);
@@ -1029,9 +1028,9 @@ export class SelectiveAOEffect extends Effect {
 	// 从忽略列表中移除对象
 	removeFromIgnoreList(object) {
 
-		if(!object) { return; }
+		if (!object) { return; }
 
-		if(this._ignoreSelection && typeof this._ignoreSelection.delete === "function") {
+		if (this._ignoreSelection && typeof this._ignoreSelection.delete === "function") {
 
 			this._ignoreSelection.delete(object);
 			console.log(`已从AO忽略列表移除对象: ${object.name || object.uuid}`);
@@ -1050,7 +1049,7 @@ export class SelectiveAOEffect extends Effect {
 	// 清空忽略列表
 	clearIgnoreList() {
 
-		if(this._ignoreSelection && typeof this._ignoreSelection.clear === "function") {
+		if (this._ignoreSelection && typeof this._ignoreSelection.clear === "function") {
 
 			this._ignoreSelection.clear();
 			console.log("已清空AO忽略列表");
@@ -1073,7 +1072,7 @@ export class SelectiveAOEffect extends Effect {
 		this.setChanged();
 
 		// 如果在composer中，尝试触发一次渲染
-		if(this.composer && typeof this.composer.render === "function") {
+		if (this.composer && typeof this.composer.render === "function") {
 
 			// 请求一次额外的渲染，清除残留色块
 			requestAnimationFrame(() => {
@@ -1089,7 +1088,7 @@ export class SelectiveAOEffect extends Effect {
 	// 设置调试模式的方法
 	setDebugMode(mode) {
 
-		if(mode >= 0 && mode <= 7) {
+		if (mode >= 0 && mode <= 7) {
 
 			this.debugMode = mode;
 			console.log(`AO调试模式已切换到: ${this.getDebugModeName(mode)}`);
@@ -1132,7 +1131,7 @@ export class SelectiveAOEffect extends Effect {
 	listDebugModes() {
 
 		console.log("可用的AO调试模式:");
-		for(let i = 0; i < 8; i++) {
+		for (let i = 0; i < 8; i++) {
 
 			console.log(`${i}: ${this.getDebugModeName(i)}`);
 
@@ -1141,10 +1140,10 @@ export class SelectiveAOEffect extends Effect {
 	}
 
 	/**
-     * 指示遮罩是否应该反转（反转选择物体的AO效果）
-     *
-     * @type {Boolean}
-     */
+	 * 指示遮罩是否应该反转（反转选择物体的AO效果）
+	 *
+	 * @type {Boolean}
+	 */
 	get inverted() {
 
 		return this._inverted;
@@ -1159,10 +1158,10 @@ export class SelectiveAOEffect extends Effect {
 	}
 
 	/**
-     * 指示是否忽略背景（不对背景应用AO效果）
-     *
-     * @type {Boolean}
-     */
+	 * 指示是否忽略背景（不对背景应用AO效果）
+	 *
+	 * @type {Boolean}
+	 */
 	get ignoreBackground() {
 
 		return this._ignoreBackground;

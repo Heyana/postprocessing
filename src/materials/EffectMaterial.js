@@ -156,7 +156,6 @@ export class EffectMaterial extends ShaderMaterial {
 
 	setShaderData(data) {
 
-		console.log("Log-- ", data, "data");
 		this.setShaderParts(data.shaderParts);
 		this.setDefines(data.defines);
 		this.setUniforms(data.uniforms);

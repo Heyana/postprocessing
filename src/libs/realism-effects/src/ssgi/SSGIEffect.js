@@ -23,7 +23,6 @@ import { createGlobalDisableIblRadianceUniform, getMaxMipLevel } from "./utils/U
 const { render } = RenderPass.prototype;
 
 const globalIblRadianceDisabledUniform = createGlobalDisableIblRadianceUniform();
-console.log("Log-- ", 0.06, "0.01ssgi");
 export class SSGIEffect extends Effect {
 
 	selection = new Selection();
@@ -46,8 +45,8 @@ export class SSGIEffect extends Effect {
 		);
 
 		const defines = new Map();
-		if(scene.fog) { defines.set("USE_FOG", ""); }
-		if(scene.fog?.isFogExp2) { defines.set("FOG_EXP2", ""); }
+		if (scene.fog) { defines.set("USE_FOG", ""); }
+		if (scene.fog?.isFogExp2) { defines.set("FOG_EXP2", ""); }
 
 		super("SSGIEffect1", fragmentShader, {
 			type: "FinalSSGIMaterial",
@@ -70,22 +69,22 @@ export class SSGIEffect extends Effect {
 		this._camera = camera;
 		this.composer = composer;
 
-		if(options.mode === "ssr") {
+		if (options.mode === "ssr") {
 
 			options.reprojectSpecular = true;
 			options.neighborhoodClamp = true;
 			options.inputType = "specular";
 
-		} else if(options.mode === "ssgi") {
+		} else if (options.mode === "ssgi") {
 
 			options.reprojectSpecular = [false, true];
 			options.neighborhoodClamp = [false, true];
 
 		}
 
-		if(typeof options.preset === "string") {
+		if (typeof options.preset === "string") {
 
-			switch(options.preset) {
+			switch (options.preset) {
 
 				case "low":
 					options.steps = 10;
@@ -134,14 +133,14 @@ export class SSGIEffect extends Effect {
 		const th = this;
 		const ssgiRenderPass = this.renderPass;
 
-		RenderPass.prototype.render = function(...args) {
+		RenderPass.prototype.render = function (...args) {
 
-			if(this !== ssgiRenderPass) {
+			if (this !== ssgiRenderPass) {
 
 				const wasUsingRenderPass = th.isUsingRenderPass;
 				th.isUsingRenderPass = true;
 
-				if(wasUsingRenderPass != th.isUsingRenderPass) { th.updateUsingRenderPass(); }
+				if (wasUsingRenderPass != th.isUsingRenderPass) { th.updateUsingRenderPass(); }
 
 			}
 
@@ -158,7 +157,7 @@ export class SSGIEffect extends Effect {
 
 	updateUsingRenderPass() {
 
-		if(this.isUsingRenderPass) {
+		if (this.isUsingRenderPass) {
 
 			this.ssgiPass.fullscreenMaterial.defines.useDirectLight = "";
 
@@ -185,7 +184,7 @@ export class SSGIEffect extends Effect {
 		const ssgiPassFullscreenMaterialUniforms = this.ssgiPass.fullscreenMaterial.uniforms;
 		const ssgiPassFullscreenMaterialUniformsKeys = Object.keys(ssgiPassFullscreenMaterialUniforms);
 
-		for(const key of Object.keys(options)) {
+		for (const key of Object.keys(options)) {
 
 			Object.defineProperty(this, key, {
 				get() {
@@ -195,20 +194,20 @@ export class SSGIEffect extends Effect {
 				},
 				set(value) {
 
-					if(options[key] === value && needsUpdate) { return; }
+					if (options[key] === value && needsUpdate) { return; }
 
 					options[key] = value;
 
-					switch(key) {
+					switch (key) {
 
 						// denoiser
 						case "denoiseIterations":
-							if(this.denoiser.denoisePass) { this.denoiser.denoisePass.iterations = value; }
+							if (this.denoiser.denoisePass) { this.denoiser.denoisePass.iterations = value; }
 							break;
 
 						case "denoiseAlgorithm":
 							// 切换降噪算法需要重新创建denoiser
-							if(this.denoiser) {
+							if (this.denoiser) {
 
 								try {
 
@@ -218,7 +217,7 @@ export class SSGIEffect extends Effect {
 									const oldAlgorithm = options.denoiseAlgorithm;
 
 									// 根据不同算法添加特定参数
-									if(value === "gaussian-bilateral") {
+									if (value === "gaussian-bilateral") {
 
 										// 为高斯双边滤波器设置安全的默认值
 										options.sigmaSpace = options.sigmaSpace || 2.0;
@@ -254,7 +253,7 @@ export class SSGIEffect extends Effect {
 
 									console.log("降噪算法切换成功");
 
-								} catch(err) {
+								} catch (err) {
 
 									console.error("切换降噪算法失败:", err);
 									// 恢复到默认的泊松滤波
@@ -267,7 +266,7 @@ export class SSGIEffect extends Effect {
 										this.reset();
 										alert("切换降噪算法失败，已回退到泊松降噪");
 
-									} catch(error) {
+									} catch (error) {
 
 										console.error("回退到泊松降噪也失败:", error);
 
@@ -287,15 +286,15 @@ export class SSGIEffect extends Effect {
 						case "specularPhi":
 						case "sigmaSpace": // 添加高斯双边滤波器参数
 						case "sigmaRange": // 添加高斯双边滤波器参数
-							if(this.denoiser.denoisePass?.fullscreenMaterial.uniforms[key]) {
+							if (this.denoiser.denoisePass?.fullscreenMaterial.uniforms[key]) {
 
 								// 确保参数在安全范围内
-								if(key === "sigmaSpace") {
+								if (key === "sigmaSpace") {
 
 									this.denoiser.denoisePass.fullscreenMaterial.uniforms[key].value =
 										Math.max(1, Math.min(5, value));
 
-								} else if(key === "sigmaRange") {
+								} else if (key === "sigmaRange") {
 
 									this.denoiser.denoisePass.fullscreenMaterial.uniforms[key].value =
 										Math.max(0.01, Math.min(0.2, value));
@@ -312,7 +311,7 @@ export class SSGIEffect extends Effect {
 
 						case "denoiseIterations":
 						case "radius":
-							if(this.denoiser.denoisePass) { this.denoiser.denoisePass[key] = value; }
+							if (this.denoiser.denoisePass) { this.denoiser.denoisePass[key] = value; }
 							break;
 
 						// SSGI
@@ -331,7 +330,7 @@ export class SSGIEffect extends Effect {
 
 						case "importanceSampling":
 						case "missedRays":
-							if(value) {
+							if (value) {
 
 								this.ssgiPass.fullscreenMaterial.defines[key] = "";
 
@@ -351,15 +350,15 @@ export class SSGIEffect extends Effect {
 							break;
 
 						case "outputTexture":
-							if(!this.outputTexture) {
+							if (!this.outputTexture) {
 
 								return;
 
 							}
 
-							if(typeof value === "string") {
+							if (typeof value === "string") {
 
-								if(this.gBufferDebugPass === undefined) {
+								if (this.gBufferDebugPass === undefined) {
 
 									this.gBufferDebugPass = new GBufferDebugPass(this.ssgiPass.gBufferPass.texture);
 									this.gBufferDebugPass.setSize(this.lastSize.width, this.lastSize.height);
@@ -372,7 +371,7 @@ export class SSGIEffect extends Effect {
 
 								this.outputTexture = this.gBufferDebugPass.texture;
 
-							} else if(this.gBufferDebugPass !== undefined && this.outputTexture !== this.gBufferDebugPass.texture) {
+							} else if (this.gBufferDebugPass !== undefined && this.outputTexture !== this.gBufferDebugPass.texture) {
 
 								this.gBufferDebugPass.dispose();
 								delete this.gBufferDebugPass;
@@ -385,7 +384,7 @@ export class SSGIEffect extends Effect {
 
 						// must be a uniform
 						default:
-							if(ssgiPassFullscreenMaterialUniformsKeys.includes(key)) {
+							if (ssgiPassFullscreenMaterialUniformsKeys.includes(key)) {
 
 								ssgiPassFullscreenMaterialUniforms[key].value = value;
 								this.reset();
@@ -415,8 +414,8 @@ export class SSGIEffect extends Effect {
 
 	setSize(width, height, force = false) {
 
-		if(width === undefined && height === undefined) { return; }
-		if(
+		if (width === undefined && height === undefined) { return; }
+		if (
 			!force &&
 			width === this.lastSize.width &&
 			height === this.lastSize.height &&
@@ -459,21 +458,21 @@ export class SSGIEffect extends Effect {
 
 		let environment = this._scene.environment;
 
-		if(environment) {
+		if (environment) {
 
-			if(ssgiMaterial.uniforms.envMapInfo.value.mapUuid !== environment.uuid) {
+			if (ssgiMaterial.uniforms.envMapInfo.value.mapUuid !== environment.uuid) {
 
 				// if the environment is a cube texture, convert it to an equirectangular texture so we can sample it in the SSGI pass and use MIS
-				if(environment.isCubeTexture) {
+				if (environment.isCubeTexture) {
 
-					if(!this.cubeToEquirectEnvPass) { this.cubeToEquirectEnvPass = new CubeToEquirectEnvPass(); }
+					if (!this.cubeToEquirectEnvPass) { this.cubeToEquirectEnvPass = new CubeToEquirectEnvPass(); }
 
 					environment = this.cubeToEquirectEnvPass.generateEquirectEnvMap(renderer, environment);
 					environment.uuid = this._scene.environment.uuid;
 
 				}
 
-				if(!environment.generateMipmaps) {
+				if (!environment.generateMipmaps) {
 
 					environment.generateMipmaps = true;
 					environment.minFilter = LinearMipMapLinearFilter;
@@ -482,7 +481,7 @@ export class SSGIEffect extends Effect {
 
 				}
 
-				if(environment.type === FloatType) {
+				if (environment.type === FloatType) {
 
 					console.warn(
 						"SSGI: Environment map is FloatType, this causes the environment map to be black in the SSGI pass for many modern Apple devices. Please use HalfFloatType instead."
@@ -500,7 +499,7 @@ export class SSGIEffect extends Effect {
 				ssgiMaterial.defines.USE_ENVMAP = "";
 				delete ssgiMaterial.defines.importanceSampling;
 
-				if(this.importanceSampling) {
+				if (this.importanceSampling) {
 
 					ssgiMaterial.uniforms.envMapInfo.value.updateFrom(environment, renderer).then(() => {
 
@@ -521,7 +520,7 @@ export class SSGIEffect extends Effect {
 
 			}
 
-		} else if("USE_ENVMAP" in ssgiMaterial.defines) {
+		} else if ("USE_ENVMAP" in ssgiMaterial.defines) {
 
 			delete ssgiMaterial.defines.USE_ENVMAP;
 			delete ssgiMaterial.defines.importanceSampling;
@@ -574,7 +573,7 @@ export class SSGIEffect extends Effect {
 		this.uniforms.get("depthTexture").value = this.ssgiPass.gBufferPass.depthTexture;
 
 		// update the fog uniforms
-		if(this._scene.fog) {
+		if (this._scene.fog) {
 
 			this.uniforms.get("fogColor").value = this._scene.fog.color;
 			this.uniforms.get("fogNear").value = this._scene.fog.near;
@@ -586,7 +585,7 @@ export class SSGIEffect extends Effect {
 
 		}
 
-		for(const c of hideMeshes) { c.visible = true; }
+		for (const c of hideMeshes) { c.visible = true; }
 
 		globalIblRadianceDisabledUniform.value = true;
 

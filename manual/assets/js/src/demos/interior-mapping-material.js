@@ -47,7 +47,6 @@ function loadTextures() {
 				undefined, // 进度回调
 				() => {
 
-					console.log("无法加载房间立方体贴图，使用替代纹理");
 					checkAllLoaded(); // 即使加载失败也继续
 
 				}
@@ -67,7 +66,6 @@ function loadTextures() {
 			undefined, // 进度回调
 			() => {
 
-				console.log("无法加载单张图片立方体贴图");
 				checkAllLoaded(); // 即使加载失败也继续
 
 			}
@@ -280,7 +278,6 @@ window.addEventListener("load", () => {
 			step: 0.01
 		}).on("change", (event) => {
 
-			console.log("Log-- ", event.value, "event.value");
 			plane.material.roomScale = event.value; // 更改为plane
 
 		});

@@ -44,14 +44,14 @@ import * as Shapes from "../objects/Shapes";
 function accessProperty(obj, paths, value, set = false) {
 
 	// 确保paths是数组
-	if(!Array.isArray(paths)) {
+	if (!Array.isArray(paths)) {
 
 		paths = [paths];
 
 	}
 
 	// 尝试每个可能的路径
-	for(const path of paths) {
+	for (const path of paths) {
 
 		try {
 
@@ -62,10 +62,10 @@ function accessProperty(obj, paths, value, set = false) {
 			let lastObj = null;
 
 			// 遍历路径
-			for(let i = 0; i < parts.length; i++) {
+			for (let i = 0; i < parts.length; i++) {
 
 				const part = parts[i];
-				if(i === parts.length - 1) {
+				if (i === parts.length - 1) {
 
 					// 最后一部分
 					lastPart = part;
@@ -73,7 +73,7 @@ function accessProperty(obj, paths, value, set = false) {
 
 				}
 
-				if(current[part] === undefined) {
+				if (current[part] === undefined) {
 
 					// 该路径不存在，尝试下一个
 					current = null;
@@ -86,13 +86,12 @@ function accessProperty(obj, paths, value, set = false) {
 			}
 
 			// 如果找到了有效路径
-			if(current !== null && lastObj !== null) {
+			if (current !== null && lastObj !== null) {
 
-				if(set) {
+				if (set) {
 
 					// 设置属性
 					lastObj[lastPart] = value;
-					console.log(`成功设置属性 ${path} = ${value}`);
 					return true;
 
 				}
@@ -101,7 +100,7 @@ function accessProperty(obj, paths, value, set = false) {
 
 			}
 
-		} catch(err) {
+		} catch (err) {
 
 			console.warn(`访问属性路径 ${path} 时出错:`, err);
 
@@ -110,7 +109,7 @@ function accessProperty(obj, paths, value, set = false) {
 	}
 
 	// 所有路径都失败了
-	if(set) {
+	if (set) {
 
 		console.warn("无法设置属性，所有路径都失败了:", paths);
 		return false;
@@ -146,7 +145,7 @@ function load() {
 
 			gltf.scene.traverse((object) => {
 
-				if(object.isMesh) {
+				if (object.isMesh) {
 
 					object.castShadow = object.receiveShadow = true;
 
@@ -187,7 +186,7 @@ function createMaterialSpheres() {
 	const spacing = 1.2;
 
 	// 创建一行具有不同粗糙度的球体（从光滑到粗糙）
-	for(let i = 0; i < sphereCount; i++) {
+	for (let i = 0; i < sphereCount; i++) {
 
 		const roughness = i / (sphereCount - 1);
 		const sphere = new Mesh(
@@ -205,7 +204,7 @@ function createMaterialSpheres() {
 	}
 
 	// 创建一行具有不同金属度的球体（从非金属到金属）
-	for(let i = 0; i < sphereCount; i++) {
+	for (let i = 0; i < sphereCount; i++) {
 
 		const metalness = i / (sphereCount - 1);
 		const sphere = new Mesh(
@@ -265,11 +264,11 @@ window.addEventListener("load", () => load().then((assets) => {
 	// 增强直接光照强度
 	lights.children.forEach(light => {
 
-		if(light.isDirectionalLight) {
+		if (light.isDirectionalLight) {
 
 			light.intensity *= 1.5; // 增强直射光强度
 
-		} else if(light.isAmbientLight) {
+		} else if (light.isAmbientLight) {
 
 			light.intensity *= 0.5; // 降低环境光（让AO效果更明显）
 
@@ -301,7 +300,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	const radius = 3.0;
 	let angle = 3.5;
 
-	for(const mesh of actors.children) {
+	for (const mesh of actors.children) {
 
 		// 将对象排列成圆形
 		mesh.position.set(radius * Math.cos(angle), 0, radius * Math.sin(angle));
@@ -350,15 +349,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	// 添加HBAO效果到合成器
 	composer.addPass(new EffectPass(camera, hbaoEffect));
 
-	// 输出HBAOEffect的实际API结构
-	console.log("HBAO效果已创建，详细API:", {
-		directProperties: Object.keys(hbaoEffect),
-		hasBlendMode: !!hbaoEffect.blendMode,
-		blendModeProperties: hbaoEffect.blendMode ? Object.keys(hbaoEffect.blendMode) : [],
-		hasSetOpacity: typeof hbaoEffect.setOpacity === "function",
-		prototype: Object.getPrototypeOf(hbaoEffect) ? Object.keys(Object.getPrototypeOf(hbaoEffect)) : [],
-		effectPass: composer.passes[composer.passes.length - 1]
-	});
+
 
 	// UI控制面板
 	const fpsMeter = new FPSMeter();
@@ -374,11 +365,11 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	lights.children.forEach(light => {
 
-		if(light.isDirectionalLight) {
+		if (light.isDirectionalLight) {
 
 			directionalLight = light;
 
-		} else if(light.isAmbientLight) {
+		} else if (light.isAmbientLight) {
 
 			ambientLight = light;
 
@@ -386,7 +377,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	});
 
-	if(directionalLight) {
+	if (directionalLight) {
 
 		lightFolder.addBinding(directionalLight, "intensity", {
 			min: 0, max: 5, step: 0.1,
@@ -407,7 +398,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	}
 
-	if(ambientLight) {
+	if (ambientLight) {
 
 		lightFolder.addBinding(ambientLight, "intensity", {
 			min: 0, max: 2, step: 0.1,
@@ -426,9 +417,9 @@ window.addEventListener("load", () => load().then((assets) => {
 			// 通过控制EffectPass的enabled属性来切换效果
 			composer.passes.forEach(pass => {
 
-				if(pass.effects && pass.effects.length > 0) {
+				if (pass.effects && pass.effects.length > 0) {
 
-					if(pass.effects.some(effect => effect instanceof HBAOEffect)) {
+					if (pass.effects.some(effect => effect instanceof HBAOEffect)) {
 
 						pass.enabled = e.value;
 
@@ -461,7 +452,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		const success = accessProperty(hbaoEffect, paths, e.value, true);
 
-		if(!success) {
+		if (!success) {
 
 			// 尝试调用可能的setter方法
 			const methods = [
@@ -472,18 +463,17 @@ window.addEventListener("load", () => load().then((assets) => {
 			];
 
 			let methodCalled = false;
-			for(const method of methods) {
+			for (const method of methods) {
 
-				if(typeof hbaoEffect[method] === "function") {
+				if (typeof hbaoEffect[method] === "function") {
 
 					try {
 
 						hbaoEffect[method](e.value);
-						console.log(`成功通过方法 ${method} 设置混合强度为 ${e.value}`);
 						methodCalled = true;
 						break;
 
-					} catch(err) {
+					} catch (err) {
 
 						console.warn(`调用方法 ${method} 失败:`, err);
 
@@ -493,7 +483,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 			}
 
-			if(!methodCalled) {
+			if (!methodCalled) {
 
 				console.warn("无法设置HBAO混合强度，所有尝试都失败了");
 
@@ -501,20 +491,18 @@ window.addEventListener("load", () => load().then((assets) => {
 				const hbaoPass = composer.passes.find(pass =>
 					pass.effects && pass.effects.some(effect => effect instanceof HBAOEffect));
 
-				if(hbaoPass) {
+				if (hbaoPass) {
 
-					console.log("尝试直接设置EffectPass混合模式");
 					try {
 
 						const effect = hbaoPass.effects.find(effect => effect instanceof HBAOEffect);
-						if(effect && effect.blendMode) {
+						if (effect && effect.blendMode) {
 
 							effect.blendMode.opacity = e.value;
-							console.log("成功设置EffectPass内效果的混合强度");
 
 						}
 
-					} catch(err) {
+					} catch (err) {
 
 						console.error("设置EffectPass混合模式失败:", err);
 
@@ -584,11 +572,11 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		try {
 
-			if(hbaoEffect.iterations !== undefined) {
+			if (hbaoEffect.iterations !== undefined) {
 
 				hbaoEffect.iterations = e.value;
 
-			} else if(hbaoEffect.denoiseIterations !== undefined) {
+			} else if (hbaoEffect.denoiseIterations !== undefined) {
 
 				hbaoEffect.denoiseIterations = e.value;
 
@@ -598,7 +586,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 			}
 
-		} catch(err) {
+		} catch (err) {
 
 			console.error("设置降噪迭代次数出错:", err);
 
@@ -613,11 +601,11 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		try {
 
-			if(hbaoEffect.radius !== undefined) {
+			if (hbaoEffect.radius !== undefined) {
 
 				hbaoEffect.radius = e.value;
 
-			} else if(hbaoEffect.denoiseRadius !== undefined) {
+			} else if (hbaoEffect.denoiseRadius !== undefined) {
 
 				hbaoEffect.denoiseRadius = e.value;
 
@@ -627,7 +615,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 			}
 
-		} catch(err) {
+		} catch (err) {
 
 			console.error("设置降噪半径出错:", err);
 
@@ -642,7 +630,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		try {
 
-			if(hbaoEffect.depthPhi !== undefined) {
+			if (hbaoEffect.depthPhi !== undefined) {
 
 				hbaoEffect.depthPhi = e.value;
 
@@ -652,7 +640,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 			}
 
-		} catch(err) {
+		} catch (err) {
 
 			console.error("设置深度容差出错:", err);
 
@@ -667,7 +655,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		try {
 
-			if(hbaoEffect.normalPhi !== undefined) {
+			if (hbaoEffect.normalPhi !== undefined) {
 
 				hbaoEffect.normalPhi = e.value;
 
@@ -677,7 +665,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 			}
 
-		} catch(err) {
+		} catch (err) {
 
 			console.error("设置法线容差出错:", err);
 
@@ -715,7 +703,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	}).on("change", (e) => {
 
 		// 应用预设
-		switch(e.value) {
+		switch (e.value) {
 
 			case "low":
 				hbaoEffect.resolutionScale = 0.5;
@@ -752,9 +740,9 @@ window.addEventListener("load", () => load().then((assets) => {
 		let hbaoPass = null;
 		composer.passes.forEach(pass => {
 
-			if(pass.effects && pass.effects.length > 0) {
+			if (pass.effects && pass.effects.length > 0) {
 
-				if(pass.effects.some(effect => effect instanceof HBAOEffect)) {
+				if (pass.effects.some(effect => effect instanceof HBAOEffect)) {
 
 					hbaoPass = pass;
 
@@ -764,7 +752,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 		});
 
-		if(hbaoPass) {
+		if (hbaoPass) {
 
 			// 切换效果
 			hbaoPass.enabled = !compareMode;

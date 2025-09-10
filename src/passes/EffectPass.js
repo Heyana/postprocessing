@@ -417,7 +417,6 @@ export class EffectPass extends Pass {
 
 	updateMaterial() {
 
-		console.log("Log-- ", 123, "123");
 		const data = new EffectShaderData();
 		let id = 0;
 

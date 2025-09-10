@@ -77,11 +77,6 @@ window.addEventListener("load", () => load().then((assets) => {
 	settings.translation.enabled = true;
 	controls.position.set(5, 21, 123);
 
-	window.addEventListener("click", () => {
-
-		console.log("Log-- ", camera.position, controls.position, "camera.position,controls.");
-
-	});
 
 	// 场景、灯光、物体
 	const scene = new Scene();

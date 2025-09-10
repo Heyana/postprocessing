@@ -30,7 +30,6 @@ function printPerformanceSummary() {
 
 	// 或者获取原始数据进行自定义分析
 	const data = getTimeData();
-	console.log("原始性能数据:", data);
 
 	// 分析完成后可以清除数据，开始新的收集周期
 	clearTimeData();

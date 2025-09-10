@@ -78,7 +78,7 @@ async function load() {
 		});
 		assets.set("helmet", helmet);
 
-	} catch(error) {
+	} catch (error) {
 
 		console.warn("模型加载失败，将使用基础场景", error);
 
@@ -101,11 +101,11 @@ function onMouseClick(event, renderer, camera, testObjects, raycaster, mouse) {
 	// 检测与球体的交点
 	const intersects = raycaster.intersectObjects(spheres, false);
 
-	if(intersects.length > 0) {
+	if (intersects.length > 0) {
 
 		const sphere = intersects[0].object;
 
-		if(activeSphere === sphere) {
+		if (activeSphere === sphere) {
 
 			// 如果点击已选中的球体，取消选择
 			sphere.material.emissive.setHex(0);
@@ -137,7 +137,7 @@ function onResize(container, camera, composer, renderer) {
 	renderer.setSize(width, height);
 
 	// 更新颜色缓冲目标大小
-	if(colorTarget) {
+	if (colorTarget) {
 
 		colorTarget.setSize(width, height);
 
@@ -160,7 +160,7 @@ function createColoredSpheres(scene) {
 	const geometry = new SphereGeometry(0.3, 32, 32);
 	const resultSpheres = [];
 
-	for(let i = 0; i < colors.length; i++) {
+	for (let i = 0; i < colors.length; i++) {
 
 		const material = new MeshStandardMaterial({
 			color: colors[i],
@@ -187,7 +187,7 @@ function createColoredSpheres(scene) {
 }
 
 // 主程序入口
-window.addEventListener("load", async() => {
+window.addEventListener("load", async () => {
 
 	// 加载资源
 	const assets = await load();
@@ -258,14 +258,14 @@ window.addEventListener("load", async() => {
 	spheres = createColoredSpheres(scene);
 
 	// 添加模型
-	if(assets.get("helmet")) {
+	if (assets.get("helmet")) {
 
 		const helmet = assets.get("helmet").scene;
 		helmet.scale.set(0.5, 0.5, 0.5);
 		helmet.position.set(0, 1.0, 0);
 		helmet.traverse((child) => {
 
-			if(child.isMesh) {
+			if (child.isMesh) {
 
 				child.castShadow = true;
 				child.receiveShadow = true;
@@ -301,7 +301,6 @@ window.addEventListener("load", async() => {
 	composer.addPass(normalPass);
 
 	// 创建SSDO效果
-	console.log("Creating SSDO Effect with new implementation...");
 	ssdoEffect = new SSDOEffect(composer, camera, scene, {
 		spp: params.sampleCount,
 		rings: params.rings,
@@ -322,10 +321,10 @@ window.addEventListener("load", async() => {
 	params.blendMode = "ADD";
 
 	// 立即应用混合模式
-	if(ssdoEffect && ssdoEffect.blendMode) {
+	if (ssdoEffect && ssdoEffect.blendMode) {
 
 		const blendFunction = BlendFunction.ADD;
-		if(typeof ssdoEffect.blendMode.setBlendFunction === "function") {
+		if (typeof ssdoEffect.blendMode.setBlendFunction === "function") {
 
 			ssdoEffect.blendMode.setBlendFunction(blendFunction);
 
@@ -337,7 +336,6 @@ window.addEventListener("load", async() => {
 
 	}
 
-	console.log("SSDO Effect created:", ssdoEffect);
 
 	// 创建SSDO通道
 	ssdoPass = new EffectPass(camera, ssdoEffect);
@@ -374,7 +372,7 @@ window.addEventListener("load", async() => {
 		fpsMeter.update(timestamp);
 
 		// 处理自动旋转
-		if(params.autoRotate) {
+		if (params.autoRotate) {
 
 			const timer = timestamp * 0.0003;
 			camera.position.x = Math.sin(timer) * 3;
@@ -413,16 +411,15 @@ function updateColorBuffer() {
 	renderer.render(scene, camera);
 
 	// 更新SSDO的颜色纹理
-	if(ssdoEffect && ssdoEffect.aoPass && ssdoEffect.aoPass.fullscreenMaterial) {
+	if (ssdoEffect && ssdoEffect.aoPass && ssdoEffect.aoPass.fullscreenMaterial) {
 
 		ssdoEffect.aoPass.fullscreenMaterial.uniforms.colorTexture.value = colorTarget.texture;
 
 		// 确保USE_COLOR_TEXTURE宏已定义
-		if(!ssdoEffect.aoPass.fullscreenMaterial.defines.USE_COLOR_TEXTURE) {
+		if (!ssdoEffect.aoPass.fullscreenMaterial.defines.USE_COLOR_TEXTURE) {
 
 			ssdoEffect.aoPass.fullscreenMaterial.defines.USE_COLOR_TEXTURE = "";
 			ssdoEffect.aoPass.fullscreenMaterial.needsUpdate = true;
-			console.log("Added USE_COLOR_TEXTURE define to SSDO material");
 
 		}
 
@@ -452,7 +449,7 @@ function setupGUI(pane) {
 		label: "环境光强度"
 	}).on("change", (ev) => {
 
-		if(ambientLight) { ambientLight.intensity = ev.value; }
+		if (ambientLight) { ambientLight.intensity = ev.value; }
 
 	});
 
@@ -461,7 +458,7 @@ function setupGUI(pane) {
 		label: "平行光强度"
 	}).on("change", (ev) => {
 
-		if(directionalLight) { directionalLight.intensity = ev.value; }
+		if (directionalLight) { directionalLight.intensity = ev.value; }
 
 	});
 
@@ -482,17 +479,17 @@ function setupGUI(pane) {
 		label: "混合模式"
 	}).on("change", (ev) => {
 
-		if(ssdoEffect) {
+		if (ssdoEffect) {
 
 			try {
 
 				// 设置新的混合模式 - 支持不同版本的Effect API
 				const blendFunction = BlendFunction[ev.value];
-				if(ssdoEffect.blendMode && typeof ssdoEffect.blendMode.setBlendFunction === "function") {
+				if (ssdoEffect.blendMode && typeof ssdoEffect.blendMode.setBlendFunction === "function") {
 
 					ssdoEffect.blendMode.setBlendFunction(blendFunction);
 
-				} else if(ssdoEffect.blendMode) {
+				} else if (ssdoEffect.blendMode) {
 
 					ssdoEffect.blendMode.blendFunction = blendFunction;
 
@@ -504,7 +501,7 @@ function setupGUI(pane) {
 					composer.renderer.domElement.height
 				);
 
-			} catch(e) {
+			} catch (e) {
 
 				console.warn("设置混合模式失败:", e);
 
@@ -519,7 +516,7 @@ function setupGUI(pane) {
 		label: "采样数量"
 	}).on("change", (ev) => {
 
-		if(ssdoEffect) { ssdoEffect.spp = ev.value; }
+		if (ssdoEffect) { ssdoEffect.spp = ev.value; }
 
 	});
 
@@ -528,7 +525,7 @@ function setupGUI(pane) {
 		label: "环数"
 	}).on("change", (ev) => {
 
-		if(ssdoEffect) { ssdoEffect.rings = ev.value; }
+		if (ssdoEffect) { ssdoEffect.rings = ev.value; }
 
 	});
 
@@ -537,7 +534,7 @@ function setupGUI(pane) {
 		label: "半径"
 	}).on("change", (ev) => {
 
-		if(ssdoEffect) { ssdoEffect.radius = ev.value; }
+		if (ssdoEffect) { ssdoEffect.radius = ev.value; }
 
 	});
 
@@ -546,7 +543,7 @@ function setupGUI(pane) {
 		label: "强度"
 	}).on("change", (ev) => {
 
-		if(ssdoEffect) { ssdoEffect.power = ev.value; }
+		if (ssdoEffect) { ssdoEffect.power = ev.value; }
 
 	});
 
@@ -555,7 +552,7 @@ function setupGUI(pane) {
 		label: "偏差"
 	}).on("change", (ev) => {
 
-		if(ssdoEffect && ssdoEffect.aoPass) {
+		if (ssdoEffect && ssdoEffect.aoPass) {
 
 			ssdoEffect.aoPass.fullscreenMaterial.uniforms.bias.value = ev.value;
 
@@ -579,7 +576,7 @@ function setupGUI(pane) {
 		label: "间接光强度"
 	}).on("change", (ev) => {
 
-		if(ssdoEffect) { ssdoEffect.indirectLightIntensity = ev.value; }
+		if (ssdoEffect) { ssdoEffect.indirectLightIntensity = ev.value; }
 
 	});
 
@@ -588,7 +585,7 @@ function setupGUI(pane) {
 		label: "间接光距离"
 	}).on("change", (ev) => {
 
-		if(ssdoEffect) { ssdoEffect.indirectLightDistance = ev.value; }
+		if (ssdoEffect) { ssdoEffect.indirectLightDistance = ev.value; }
 
 	});
 
@@ -637,7 +634,7 @@ function setupGUI(pane) {
 		label: "效果不透明度"
 	}).on("change", (ev) => {
 
-		if(ssdoEffect) { ssdoEffect.blendMode.opacity.value = ev.value; }
+		if (ssdoEffect) { ssdoEffect.blendMode.opacity.value = ev.value; }
 
 	});
 
@@ -647,7 +644,7 @@ function setupGUI(pane) {
 function updateEffect() {
 
 	// 更新颜色设置
-	if(params.useColor) {
+	if (params.useColor) {
 
 		const color = new Color(
 			params.color.r / 255,
@@ -663,13 +660,13 @@ function updateEffect() {
 	}
 
 	// 更新颜色渗透设置
-	if(!params.colorBleeding) {
+	if (!params.colorBleeding) {
 
 		// 如果不启用色彩渗透，将间接光强度降低但不设为0
 		ssdoEffect.indirectLightIntensity = 0.5; // 保留少量间接光
 
 		// 确保SSDO材质中的设置也更新
-		if(ssdoEffect.aoPass && ssdoEffect.aoPass.fullscreenMaterial) {
+		if (ssdoEffect.aoPass && ssdoEffect.aoPass.fullscreenMaterial) {
 
 			ssdoEffect.aoPass.fullscreenMaterial.uniforms.colorBleeding.value = false;
 			ssdoEffect.aoPass.fullscreenMaterial.uniforms.indirectLightIntensity.value = 0.5;
@@ -681,7 +678,7 @@ function updateEffect() {
 		ssdoEffect.indirectLightIntensity = params.indirectLightIntensity;
 
 		// 确保SSDO材质中的设置也更新
-		if(ssdoEffect.aoPass && ssdoEffect.aoPass.fullscreenMaterial) {
+		if (ssdoEffect.aoPass && ssdoEffect.aoPass.fullscreenMaterial) {
 
 			ssdoEffect.aoPass.fullscreenMaterial.uniforms.colorBleeding.value = true;
 			ssdoEffect.aoPass.fullscreenMaterial.uniforms.indirectLightIntensity.value = params.indirectLightIntensity;
@@ -694,17 +691,17 @@ function updateEffect() {
 	try {
 
 		const opacity = params.effectOpacity;
-		if(ssdoEffect.blendMode && ssdoEffect.blendMode.opacity) {
+		if (ssdoEffect.blendMode && ssdoEffect.blendMode.opacity) {
 
 			ssdoEffect.blendMode.opacity.value = opacity;
 
-		} else if(ssdoEffect.uniforms && ssdoEffect.uniforms.has("opacity")) {
+		} else if (ssdoEffect.uniforms && ssdoEffect.uniforms.has("opacity")) {
 
 			ssdoEffect.uniforms.get("opacity").value = opacity;
 
 		}
 
-	} catch(e) {
+	} catch (e) {
 
 		console.warn("设置不透明度失败:", e);
 
