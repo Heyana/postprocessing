@@ -39,10 +39,6 @@ uniform float nightIntensity;
 // 颜色叠加参数
 uniform vec3 colorOverlay;
 uniform float colorOverlayStrength;
-uniform int colorOverlayAffectsClouds;
-
-// 太阳颜色参数
-uniform vec3 sunColor;
 
 // 配置选项
 #define VOLUMETRIC_LIGHT
@@ -267,9 +263,6 @@ vec3 calcAtmosphericScatter(positionStruct pos, out vec3 absorbLight){
     float dayFactor = smoothstep(-0.15, 0.15, lDotU);
     vec3 finalScatter = (scatterSun * absorbSun + sunSpot) * sunBrightness * intensity;
     
-    // 应用太阳颜色到散射结果
-    finalScatter *= sunColor;
-    
     // 当太阳在地平线下，根据nightIntensity调整夜空亮度
     float nightFactor = (1.0 - dayFactor) * nightIntensity;
     finalScatter = mix(finalScatter * dayFactor, vec3(nightFactor * 0.02), 1.0 - dayFactor);
@@ -301,9 +294,6 @@ vec3 calcAtmosphericScatterTop(positionStruct pos){
     // 使用太阳高度调整散射强度
     float dayFactor = smoothstep(-0.15, 0.15, lDotU);
     vec3 finalScatter = (scatterSun * absorbSun) * sunBrightness * intensity;
-    
-    // 应用太阳颜色到散射结果
-    finalScatter *= sunColor;
     
     // 当太阳在地平线下，根据nightIntensity调整夜空亮度
     float nightFactor = (1.0 - dayFactor) * nightIntensity;
@@ -693,20 +683,6 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
     vec3 color = vec3(0.0);
     color = calcAtmosphericScatter(pos, lightAbsorb);
     
-    // 根据开关决定是否在早期阶段对整体天空色调进行调整
-    if (colorOverlayStrength > 0.0 && colorOverlayAffectsClouds == 1) {
-        vec3 colorTint = colorOverlay;
-        
-        // 使用温和的色调调整，影响整个天空光照系统（包括云层）
-        vec3 tintedColor = color * colorTint;
-        float luminance = dot(color, vec3(0.299, 0.587, 0.114));
-        vec3 tintedColor2 = normalize(colorTint) * luminance * length(colorTint);
-        vec3 finalTint = mix(tintedColor, tintedColor2, 0.4);
-        
-        // 温和地调整整体天空颜色，强度降低避免过度
-        color = mix(color, finalTint, colorOverlayStrength * 0.4);
-    }
-    
     // 检测是否应该渲染夜空场景
     float sunHeight = dot(pos.sunVector, vec3(0.0, 1.0, 0.0));
     float isNight = smoothstep(0.1, -0.1, sunHeight);
@@ -783,34 +759,34 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
     color = calculateVolumetricClouds(pos, color, dither, lightAbsorb);
     color = calculateVolumetricLight(pos, color, dither, lightAbsorb);
     
-    // 优化：统一计算天空遮罩，避免重复
+    // 通过颜色变化检测天空区域并应用颜色叠加
     if (colorOverlayStrength > 0.0) {
-        // 统一计算云层影响度和天空遮罩
+        // 计算云层对颜色的影响程度
         vec3 colorChange = color - originalSkyColor;
         float cloudInfluence = length(colorChange) / (length(originalSkyColor) + 0.001);
+        
+        // 计算天空遮罩：云层影响越大，天空遮罩越小
         float skyMask = 1.0 - clamp(cloudInfluence * 3.0, 0.0, 1.0);
         
-        // 预计算颜色叠加结果
-        vec3 colorTint = colorOverlay;
-        vec3 tintedColor = originalSkyColor * colorTint;
-        float luminance = dot(originalSkyColor, vec3(0.299, 0.587, 0.114));
-        vec3 tintedColor2 = normalize(colorTint) * luminance * length(colorTint);
-        vec3 finalTint = mix(tintedColor, tintedColor2, 0.3);
-        
-        if (colorOverlayAffectsClouds == 0) {
-            // 不影响云层：只对纯天空区域应用
-            if (skyMask > 0.05) {
-                vec3 tintedSky = mix(originalSkyColor, finalTint, colorOverlayStrength);
-                vec3 skyTintDiff = tintedSky - originalSkyColor;
-                color += skyTintDiff * skyMask;
-            }
-        } else {
-            // 影响云层：对纯天空区域额外强化
-            if (skyMask > 0.3) {
-                vec3 tintedSky = mix(originalSkyColor, finalTint, colorOverlayStrength * 0.6);
-                vec3 skyTintDiff = tintedSky - originalSkyColor;
-                color += skyTintDiff * skyMask * skyMask;
-            }
+        // 只对天空区域应用颜色叠加
+        if (skyMask > 0.05) {
+            vec3 colorTint = colorOverlay;
+            
+            // 使用更强烈的颜色叠加算法
+            // 方法1：直接色调偏移（对明亮区域更有效）
+            vec3 tintedColor = originalSkyColor * colorTint;
+            
+            // 方法2：保持亮度，只调整色调  
+            float luminance = dot(originalSkyColor, vec3(0.299, 0.587, 0.114));
+            vec3 tintedColor2 = normalize(colorTint) * luminance * length(colorTint);
+            
+            // 混合两种方法
+            vec3 finalTint = mix(tintedColor, tintedColor2, 0.3);
+            vec3 tintedSky = mix(originalSkyColor, finalTint, colorOverlayStrength);
+            
+            // 应用颜色叠加的差异到最终颜色
+            vec3 skyTintDiff = tintedSky - originalSkyColor;
+            color += skyTintDiff * skyMask;
         }
     }
     

@@ -247,6 +247,104 @@ window.addEventListener("load", () => load().then((assets) => {
 		step: 0.1
 	});
 
+	// 颜色叠加控制
+	const colorOverlayFolder = skyFolder.addFolder({ title: "颜色叠加" });
+
+	// 颜色叠加强度控制
+	colorOverlayFolder.addBinding(skyAtmosphereEffect, "colorOverlayStrength", {
+		label: "叠加强度",
+		min: 0.0,
+		max: 1.0,
+		step: 0.01
+	});
+
+	// 颜色叠加是否影响云层
+	colorOverlayFolder.addBinding(skyAtmosphereEffect, "colorOverlayAffectsClouds", {
+		label: "影响云层"
+	});
+
+	// 颜色叠加参数
+	const colorOverlayParams = {
+		red: 1.0,
+		green: 1.0,
+		blue: 1.0
+	};
+
+	// 更新颜色叠加的函数
+	function updateColorOverlay() {
+		skyAtmosphereEffect.colorOverlay.set(
+			colorOverlayParams.red,
+			colorOverlayParams.green,
+			colorOverlayParams.blue
+		);
+	}
+
+	colorOverlayFolder.addBinding(colorOverlayParams, "red", {
+		label: "红色系数",
+		min: 0.0,
+		max: 3.0,
+		step: 0.05
+	}).on("change", updateColorOverlay);
+
+	colorOverlayFolder.addBinding(colorOverlayParams, "green", {
+		label: "绿色系数",
+		min: 0.0,
+		max: 3.0,
+		step: 0.05
+	}).on("change", updateColorOverlay);
+
+	colorOverlayFolder.addBinding(colorOverlayParams, "blue", {
+		label: "蓝色系数",
+		min: 0.0,
+		max: 10.0,
+		step: 0.05
+	}).on("change", updateColorOverlay);
+
+	// 预设按钮
+	const colorPresets = {
+		bluerSky: function () {
+			colorOverlayParams.red = 0.6;
+			colorOverlayParams.green = 0.8;
+			colorOverlayParams.blue = 1.8;
+			skyAtmosphereEffect.colorOverlayStrength = 0.6;
+			updateColorOverlay();
+		},
+		warmerSunset: function () {
+			colorOverlayParams.red = 2.0;
+			colorOverlayParams.green = 1.3;
+			colorOverlayParams.blue = 0.5;
+			skyAtmosphereEffect.colorOverlayStrength = 0.7;
+			updateColorOverlay();
+		},
+		coolerEvening: function () {
+			colorOverlayParams.red = 0.7;
+			colorOverlayParams.green = 0.9;
+			colorOverlayParams.blue = 1.5;
+			skyAtmosphereEffect.colorOverlayStrength = 0.5;
+			updateColorOverlay();
+		},
+		extremeBlue: function () {
+			colorOverlayParams.red = 0.3;
+			colorOverlayParams.green = 0.6;
+			colorOverlayParams.blue = 2.5;
+			skyAtmosphereEffect.colorOverlayStrength = 0.8;
+			updateColorOverlay();
+		},
+		reset: function () {
+			colorOverlayParams.red = 1.0;
+			colorOverlayParams.green = 1.0;
+			colorOverlayParams.blue = 1.0;
+			skyAtmosphereEffect.colorOverlayStrength = 0.0;
+			updateColorOverlay();
+		}
+	};
+
+	colorOverlayFolder.addButton({ title: "更蓝的天空" }).on("click", colorPresets.bluerSky);
+	colorOverlayFolder.addButton({ title: "极致蓝天" }).on("click", colorPresets.extremeBlue);
+	colorOverlayFolder.addButton({ title: "更暖的日落" }).on("click", colorPresets.warmerSunset);
+	colorOverlayFolder.addButton({ title: "清冷的黄昏" }).on("click", colorPresets.coolerEvening);
+	colorOverlayFolder.addButton({ title: "重置" }).on("click", colorPresets.reset);
+
 	skyFolder.addBinding(skyAtmosphereEffect, "rayleighCoefficient", {
 		label: "瑞利散射系数",
 		min: 0.1,
@@ -374,7 +472,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	}).on("change", (e) => {
 
 		// 如果重新锁定，立即更新月亮位置
-		if(e.value) {
+		if (e.value) {
 
 			updateMoonPosition();
 
@@ -413,7 +511,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		step: 1
 	}).on("change", (e) => {
 
-		if(!moonLockParams.lockToSun) {
+		if (!moonLockParams.lockToSun) {
 
 			updateMoonPosition();
 
@@ -428,7 +526,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		step: 1
 	}).on("change", (e) => {
 
-		if(!moonLockParams.lockToSun) {
+		if (!moonLockParams.lockToSun) {
 
 			updateMoonPosition();
 
@@ -525,6 +623,76 @@ window.addEventListener("load", () => load().then((assets) => {
 		step: 0.1
 	});
 
+	// 太阳颜色控制
+	const sunColorParams = {
+		red: 1.0,
+		green: 1.0,
+		blue: 1.0
+	};
+
+	// 更新太阳颜色的函数
+	function updateSunColor() {
+		skyAtmosphereEffect.sunColor.set(
+			sunColorParams.red,
+			sunColorParams.green,
+			sunColorParams.blue
+		);
+	}
+
+	sunFolder.addBinding(sunColorParams, "red", {
+		label: "太阳红色",
+		min: 0.0,
+		max: 2.0,
+		step: 0.05
+	}).on("change", updateSunColor);
+
+	sunFolder.addBinding(sunColorParams, "green", {
+		label: "太阳绿色",
+		min: 0.0,
+		max: 2.0,
+		step: 0.05
+	}).on("change", updateSunColor);
+
+	sunFolder.addBinding(sunColorParams, "blue", {
+		label: "太阳蓝色",
+		min: 0.0,
+		max: 2.0,
+		step: 0.05
+	}).on("change", updateSunColor);
+
+	// 太阳颜色预设
+	const sunColorPresets = {
+		neutral: function () {
+			sunColorParams.red = 1.0;
+			sunColorParams.green = 1.0;
+			sunColorParams.blue = 1.0;
+			updateSunColor();
+		},
+		warm: function () {
+			sunColorParams.red = 1.3;
+			sunColorParams.green = 1.1;
+			sunColorParams.blue = 0.8;
+			updateSunColor();
+		},
+		cool: function () {
+			sunColorParams.red = 0.9;
+			sunColorParams.green = 1.0;
+			sunColorParams.blue = 1.2;
+			updateSunColor();
+		},
+		sunset: function () {
+			sunColorParams.red = 1.6;
+			sunColorParams.green = 0.9;
+			sunColorParams.blue = 0.6;
+			updateSunColor();
+		}
+	};
+
+	sunFolder.addButton({ title: "中性白光" }).on("click", sunColorPresets.neutral);
+	sunFolder.addButton({ title: "暖色调" }).on("click", sunColorPresets.warm);
+	sunFolder.addButton({ title: "冷色调" }).on("click", sunColorPresets.cool);
+	sunFolder.addButton({ title: "日落色" }).on("click", sunColorPresets.sunset);
+
 	// 初始化太阳位置
 	updateSunPosition();
 
@@ -576,7 +744,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		label: "使用时间控制"
 	}).on("change", (e) => {
 
-		if(e.value) {
+		if (e.value) {
 
 			// 启用时间控制，进行初始更新
 			updateTimeBasedPosition();
@@ -595,7 +763,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		step: 1
 	}).on("change", (e) => {
 
-		if(timeParams.useTimeOfDay) {
+		if (timeParams.useTimeOfDay) {
 
 			updateTimeBasedPosition();
 
@@ -610,7 +778,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		step: 1
 	}).on("change", (e) => {
 
-		if(timeParams.useTimeOfDay) {
+		if (timeParams.useTimeOfDay) {
 
 			updateTimeBasedPosition();
 
@@ -623,7 +791,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		label: "实时更新"
 	}).on("change", (e) => {
 
-		if(e.value) {
+		if (e.value) {
 
 			// 启用实时更新时，立即使用当前真实时间更新
 			const now = new Date();
@@ -649,7 +817,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		step: 1
 	}).on("change", (e) => {
 
-		if(timeParams.useTimeOfDay) {
+		if (timeParams.useTimeOfDay) {
 
 			updateTimeBasedPosition();
 
@@ -664,7 +832,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		step: 1
 	}).on("change", (e) => {
 
-		if(timeParams.useTimeOfDay) {
+		if (timeParams.useTimeOfDay) {
 
 			updateTimeBasedPosition();
 
@@ -674,32 +842,32 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	// 快速位置预设
 	const locations = {
-		tokyo: function() {
+		tokyo: function () {
 
 			timeParams.latitude = 35;
 			timeParams.longitude = 139;
-			if(timeParams.useTimeOfDay) { updateTimeBasedPosition(); }
+			if (timeParams.useTimeOfDay) { updateTimeBasedPosition(); }
 
 		},
-		newYork: function() {
+		newYork: function () {
 
 			timeParams.latitude = 40;
 			timeParams.longitude = -74;
-			if(timeParams.useTimeOfDay) { updateTimeBasedPosition(); }
+			if (timeParams.useTimeOfDay) { updateTimeBasedPosition(); }
 
 		},
-		london: function() {
+		london: function () {
 
 			timeParams.latitude = 51;
 			timeParams.longitude = 0;
-			if(timeParams.useTimeOfDay) { updateTimeBasedPosition(); }
+			if (timeParams.useTimeOfDay) { updateTimeBasedPosition(); }
 
 		},
-		sydney: function() {
+		sydney: function () {
 
 			timeParams.latitude = -33;
 			timeParams.longitude = 151;
-			if(timeParams.useTimeOfDay) { updateTimeBasedPosition(); }
+			if (timeParams.useTimeOfDay) { updateTimeBasedPosition(); }
 
 		}
 	};
@@ -711,7 +879,7 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	// 快速时间预设
 	const times = {
-		dawn: function() {
+		dawn: function () {
 
 			timeParams.hours = 6;
 			timeParams.minutes = 0;
@@ -719,7 +887,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			updateTimeBasedPosition();
 
 		},
-		noon: function() {
+		noon: function () {
 
 			timeParams.hours = 12;
 			timeParams.minutes = 0;
@@ -727,7 +895,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			updateTimeBasedPosition();
 
 		},
-		sunset: function() {
+		sunset: function () {
 
 			timeParams.hours = 18;
 			timeParams.minutes = 0;
@@ -735,7 +903,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			updateTimeBasedPosition();
 
 		},
-		night: function() {
+		night: function () {
 
 			timeParams.hours = 21;
 			timeParams.minutes = 0;
@@ -743,7 +911,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			updateTimeBasedPosition();
 
 		},
-		midnight: function() {
+		midnight: function () {
 
 			timeParams.hours = 0;
 			timeParams.minutes = 0;
@@ -767,7 +935,7 @@ window.addEventListener("load", () => load().then((assets) => {
 		// 更新月亮位置控制文件夹的启用状态
 		moonPosFolder.disabled = e.value;
 		// 如果启用自动更新，立即更新月亮位置
-		if(e.value) {
+		if (e.value) {
 
 			skyAtmosphereEffect.calculateMoonPosition();
 
@@ -789,11 +957,11 @@ window.addEventListener("load", () => load().then((assets) => {
 			moonOffsetParams.z * Math.PI / 180
 		);
 		// 如果启用自动更新，立即更新月亮位置
-		if(skyAtmosphereEffect.autoUpdateMoon) {
+		if (skyAtmosphereEffect.autoUpdateMoon) {
 
 			skyAtmosphereEffect.calculateMoonPosition();
 
-		} else if(moonLockParams.lockToSun) {
+		} else if (moonLockParams.lockToSun) {
 
 			updateMoonPosition();
 
@@ -823,7 +991,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	}).on("change", updateMoonOffset);
 
 	const presets = {
-		daytime: function() {
+		daytime: function () {
 
 			// 如果使用时间控制，关闭它
 			timeParams.useTimeOfDay = false;
@@ -836,7 +1004,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			updateSunPosition();
 
 		},
-		sunset: function() {
+		sunset: function () {
 
 			// 如果使用时间控制，关闭它
 			timeParams.useTimeOfDay = false;
@@ -849,7 +1017,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			updateSunPosition();
 
 		},
-		night: function() {
+		night: function () {
 
 			// 如果使用时间控制，关闭它
 			timeParams.useTimeOfDay = false;
@@ -862,7 +1030,7 @@ window.addEventListener("load", () => load().then((assets) => {
 			updateSunPosition();
 
 		},
-		aurora: function() {
+		aurora: function () {
 
 			// 如果使用时间控制，关闭它
 			timeParams.useTimeOfDay = false;
@@ -961,9 +1129,9 @@ window.addEventListener("load", () => load().then((assets) => {
 		const delta = clock.getDelta();
 
 		// 如果启用了实时更新功能，检查是否需要更新时间
-		if(timeParams.autoUpdate && timeParams.useTimeOfDay) {
+		if (timeParams.autoUpdate && timeParams.useTimeOfDay) {
 
-			if(timestamp - timeParams.lastUpdateTime > timeParams.updateInterval * 1000) {
+			if (timestamp - timeParams.lastUpdateTime > timeParams.updateInterval * 1000) {
 
 				const now = new Date();
 				timeParams.hours = now.getHours();
@@ -1002,7 +1170,7 @@ window.addEventListener("load", () => load().then((assets) => {
 	function updateMoonPosition() {
 
 		// 如果锁定到太阳，计算月亮位置为太阳的反方向
-		if(moonLockParams.lockToSun) {
+		if (moonLockParams.lockToSun) {
 
 			// 计算月亮的高度角和方位角（从太阳下山的地方升起）
 			// 保持方位角相同，但高度角相反
@@ -1010,13 +1178,13 @@ window.addEventListener("load", () => load().then((assets) => {
 			const moonAzimuth = sunParams.azimuth; // 保持相同的方位角
 
 			// 更新UI控件值
-			if(moonPosParams.elevation !== moonElevation) {
+			if (moonPosParams.elevation !== moonElevation) {
 
 				moonPosParams.elevation = moonElevation;
 
 			}
 
-			if(moonPosParams.azimuth !== moonAzimuth) {
+			if (moonPosParams.azimuth !== moonAzimuth) {
 
 				moonPosParams.azimuth = moonAzimuth;
 
