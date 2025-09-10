@@ -336,7 +336,9 @@ float getClouds(vec3 p) {
     if (p.y < cloudHeight || p.y > cloudHeight + cloudThickness)
         return 0.0;
     
-    float timeOffset = time * cloudSpeed * float(animateClouds);
+    // 修复：使用包装的时间值避免精度问题
+    float wrappedTime = fract(time * cloudSpeed * 0.01) * 100.0;
+    float timeOffset = wrappedTime * float(animateClouds);
     vec3 movement = vec3(timeOffset, 0.0, timeOffset);
     
     vec3 cloudCoord = (p * 0.001 * cloudScale) + movement;
@@ -527,7 +529,7 @@ vec2 tri2(in vec2 p){
     return vec2(tri(p.x)+tri(p.y),tri(p.y+tri(p.x)));
 }
 
-// 三角噪声2D - 从shadertoy直接移植
+// 三角噪声2D - 修复精度问题
 float triNoise2d(in vec2 p, float spd)
 {
     float z=1.8;
@@ -535,10 +537,14 @@ float triNoise2d(in vec2 p, float spd)
     float rz = 0.;
     p *= mm2(p.x*0.06);
     vec2 bp = p;
+    
+    // 修复：使用fract保持时间值在合理范围内，避免精度丢失
+    float wrappedTime = fract(time * spd * 0.1) * 10.0;
+    
     for (float i=0.; i<5.; i++ )
     {
         vec2 dg = tri2(bp*1.85)*.75;
-        dg *= mm2(time*spd);
+        dg *= mm2(wrappedTime);
         p -= dg/z2;
 
         bp *= 1.3;
@@ -565,11 +571,12 @@ vec3 nmzHash33(vec3 q)
     return vec3(p^(p >> 16U))*(1.0/vec3(0xffffffffU));
 }
 
-// 星星生成 - 从shadertoy移植，添加与云层一致的移动
+// 星星生成 - 修复精度问题
 vec3 stars(in vec3 p)
 {
-    // 获取与云层一致的移动参数 - 添加较慢的移动给星星
-    float timeOffset = time * cloudSpeed * 0.2 * float(animateClouds);
+    // 修复：使用包装的时间值避免精度问题
+    float wrappedTime = fract(time * cloudSpeed * 0.002) * 500.0;
+    float timeOffset = wrappedTime * 0.2 * float(animateClouds);
     vec3 starMovement = vec3(timeOffset, 0.0, timeOffset);
     
     vec3 c = vec3(0.);
@@ -603,8 +610,9 @@ vec3 bg(in vec3 rd)
 // 极光生成 - 从shadertoy直接移植，增加密度控制
 vec4 aurora(vec3 ro, vec3 rd)
 {
-    // 获取与云层一致的移动参数
-    float timeOffset = time * cloudSpeed * float(animateClouds);
+    // 修复：使用包装的时间值避免精度问题
+    float wrappedTime = fract(time * cloudSpeed * 0.01) * 100.0;
+    float timeOffset = wrappedTime * float(animateClouds);
     vec2 cloudMovement = vec2(timeOffset, timeOffset);
     
     vec4 col = vec4(0);
@@ -744,7 +752,7 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
         // 应用与Shadertoy相同的视角旋转
         vec2 mo = vec2(-0.1, 0.1);      // 模拟Shadertoy中的默认鼠标位置
         rd.yz *= mm2(mo.y);              // 旋转Y-Z平面
-        rd.xz *= mm2(mo.x + sin(time*0.05)*0.2); // 旋转X-Z平面并添加随时间变化的偏移
+        rd.xz *= mm2(mo.x + sin(fract(time*0.005)*2.0*pi)*0.2); // 修复：使用包装时间避免精度问题
         
         vec3 col = vec3(0.0);
         vec3 brd = rd;
