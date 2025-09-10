@@ -46,6 +46,8 @@ export * from "./CustomSSGIEffect.js";
 export * from "./VolumetricFogEffect.js";
 export * from "./SkyAtmosphereEffect.js";
 export * from "./WeatherSystemEffect.js";
+export * from "./RainfallEffect.js";
+export * from "./WeatherManager.js";
 export * from "./FoggyMountainsEffect.js";
 
 export * from "./LakesMountainsEffect.js";

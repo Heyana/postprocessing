@@ -1,7 +1,8 @@
 /**
- * 天空系统演示
+ * 智能天气系统管理器演示
  *
- * 这个演示展示了基于Shadertoy的天空效果
+ * 展示WeatherManager如何统一管理多种天气效果，
+ * 包括天空、降雨、降雪等，以及它们之间的平滑过渡
  */
 
 import * as THREE from "three";
@@ -18,11 +19,12 @@ import {
 	PerspectiveCamera,
 	PlaneGeometry,
 	Scene,
-	TextureLoader,
 	Vector2,
 	Vector3,
 	WebGLRenderer,
-	BoxGeometry
+	BoxGeometry,
+	Color,
+	CylinderGeometry
 } from "three";
 
 import {
@@ -30,7 +32,7 @@ import {
 	EffectComposer,
 	EffectPass,
 	RenderPass,
-	WeatherSystemEffect
+	WeatherManager
 } from "postprocessing";
 
 import { ControlMode, SpatialControls } from "spatial-controls";
@@ -41,19 +43,16 @@ function load() {
 
 	const assets = new Map();
 	const loadingManager = new LoadingManager();
-	const textureLoader = new TextureLoader(loadingManager);
+	// 目前天气管理器不需要额外资源，但保持结构一致性
 
 	return new Promise((resolve, reject) => {
 
 		loadingManager.onLoad = () => resolve(assets);
 		loadingManager.onError = (url) => reject(new Error(`Failed to load ${url}`));
 
-		// 加载噪声纹理
-		textureLoader.load(`${document.baseURI}img/textures/noise/weather-system.png`, (t) => {
-
-			assets.set("noiseTexture", t);
-
-		});
+		// 如果需要加载噪声纹理，可以在这里添加
+		// 但WeatherManager会自动处理这些
+		resolve(assets);
 
 	});
 
@@ -64,63 +63,121 @@ function createScene() {
 
 	const group = new Group();
 
-	// 添加地面
+	// 创建地面
 	const ground = new Mesh(
-		new PlaneGeometry(50, 50, 1, 1),
+		new PlaneGeometry(100, 100, 1, 1),
 		new MeshStandardMaterial({
-			color: 0x333333,
+			color: 0x556633,
 			roughness: 0.8,
 			metalness: 0.1
 		})
 	);
 	ground.rotation.x = -Math.PI / 2;
-	ground.position.y = -2;
+	ground.position.y = -3;
 	ground.receiveShadow = true;
 	group.add(ground);
 
-	// 添加一些立方体建筑
+	// 创建一个小镇场景
 	const buildings = new Group();
 
-	// 大楼1
-	const building1 = new Mesh(
-		new BoxGeometry(2, 6, 2),
-		new MeshStandardMaterial({
-			color: 0x8899aa,
-			roughness: 0.7,
-			metalness: 0.2
-		})
-	);
-	building1.position.set(-5, 1, -5);
-	building1.castShadow = building1.receiveShadow = true;
-	buildings.add(building1);
+	// 主要建筑群
+	const buildingConfigs = [
+		{ size: [4, 12, 4], pos: [-8, 3, -10], color: 0x8899aa },
+		{ size: [3, 8, 3], pos: [8, 1, -8], color: 0xaa9988 },
+		{ size: [5, 6, 3], pos: [-5, 0, 5], color: 0x99aacc },
+		{ size: [2.5, 15, 2.5], pos: [0, 4.5, -15], color: 0xccaa99 },
+		{ size: [6, 4, 4], pos: [10, -1, 8], color: 0x88ccaa },
+		{ size: [3, 10, 2], pos: [-12, 2, 3], color: 0xcc99aa }
+	];
 
-	// 大楼2
-	const building2 = new Mesh(
-		new BoxGeometry(3, 4, 3),
-		new MeshStandardMaterial({
-			color: 0xaa9988,
-			roughness: 0.8,
-			metalness: 0.1
-		})
-	);
-	building2.position.set(5, 0, -3);
-	building2.castShadow = building2.receiveShadow = true;
-	buildings.add(building2);
-
-	// 大楼3
-	const building3 = new Mesh(
-		new BoxGeometry(2, 8, 2),
-		new MeshStandardMaterial({
-			color: 0x99aacc,
-			roughness: 0.6,
-			metalness: 0.3
-		})
-	);
-	building3.position.set(0, 2, -7);
-	building3.castShadow = building3.receiveShadow = true;
-	buildings.add(building3);
+	buildingConfigs.forEach(config => {
+		const building = new Mesh(
+			new BoxGeometry(...config.size),
+			new MeshStandardMaterial({
+				color: config.color,
+				roughness: 0.6,
+				metalness: 0.3
+			})
+		);
+		building.position.set(...config.pos);
+		building.castShadow = building.receiveShadow = true;
+		buildings.add(building);
+	});
 
 	group.add(buildings);
+
+	// 添加树木
+	const trees = new Group();
+	const treePositions = [
+		[-15, -2, -5], [15, -2, -3], [-10, -2, 10],
+		[12, -2, 15], [0, -2, 20], [-20, -2, 0],
+		[18, -2, -10], [-8, -2, 18], [6, -2, -18]
+	];
+
+	treePositions.forEach(pos => {
+		// 树干
+		const trunk = new Mesh(
+			new CylinderGeometry(0.3, 0.4, 3, 8),
+			new MeshStandardMaterial({
+				color: 0x4a4a2a,
+				roughness: 0.9
+			})
+		);
+		trunk.position.set(pos[0], pos[1] + 1.5, pos[2]);
+		trunk.castShadow = trunk.receiveShadow = true;
+		trees.add(trunk);
+
+		// 树冠
+		const foliage = new Mesh(
+			new BoxGeometry(2 + Math.random(), 3 + Math.random(), 2 + Math.random()),
+			new MeshStandardMaterial({
+				color: 0x2d4a2d,
+				roughness: 0.8
+			})
+		);
+		foliage.position.set(pos[0], pos[1] + 4, pos[2]);
+		foliage.castShadow = foliage.receiveShadow = true;
+		trees.add(foliage);
+	});
+
+	group.add(trees);
+
+	// 添加路灯
+	const streetLights = new Group();
+	const lightPositions = [
+		[-6, -2, 0], [6, -2, 0], [0, -2, 12],
+		[-10, -2, -12], [10, -2, -12]
+	];
+
+	lightPositions.forEach(pos => {
+		// 灯杆
+		const pole = new Mesh(
+			new CylinderGeometry(0.1, 0.15, 6, 8),
+			new MeshStandardMaterial({
+				color: 0x333333,
+				roughness: 0.7,
+				metalness: 0.3
+			})
+		);
+		pole.position.set(pos[0], pos[1] + 3, pos[2]);
+		pole.castShadow = pole.receiveShadow = true;
+		streetLights.add(pole);
+
+		// 灯头
+		const light = new Mesh(
+			new BoxGeometry(1, 0.4, 1),
+			new MeshStandardMaterial({
+				color: 0xffffcc,
+				roughness: 0.2,
+				metalness: 0.1,
+				emissive: new Color(0x222211)
+			})
+		);
+		light.position.set(pos[0], pos[1] + 6.2, pos[2]);
+		streetLights.add(light);
+	});
+
+	group.add(streetLights);
 
 	return group;
 
@@ -128,7 +185,7 @@ function createScene() {
 
 window.addEventListener("load", () => load().then((assets) => {
 
-	// 渲染器
+	// 渲染器设置
 	const renderer = new WebGLRenderer({
 		powerPreference: "high-performance",
 		antialias: true,
@@ -152,28 +209,30 @@ window.addEventListener("load", () => load().then((assets) => {
 	settings.rotation.damping = 0.05;
 	settings.zoom.damping = 0.1;
 	settings.translation.enabled = true;
-	controls.position.set(0, 3, 10);
+	controls.position.set(0, 5, 20);
 
-	// 场景、灯光和物体
+	// 场景设置
 	const scene = new Scene();
-	scene.background = new THREE.Color(0x000000); // 黑色背景，让天气效果更明显
+	scene.background = new Color(0x87ceeb); // 初始天空蓝
 
-	// 添加定向光源 - 模拟太阳光
-	const sunPosition = new Vector3(1.0, 0.05, -1.0).normalize().multiplyScalar(10);
+	// 光照设置
 	const directionalLight = new DirectionalLight(0xffffff, 1.0);
-	directionalLight.position.copy(sunPosition);
+	directionalLight.position.set(10, 10, 5);
 	directionalLight.castShadow = true;
 	directionalLight.shadow.mapSize.width = 2048;
 	directionalLight.shadow.mapSize.height = 2048;
 	directionalLight.shadow.camera.near = 0.1;
-	directionalLight.shadow.camera.far = 50;
+	directionalLight.shadow.camera.far = 100;
+	directionalLight.shadow.camera.left = -50;
+	directionalLight.shadow.camera.right = 50;
+	directionalLight.shadow.camera.top = 50;
+	directionalLight.shadow.camera.bottom = -50;
 	scene.add(directionalLight);
 
-	// 添加环境光
-	const ambientLight = new AmbientLight(0x404040, 0.2);
+	const ambientLight = new AmbientLight(0x404040, 0.3);
 	scene.add(ambientLight);
 
-	// 添加场景物体
+	// 添加场景对象
 	const sceneObjects = createScene();
 	scene.add(sceneObjects);
 
@@ -184,155 +243,270 @@ window.addEventListener("load", () => load().then((assets) => {
 	const renderPass = new RenderPass(scene, camera);
 	composer.addPass(renderPass);
 
-	// 创建天气系统效果
-	const weatherSystemEffect = new WeatherSystemEffect({
-		blendFunction: BlendFunction.SCREEN,
-		sunPosition: sunPosition.clone().normalize(),
-		animateEffects: true,
-		intensity: 10.0,
-		cloudiness: 0.5
+	// 创建天气管理器
+	const weatherManager = new WeatherManager({
+		enableTransitions: true,
+		transitionSpeed: 1.0,
+		effectOptions: {
+			sky: {
+				sunPosition: new Vector3(0.3, 0.2, -1).normalize(),
+				fov: 75,
+				enableStars: true,
+				enableMoon: true
+			},
+			rain: {
+				rainColor: 0x87ceeb,
+				windDirection: new Vector2(0.1, 0)
+			},
+			snow: {
+				windDirection: new Vector2(0.05, 0),
+				snowColor: 0xffffff
+			}
+		}
 	});
 
-	// 设置噪声纹理
-	weatherSystemEffect.setNoiseTexture(assets.get("noiseTexture"));
+	// 设置天气管理器的相机
+	weatherManager.effects.sky.setCamera(camera);
 
-	// 添加效果通道
-	const effectPass = new EffectPass(camera, weatherSystemEffect);
-	composer.addPass(effectPass);
+	// 更新后处理管线
+	function updateComposer() {
+		// 移除现有的天气效果
+		while (composer.passes.length > 1) {
+			composer.removePass(composer.passes[1]);
+		}
 
-	// GUI
+		// 添加当前活跃的效果
+		const effects = weatherManager.getEffects();
+		if (effects.length > 0) {
+			const effectPass = new EffectPass(camera, ...effects);
+			composer.addPass(effectPass);
+		}
+	}
+
+	// 初始化天气
+	weatherManager.setWeather('clear', true);
+	updateComposer();
+
+	// GUI控制
 	const pane = new Pane({ container: container.querySelector(".tp") });
 	const fpsMeter = new FPSMeter();
 	const clock = new Clock();
 
-	const folder = pane.addFolder({ title: "设置" });
+	const folder = pane.addFolder({ title: "天气系统管理器" });
 	folder.addBinding(fpsMeter, "fps", { label: "FPS", readonly: true });
 
-	// 天气预设
-	const weatherFolder = folder.addFolder({ title: "天气预设" });
-	const weatherPresets = {
-		"preset": "clear"
+	// 天气选择
+	const weatherFolder = folder.addFolder({ title: "天气控制" });
+
+	const weatherParams = {
+		current: "clear",
+		autoTransition: false
 	};
 
-	weatherFolder.addBinding(weatherPresets, "preset", {
-		label: "预设",
+	weatherFolder.addBinding(weatherParams, "current", {
+		label: "当前天气",
 		options: {
 			"晴天": "clear",
 			"多云": "cloudy",
 			"阴天": "overcast",
-			"暴风雨": "storm"
+			"小雨": "lightRain",
+			"中雨": "rain",
+			"大雨": "heavyRain",
+			"暴风雨": "storm",
+			"小雪": "lightSnow",
+			"中雪": "snow",
+			"大雪": "heavySnow",
+			"暴雪": "blizzard",
+			"大雾": "fog"
 		}
 	}).on("change", (e) => {
-
-		weatherSystemEffect.setWeatherPreset(e.value);
-
+		weatherManager.setWeather(e.value);
+		updateComposer();
 	});
 
-	// 基本参数控制
-	const skyFolder = folder.addFolder({ title: "天空参数" });
-
-	skyFolder.addBinding(weatherSystemEffect, "intensity", {
-		label: "散射强度",
-		min: 1,
-		max: 20,
-		step: 0.1
+	weatherFolder.addBinding(weatherParams, "autoTransition", {
+		label: "自动循环天气"
 	});
 
-	skyFolder.addBinding(weatherSystemEffect, "cloudiness", {
-		label: "云层密度",
+	// 过渡控制
+	const transitionFolder = folder.addFolder({ title: "过渡控制" });
+
+	transitionFolder.addBinding(weatherManager, "enableTransitions", {
+		label: "启用过渡动画"
+	});
+
+	const transitionParams = { speed: 1.0 };
+	transitionFolder.addBinding(transitionParams, "speed", {
+		label: "过渡速度",
 		min: 0.1,
-		max: 5.0,
+		max: 3.0,
 		step: 0.1
+	}).on("change", (e) => {
+		weatherManager.setTransitionSpeed(e.value);
 	});
 
-	skyFolder.addBinding(weatherSystemEffect, "animateEffects", {
-		label: "云层动画"
-	});
-
-	// 太阳位置控制
-	const sunFolder = folder.addFolder({ title: "太阳位置" });
-
-	const sunParams = {
-		elevation: 5,
-		azimuth: 175
+	// 显示过渡状态
+	const statusParams = {
+		currentWeather: "晴天",
+		isTransitioning: false,
+		progress: 1.0
 	};
 
-	// 更新太阳位置的函数
-	function updateSunPosition() {
+	transitionFolder.addBinding(statusParams, "currentWeather", {
+		label: "当前状态",
+		readonly: true
+	});
 
-		const phi = THREE.MathUtils.degToRad(90 - sunParams.elevation);
-		const theta = THREE.MathUtils.degToRad(sunParams.azimuth);
+	transitionFolder.addBinding(statusParams, "isTransitioning", {
+		label: "正在过渡",
+		readonly: true
+	});
 
-		const x = Math.sin(phi) * Math.cos(theta);
-		const y = Math.cos(phi);
-		const z = Math.sin(phi) * Math.sin(theta);
+	transitionFolder.addBinding(statusParams, "progress", {
+		label: "过渡进度",
+		readonly: true,
+		format: (v) => (v * 100).toFixed(1) + "%"
+	});
 
-		weatherSystemEffect.sunPosition.set(x, y, z).normalize();
-		directionalLight.position.copy(weatherSystemEffect.sunPosition.clone().multiplyScalar(10));
+	// 快速切换按钮
+	const quickAccessFolder = folder.addFolder({ title: "快速切换" });
 
-	}
+	const quickButtons = {
+		sunny: () => {
+			weatherManager.setWeather('clear');
+			weatherParams.current = 'clear';
+			updateComposer();
+		},
+		rainy: () => {
+			weatherManager.setWeather('rain');
+			weatherParams.current = 'rain';
+			updateComposer();
+		},
+		snowy: () => {
+			weatherManager.setWeather('snow');
+			weatherParams.current = 'snow';
+			updateComposer();
+		},
+		stormy: () => {
+			weatherManager.setWeather('storm');
+			weatherParams.current = 'storm';
+			updateComposer();
+		},
+		foggy: () => {
+			weatherManager.setWeather('fog');
+			weatherParams.current = 'fog';
+			updateComposer();
+		}
+	};
 
-	sunFolder.addBinding(sunParams, "elevation", {
-		label: "高度角",
-		min: -10,
-		max: 90,
-		step: 1
-	}).on("change", updateSunPosition);
+	Object.entries({
+		sunny: "☀️ 晴天",
+		rainy: "🌧️ 雨天",
+		snowy: "🌨️ 雪天",
+		stormy: "⛈️ 暴风雨",
+		foggy: "🌫️ 大雾"
+	}).forEach(([key, label]) => {
+		quickAccessFolder.addButton({
+			title: label
+		}).on("click", () => {
+			quickButtons[key]();
+		});
+	});
 
-	sunFolder.addBinding(sunParams, "azimuth", {
-		label: "方位角",
-		min: 0,
-		max: 360,
-		step: 1
-	}).on("change", updateSunPosition);
+	// 场景环境控制
+	const sceneFolder = folder.addFolder({ title: "场景设置" });
+
+	const sceneParams = {
+		lightIntensity: 1.0,
+		ambientIntensity: 0.3,
+		autoAdjustLighting: true
+	};
+
+	sceneFolder.addBinding(sceneParams, "lightIntensity", {
+		label: "主光源强度",
+		min: 0.1,
+		max: 2.0,
+		step: 0.1
+	}).on("change", (e) => {
+		if (!sceneParams.autoAdjustLighting) {
+			directionalLight.intensity = e.value;
+		}
+	});
+
+	sceneFolder.addBinding(sceneParams, "ambientIntensity", {
+		label: "环境光强度",
+		min: 0.0,
+		max: 1.0,
+		step: 0.1
+	}).on("change", (e) => {
+		ambientLight.intensity = e.value;
+	});
+
+	sceneFolder.addBinding(sceneParams, "autoAdjustLighting", {
+		label: "自动调整光照"
+	});
 
 	// 混合模式控制
 	const blendModeOptions = {
 		"SCREEN": BlendFunction.SCREEN,
 		"ADD": BlendFunction.ADD,
 		"NORMAL": BlendFunction.NORMAL,
+		"ALPHA": BlendFunction.ALPHA,
 		"OVERLAY": BlendFunction.OVERLAY
 	};
 
-	skyFolder.addBinding({ blendMode: BlendFunction.SCREEN }, "blendMode", {
+	folder.addBinding({ blendMode: BlendFunction.SCREEN }, "blendMode", {
 		label: "混合模式",
 		options: blendModeOptions
 	}).on("change", (e) => {
-
-		weatherSystemEffect.blendMode.setBlendFunction(e.value);
-
+		const effects = weatherManager.getEffects();
+		effects.forEach(effect => {
+			if (effect.blendMode && effect.blendMode.setBlendFunction) {
+				effect.blendMode.setBlendFunction(e.value);
+			}
+		});
 	});
 
-	// 启用/禁用效果
-	const params = {
-		enableEffect: true
-	};
-
-	folder.addBinding(params, "enableEffect", {
-		label: "启用天空效果"
+	// 效果开关
+	const enableParams = { enableWeatherSystem: true };
+	folder.addBinding(enableParams, "enableWeatherSystem", {
+		label: "启用天气系统"
 	}).on("change", (e) => {
-
-		weatherSystemEffect.blendMode.opacity.value = e.value ? 1.0 : 0.0;
-
+		const effects = weatherManager.getEffects();
+		effects.forEach(effect => {
+			if (effect.blendMode && effect.blendMode.opacity) {
+				effect.blendMode.opacity.value = e.value ? 1.0 : 0.0;
+			}
+		});
 	});
 
-	// 调整窗口大小
-	function onResize() {
+	// 自动天气循环
+	let autoWeatherTimer = 0;
+	const autoWeatherInterval = 15; // 15秒切换一次
+	let currentWeatherIndex = 0;
+	const weatherTypes = weatherManager.getAvailableWeatherTypes();
 
+	// 窗口大小调整
+	function onResize() {
 		const width = container.clientWidth;
 		const height = container.clientHeight;
 		const aspect = width / height;
 
-		// 更新相机
 		camera.fov = calculateVerticalFoV(90, aspect);
 		camera.aspect = aspect;
 		camera.updateProjectionMatrix();
 
-		// 更新渲染器和效果合成器
 		renderer.setSize(width, height);
 		renderer.setPixelRatio(window.devicePixelRatio.toFixed(1));
 		composer.setSize(width, height);
 
+		// 更新天气效果尺寸
+		const effects = weatherManager.getEffects();
+		effects.forEach(effect => {
+			if (effect.setSize) {
+				effect.setSize(width, height);
+			}
+		});
 	}
 
 	window.addEventListener("resize", onResize);
@@ -340,17 +514,59 @@ window.addEventListener("load", () => load().then((assets) => {
 
 	// 渲染循环
 	requestAnimationFrame(function render(timestamp) {
-
 		fpsMeter.update(timestamp);
 		const delta = clock.getDelta();
 
 		// 更新控制器
 		controls.update(timestamp, delta);
 
+		// 更新天气系统
+		weatherManager.update(delta);
+
+		// 自动天气循环
+		if (weatherParams.autoTransition) {
+			autoWeatherTimer += delta;
+			if (autoWeatherTimer >= autoWeatherInterval) {
+				currentWeatherIndex = (currentWeatherIndex + 1) % weatherTypes.length;
+				const newWeather = weatherTypes[currentWeatherIndex];
+				weatherManager.setWeather(newWeather);
+				updateComposer();
+				weatherParams.current = newWeather;
+				autoWeatherTimer = 0;
+			}
+		}
+
+		// 更新状态显示
+		const currentWeather = weatherManager.getCurrentWeather();
+		const weatherInfo = weatherManager.getWeatherInfo(currentWeather);
+		statusParams.currentWeather = weatherInfo ? weatherInfo.name : currentWeather;
+		statusParams.isTransitioning = weatherManager.isTransitioning();
+		statusParams.progress = weatherManager.getTransitionProgress();
+
+		// 自动调整光照（根据天气）
+		if (sceneParams.autoAdjustLighting) {
+			const weatherType = currentWeather;
+			if (weatherType.includes('storm') || weatherType === 'heavyRain') {
+				directionalLight.intensity = 0.4;
+				scene.background.setRGB(0.2, 0.2, 0.25);
+			} else if (weatherType.includes('rain') || weatherType === 'overcast') {
+				directionalLight.intensity = 0.6;
+				scene.background.setRGB(0.4, 0.4, 0.45);
+			} else if (weatherType.includes('snow') || weatherType === 'fog') {
+				directionalLight.intensity = 0.7;
+				scene.background.setRGB(0.7, 0.7, 0.8);
+			} else if (weatherType === 'clear') {
+				directionalLight.intensity = 1.0;
+				scene.background.setRGB(0.53, 0.81, 0.92);
+			} else {
+				directionalLight.intensity = 0.8;
+				scene.background.setRGB(0.6, 0.7, 0.8);
+			}
+		}
+
 		// 渲染场景
 		composer.render(delta);
 		requestAnimationFrame(render);
-
 	});
 
 }));
