@@ -129,6 +129,17 @@ export class EffectComposer {
 
 		this.autoRenderToScreen = true;
 
+		/**
+		 * 后处理分辨率缩放比例。
+		 * 值为1.0表示使用完整分辨率，0.5表示使用一半分辨率。
+		 * 这可以显著提高性能，特别是在高DPI设备上。
+		 *
+		 * @type {Number}
+		 * @private
+		 */
+
+		this._postProcessingResolutionScale = 1.0;
+
 		this.setRenderer(renderer);
 
 	}
@@ -159,14 +170,14 @@ export class EffectComposer {
 		const buffer = this.inputBuffer;
 		const multisampling = this.multisampling;
 
-		if(multisampling > 0 && value > 0) {
+		if (multisampling > 0 && value > 0) {
 
 			this.inputBuffer.samples = value;
 			this.outputBuffer.samples = value;
 			this.inputBuffer.dispose();
 			this.outputBuffer.dispose();
 
-		} else if(multisampling !== value) {
+		} else if (multisampling !== value) {
 
 			this.inputBuffer.dispose();
 			this.outputBuffer.dispose();
@@ -181,6 +192,53 @@ export class EffectComposer {
 
 			this.inputBuffer.depthTexture = this.depthTexture;
 			this.outputBuffer = this.inputBuffer.clone();
+
+		}
+
+	}
+
+	/**
+	 * 获取后处理分辨率缩放比例。
+	 *
+	 * @type {Number}
+	 */
+
+	get postProcessingResolutionScale() {
+
+		return this._postProcessingResolutionScale;
+
+	}
+
+	/**
+	 * 设置后处理分辨率缩放比例。
+	 * 
+	 * 值为1.0表示使用完整分辨率，0.5表示使用一半分辨率。
+	 * 这可以显著提高性能，特别是在高DPI设备上。
+	 * 
+	 * 注意：修改此值后需要调用 setSize() 来更新所有后处理通道的分辨率。
+	 *
+	 * @type {Number}
+	 */
+
+	set postProcessingResolutionScale(value) {
+
+		if (value <= 0) {
+
+			throw new Error("后处理分辨率缩放比例必须大于0");
+
+		}
+
+		if (this._postProcessingResolutionScale !== value) {
+
+			this._postProcessingResolutionScale = value;
+
+			// 自动更新所有后处理通道的分辨率
+			if (this.renderer) {
+
+				const currentSize = this.renderer.getSize(new Vector2());
+				this.setSize(currentSize.width, currentSize.height);
+
+			}
 
 		}
 
@@ -220,13 +278,13 @@ export class EffectComposer {
 
 		this.renderer = renderer;
 
-		if(renderer !== null) {
+		if (renderer !== null) {
 
 			const size = renderer.getSize(new Vector2());
 			const alpha = renderer.getContext().getContextAttributes().alpha;
 			const frameBufferType = this.inputBuffer.texture.type;
 
-			if(frameBufferType === UnsignedByteType && renderer.outputColorSpace === SRGBColorSpace) {
+			if (frameBufferType === UnsignedByteType && renderer.outputColorSpace === SRGBColorSpace) {
 
 				this.inputBuffer.texture.colorSpace = SRGBColorSpace;
 				this.outputBuffer.texture.colorSpace = SRGBColorSpace;
@@ -239,7 +297,7 @@ export class EffectComposer {
 			renderer.autoClear = false;
 			this.setSize(size.width, size.height);
 
-			for(const pass of this.passes) {
+			for (const pass of this.passes) {
 
 				pass.initialize(renderer, alpha, frameBufferType);
 
@@ -273,7 +331,7 @@ export class EffectComposer {
 
 		this.setRenderer(renderer);
 
-		if(updateDOM && parent !== null) {
+		if (updateDOM && parent !== null) {
 
 			parent.removeChild(oldRenderer.domElement);
 			parent.appendChild(renderer.domElement);
@@ -302,7 +360,7 @@ export class EffectComposer {
 		this.inputBuffer.depthTexture = depthTexture;
 		this.inputBuffer.dispose();
 
-		if(this.inputBuffer.stencilBuffer) {
+		if (this.inputBuffer.stencilBuffer) {
 
 			depthTexture.format = DepthStencilFormat;
 			depthTexture.type = UnsignedInt248Type;
@@ -319,7 +377,7 @@ export class EffectComposer {
 
 	createNormalTarget() {
 
-		if(this.normalTarget) {
+		if (this.normalTarget) {
 
 			return this.normalTarget;
 
@@ -346,7 +404,7 @@ export class EffectComposer {
 
 	deleteDepthTexture() {
 
-		if(this.depthTexture !== null) {
+		if (this.depthTexture !== null) {
 
 			this.depthTexture.dispose();
 			this.depthTexture = null;
@@ -355,7 +413,7 @@ export class EffectComposer {
 			this.inputBuffer.depthTexture = null;
 			this.inputBuffer.dispose();
 
-			for(const pass of this.passes) {
+			for (const pass of this.passes) {
 
 				pass.setDepthTexture(null);
 
@@ -391,19 +449,19 @@ export class EffectComposer {
 
 		const renderTarget = new WebGLRenderTarget(size.width, size.height, options);
 
-		if(!renderTarget.textures) {
+		if (!renderTarget.textures) {
 
 			renderTarget.textures = [];
 
 		}
-		if(multisampling > 0) {
+		if (multisampling > 0) {
 
 			renderTarget.ignoreDepthForMultisampleCopy = false;
 			renderTarget.samples = multisampling;
 
 		}
 
-		if(type === UnsignedByteType && renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
+		if (type === UnsignedByteType && renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
 
 			renderTarget.texture.colorSpace = SRGBColorSpace;
 
@@ -425,7 +483,7 @@ export class EffectComposer {
 	scene = null;
 	setMainScene(scene) {
 
-		for(const pass of this.passes) {
+		for (const pass of this.passes) {
 
 			pass.mainScene = scene;
 
@@ -442,7 +500,7 @@ export class EffectComposer {
 
 	setMainCamera(camera) {
 
-		for(const pass of this.passes) {
+		for (const pass of this.passes) {
 
 			pass.mainCamera = camera;
 
@@ -470,15 +528,15 @@ export class EffectComposer {
 		pass.setSize(drawingBufferSize.width, drawingBufferSize.height);
 		pass.initialize(renderer, alpha, frameBufferType);
 
-		if(this.autoRenderToScreen) {
+		if (this.autoRenderToScreen) {
 
-			if(passes.length > 0) {
+			if (passes.length > 0) {
 
 				passes[passes.length - 1].renderToScreen = false;
 
 			}
 
-			if(pass.renderToScreen) {
+			if (pass.renderToScreen) {
 
 				this.autoRenderToScreen = false;
 
@@ -486,7 +544,7 @@ export class EffectComposer {
 
 		}
 
-		if(index !== undefined) {
+		if (index !== undefined) {
 
 			passes.splice(index, 0, pass);
 
@@ -496,19 +554,19 @@ export class EffectComposer {
 
 		}
 
-		if(this.autoRenderToScreen) {
+		if (this.autoRenderToScreen) {
 
 			passes[passes.length - 1].renderToScreen = true;
 
 		}
 
-		if(pass.needsDepthTexture || this.depthTexture !== null) {
+		if (pass.needsDepthTexture || this.depthTexture !== null) {
 
-			if(this.depthTexture === null) {
+			if (this.depthTexture === null) {
 
 				const depthTexture = this.createDepthTexture();
 
-				for(pass of passes) {
+				for (pass of passes) {
 
 					pass.setDepthTexture(depthTexture);
 
@@ -537,17 +595,17 @@ export class EffectComposer {
 		const exists = (index !== -1);
 		const removed = exists && (passes.splice(index, 1).length > 0);
 
-		if(removed) {
+		if (removed) {
 
-			if(this.depthTexture !== null) {
+			if (this.depthTexture !== null) {
 
 				// Check if the depth texture is still required.
 				const reducer = (a, b) => (a || b.needsDepthTexture);
 				const depthTextureRequired = passes.reduce(reducer, false);
 
-				if(!depthTextureRequired) {
+				if (!depthTextureRequired) {
 
-					if(pass.getDepthTexture() === this.depthTexture) {
+					if (pass.getDepthTexture() === this.depthTexture) {
 
 						pass.setDepthTexture(null);
 
@@ -559,14 +617,14 @@ export class EffectComposer {
 
 			}
 
-			if(this.autoRenderToScreen) {
+			if (this.autoRenderToScreen) {
 
 				// Check if the removed pass was the last one.
-				if(index === passes.length) {
+				if (index === passes.length) {
 
 					pass.renderToScreen = false;
 
-					if(passes.length > 0) {
+					if (passes.length > 0) {
 
 						passes[passes.length - 1].renderToScreen = true;
 
@@ -590,9 +648,9 @@ export class EffectComposer {
 
 		this.deleteDepthTexture();
 
-		if(passes.length > 0) {
+		if (passes.length > 0) {
 
-			if(this.autoRenderToScreen) {
+			if (this.autoRenderToScreen) {
 
 				passes[passes.length - 1].renderToScreen = false;
 
@@ -626,7 +684,7 @@ export class EffectComposer {
 		// 用于存储深度通道的引用和深度纹理
 		let depthPass = this.depthPass;
 
-		if(deltaTime === undefined) {
+		if (deltaTime === undefined) {
 
 			this.timer.update();
 			deltaTime = this.timer.getDelta();
@@ -647,7 +705,7 @@ export class EffectComposer {
 		const effectPassOpts = effectPassUtils.getRenderOpts();
 
 		const renderPasses = this.passes[0];
-		if(renderPasses.isRenderPass) {
+		if (renderPasses.isRenderPass) {
 
 			const res = renderPasses.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass, {
 				// normalsRenderTarget: this.createNormalTarget(),
@@ -670,18 +728,18 @@ export class EffectComposer {
 		// 	}
 		// });
 
-		for(const pass of this.passes) {
+		for (const pass of this.passes) {
 
-			if(pass.enabled && !pass.isRenderPass) {
+			if (pass.enabled && !pass.isRenderPass) {
 
 
 				// 传递深度通道作为额外参数
 				pass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass, effectPassOpts);
 
 
-				if(pass.needsSwap) {
+				if (pass.needsSwap) {
 
-					if(stencilTest) {
+					if (stencilTest) {
 
 						copyPass.renderToScreen = pass.renderToScreen;
 						context = renderer.getContext();
@@ -700,11 +758,11 @@ export class EffectComposer {
 
 				}
 
-				if(pass instanceof MaskPass) {
+				if (pass instanceof MaskPass) {
 
 					stencilTest = true;
 
-				} else if(pass instanceof ClearMaskPass) {
+				} else if (pass instanceof ClearMaskPass) {
 
 					stencilTest = false;
 
@@ -737,14 +795,14 @@ export class EffectComposer {
 		const renderer = this.renderer;
 		const currentSize = renderer.getSize(new Vector2());
 
-		if(width === undefined || height === undefined) {
+		if (width === undefined || height === undefined) {
 
 			width = currentSize.width;
 			height = currentSize.height;
 
 		}
 
-		if(currentSize.width !== width || currentSize.height !== height) {
+		if (currentSize.width !== width || currentSize.height !== height) {
 
 			// Update the logical render size.
 			renderer.setSize(width, height, updateStyle);
@@ -757,22 +815,30 @@ export class EffectComposer {
 		this.outputBuffer.setSize(drawingBufferSize.width, drawingBufferSize.height);
 
 		// 调整 normalTarget 的大小
-		if(this.normalTarget !== null) {
+		if (this.normalTarget !== null) {
 
 			this.normalTarget.setSize(drawingBufferSize.width, drawingBufferSize.height);
 
 		}
 
-		for(const pass of this.passes) {
+		// 计算后处理使用的分辨率（应用缩放比例）
+		const postProcessingWidth = Math.max(1, Math.round(drawingBufferSize.width * this._postProcessingResolutionScale));
+		const postProcessingHeight = Math.max(1, Math.round(drawingBufferSize.height * this._postProcessingResolutionScale));
 
-			pass.setSize(drawingBufferSize.width, drawingBufferSize.height);
+		for (const pass of this.passes) {
+
+			console.log('Log-- ', pass.useRealSize, 'pass.useRealSize');
+			if (pass.useRealSize) {
+				pass.setSize(drawingBufferSize.width, drawingBufferSize.height);
+			} else {
+				pass.setSize(postProcessingWidth, postProcessingHeight);
+			}
 
 		}
 
 	}
 
 	/**
-	 * Resets this composer by deleting all passes and creating new buffers.
 	 */
 
 	reset() {
@@ -788,7 +854,7 @@ export class EffectComposer {
 
 	dispose() {
 
-		for(const pass of this.passes) {
+		for (const pass of this.passes) {
 
 			pass.dispose();
 
@@ -796,13 +862,13 @@ export class EffectComposer {
 
 		this.passes = [];
 
-		if(this.inputBuffer !== null) {
+		if (this.inputBuffer !== null) {
 
 			this.inputBuffer.dispose();
 
 		}
 
-		if(this.outputBuffer !== null) {
+		if (this.outputBuffer !== null) {
 
 			this.outputBuffer.dispose();
 

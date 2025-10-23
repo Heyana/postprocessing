@@ -70,6 +70,9 @@ export class RenderPass extends Pass {
 
 		this.selection = null;
 
+
+		this.useRealSize = true
+
 	}
 
 	set mainScene(value) {
@@ -114,9 +117,9 @@ export class RenderPass extends Pass {
 
 		const manager = this.overrideMaterialManager;
 
-		if(value !== null) {
+		if (value !== null) {
 
-			if(manager !== null) {
+			if (manager !== null) {
 
 				manager.setMaterial(value);
 
@@ -126,7 +129,7 @@ export class RenderPass extends Pass {
 
 			}
 
-		} else if(manager !== null) {
+		} else if (manager !== null) {
 
 			manager.dispose();
 			this.overrideMaterialManager = null;
@@ -296,25 +299,25 @@ export class RenderPass extends Pass {
 		// 获取场景中第一个子对象的类名（如果存在）
 
 
-		if(selection !== null) {
+		if (selection !== null) {
 
 			camera.layers.set(selection.getLayer());
 
 		}
 
-		if(this.skipShadowMapUpdate) {
+		if (this.skipShadowMapUpdate) {
 
 			renderer.shadowMap.autoUpdate = false;
 
 		}
 
-		if(this.ignoreBackground || this.clearPass.overrideClearColor !== null) {
+		if (this.ignoreBackground || this.clearPass.overrideClearColor !== null) {
 
 			scene.background = null;
 
 		}
 
-		if(this.clearPass.enabled) {
+		if (this.clearPass.enabled) {
 
 			this.clearPass.render(renderer, inputBuffer);
 
@@ -322,7 +325,7 @@ export class RenderPass extends Pass {
 
 		renderer.setRenderTarget(renderTarget);
 
-		if(this.overrideMaterialManager !== null) {
+		if (this.overrideMaterialManager !== null) {
 
 			renderResult = this.overrideMaterialManager.render(renderer, scene, camera, renderOpts);
 
