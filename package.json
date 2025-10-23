@@ -1,6 +1,6 @@
 {
   "name": "postprocessing-fork",
-  "version": "6.37.4",
+  "version": "6.37.7",
   "description": "A post processing library for three.js.",
   "homepage": "https://github.com/pmndrs/postprocessing",
   "license": "Zlib",
@@ -124,8 +124,6 @@
     "typescript": "5.8.x"
   },
   "dependencies": {
-    "@dgreenheck/ez-tree": "^1.0.0",
-    "postprocessing": "^6.37.1",
-    "three": "0.165.0"
+    "run-scene-core": "^0.168.0"
   }
 }

@@ -8,7 +8,13 @@ const pkg = require("./package");
 
 const minify = process.argv.includes("-m");
 const plugins = [glsl({ minify })];
-const external = ["three", "spatial-controls", "run-scene-core", "tweakpane"];
+const external = ["spatial-controls", "run-scene-core", "tweakpane"];
+
+// 添加别名配置，将 three 重定向到 run-scene-core，postprocessing 指向项目自身
+const alias = {
+	"three": "run-scene-core",
+	"postprocessing": "./src/index.js"
+};
 
 const date = new Date();
 const banner = `/**
@@ -37,6 +43,7 @@ const demo = {
 	format: "iife",
 	bundle: true,
 	plugins,
+	alias,
 	minify
 };
 
@@ -50,6 +57,7 @@ const manual = {
 	bundle: true,
 	external,
 	plugins,
+	alias,
 	minify
 };
 
@@ -61,6 +69,7 @@ await esbuild.build({
 	logLevel: "info",
 	format: "iife",
 	bundle: true,
+	alias,
 	minify
 });
 
@@ -90,7 +99,8 @@ await esbuild.build({
 	target: "es2019",
 	bundle: true,
 	external,
-	plugins
+	plugins,
+	alias
 });
 
 // @todo Remove in next major release.
@@ -104,7 +114,8 @@ await esbuild.build({
 	target: "es2019",
 	bundle: true,
 	external,
-	plugins
+	plugins,
+	alias
 });
 
 const globalName = pkg.name.replace(/-/g, "").toUpperCase();
@@ -122,7 +133,8 @@ await esbuild.build({
 	bundle: true,
 	globalName,
 	external,
-	plugins
+	plugins,
+	alias
 });
 
 await esbuild.build({
@@ -137,5 +149,6 @@ await esbuild.build({
 	globalName,
 	external,
 	plugins,
+	alias,
 	minify
 });

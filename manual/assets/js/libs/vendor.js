@@ -3,7 +3,6 @@
  */
 
 export * from "run-scene-core";
-export * from '@dgreenheck/ez-tree'
 export { GLTFLoader } from "run-scene-core/examples/jsm/loaders/GLTFLoader.js";
 
 export { EffectComposer } from 'run-scene-core/addons/postprocessing/EffectComposer.js'
