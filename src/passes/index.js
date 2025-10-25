@@ -8,6 +8,7 @@ export * from "./DepthDownsamplingPass.js";
 export * from "./DepthPickingPass.js";
 export * from "./DepthCopyPass.js";
 export * from "./EffectPass.js";
+export * from "./GBufferPass.js";
 export * from "./GaussianBlurPass.js";
 export * from "./KawaseBlurPass.js";
 export * from "./LambdaPass.js";
@@ -22,6 +23,7 @@ export * from "./ShaderPass.js";
 export * from "./ThreeCompatPass.js";
 export * from "./TiltShiftBlurPass.js";
 export * from "./EnhancedThreeCompatPass.js";
+
 export * from "./SSRCompatPass.js";
 /** @deprecated Renamed to CopyPass. */
 export { CopyPass as SavePass } from "./CopyPass.js";

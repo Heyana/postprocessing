@@ -85,7 +85,7 @@ export class PoissionDenoisePass extends Pass {
 		});
 
 		// 检查着色器是否包含亮度阈值定义
-		if(!this.fullscreenMaterial.fragmentShader.includes("IGNORE_BRIGHTNESS_THRESHOLD")) {
+		if (!this.fullscreenMaterial.fragmentShader.includes("IGNORE_BRIGHTNESS_THRESHOLD")) {
 
 			console.warn("警告: 降噪着色器中未找到亮度阈值定义，忽略高亮物体功能可能无法正常工作");
 
@@ -112,7 +112,7 @@ export class PoissionDenoisePass extends Pass {
 		uniforms.depthPhi.value = options.depthPhi;
 		uniforms.normalPhi.value = options.normalPhi;
 
-		if(options.normalTexture) {
+		if (options.normalTexture) {
 
 			uniforms.normalTexture.value = options.normalTexture;
 
@@ -123,7 +123,7 @@ export class PoissionDenoisePass extends Pass {
 		} // these properties need the shader to be recompiled
 
 
-		for(const prop of ["radius", "rings", "samples"]) {
+		for (const prop of ["radius", "rings", "samples"]) {
 
 			Object.defineProperty(this, prop, {
 				get: () => options[prop],
@@ -164,7 +164,7 @@ export class PoissionDenoisePass extends Pass {
 		// 重新处理着色器，确保保留亮度阈值定义
 		let processedFragmentShader = fragmentShader;
 		// 确保替换的是未处理的sampleBlueNoise标记
-		if(processedFragmentShader.includes("#include <sampleBlueNoise>")) {
+		if (processedFragmentShader.includes("#include <sampleBlueNoise>")) {
 
 			processedFragmentShader = processedFragmentShader.replace("#include <sampleBlueNoise>", sampleBlueNoise);
 
@@ -175,7 +175,7 @@ export class PoissionDenoisePass extends Pass {
 		this.fullscreenMaterial.needsUpdate = true;
 
 		// 再次检查是否保留了亮度阈值定义
-		if(!this.fullscreenMaterial.fragmentShader.includes("IGNORE_BRIGHTNESS_THRESHOLD")) {
+		if (!this.fullscreenMaterial.fragmentShader.includes("IGNORE_BRIGHTNESS_THRESHOLD")) {
 
 			console.warn("警告: 在setSize后，降噪着色器中未找到亮度阈值定义");
 
@@ -194,7 +194,7 @@ export class PoissionDenoisePass extends Pass {
 		this.fullscreenMaterial.uniforms.index.value = 0;
 		const noiseTexture = this.fullscreenMaterial.uniforms.blueNoiseTexture.value;
 
-		if(noiseTexture) {
+		if (noiseTexture) {
 
 			const {
 				width,
@@ -204,7 +204,7 @@ export class PoissionDenoisePass extends Pass {
 
 		}
 
-		for(let i = 0; i < 2 * this.iterations; i++) {
+		for (let i = 0; i < 2 * this.iterations; i++) {
 
 			const horizontal = i % 2 === 0;
 			const inputRenderTarget = horizontal ? this.renderTargetB : this.renderTargetA;

@@ -38,6 +38,7 @@ export * from "./SMAAEffect.js";
 export * from "./SnowOverlayEffect.js";
 export * from "./SnowfallEffect.js";
 export * from "./SSAOEffect.js";
+export * from "./SSAOEffectGBufferEnhanced.js";
 export * from "./TextureEffect.js";
 export * from "./TiltShiftEffect.js";
 export * from "./ToneMappingEffect.js";

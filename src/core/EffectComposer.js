@@ -705,7 +705,7 @@ export class EffectComposer {
 		const effectPassOpts = effectPassUtils.getRenderOpts();
 
 		const renderPasses = this.passes[0];
-		if (renderPasses.isRenderPass) {
+		if (renderPasses?.isRenderPass) {
 
 			const res = renderPasses.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass, {
 				// normalsRenderTarget: this.createNormalTarget(),

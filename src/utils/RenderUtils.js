@@ -56,7 +56,7 @@ export const renderUtils = {
 		});
 
 		renderer.shadowMap.needsUpdate = renderState ? renderState.renderer.shadowMap.needsUpdate : forceState;
-		if(scene) {
+		if (scene) {
 
 			scene.matrixWorldAutoUpdate = renderState ? renderState.scene.matrixWorldAutoUpdate : forceState;
 
@@ -78,6 +78,21 @@ export const renderUtils = {
 				matrixWorldAutoUpdate: state === undefined ? scene.matrixWorldAutoUpdate : state
 			} : {}
 		};
+
+	},
+	opts: {
+		getDepthParamsOpts: () => {
+			return {
+				projectObject: true,
+				updateMatrixWorld: false,
+				useProgramCache: false,
+				bindingStates: {
+					setupFast: false,
+				},
+				...renderUtils.getSubOpths(false)
+
+			};
+		}
 
 	}
 };
