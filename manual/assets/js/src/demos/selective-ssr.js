@@ -52,7 +52,12 @@ const params = {
 	useMetalnessThreshold: true, // 使用金属度阈值自动选择
 	metalnessThreshold: 0.5, // 默认金属度阈值
 	usePixelMetalnessThreshold: true, // 使用像素级金属度判断
-	renderMode: "pixel" // 渲染模式选项: 'pixel' 或 'object'
+	renderMode: "pixel", // 渲染模式选项: 'pixel' 或 'object'
+
+	// 分辨率分层优化参数
+	enableResolutionScaling: true, // 启用分辨率缩放优化
+	normalRenderScale: 0.5,        // 法线渲染分辨率比例 (0.5 = 50%分辨率)
+	depthRenderScale: 0.5          // 深度渲染分辨率比例 (0.5 = 50%分辨率)
 };
 
 // 全局变量声明
@@ -68,7 +73,7 @@ async function load() {
 		const envMap = await loadEnvironmentMap(document.baseURI + "img/textures/skies/sunset/");
 		assets.set("sky", envMap);
 
-	} catch(error) {
+	} catch (error) {
 
 		console.warn("环境贴图加载失败，将使用默认颜色", error);
 
@@ -81,7 +86,7 @@ async function load() {
 function onMouseClick(event, renderer, camera, testObjects, raycaster, mouse) {
 
 	// 检查ssrPass是否已初始化
-	if(!ssrPass) {
+	if (!ssrPass) {
 
 		console.warn("SSR Pass尚未初始化，无法处理选择操作");
 		return;
@@ -89,7 +94,7 @@ function onMouseClick(event, renderer, camera, testObjects, raycaster, mouse) {
 	}
 
 	// 如果使用金属度阈值模式，则不处理手动点击选择
-	if(ssrPass.useMetalnessThreshold) {
+	if (ssrPass.useMetalnessThreshold) {
 
 		console.log("当前使用金属度阈值模式，手动选择被禁用");
 		return;
@@ -107,7 +112,7 @@ function onMouseClick(event, renderer, camera, testObjects, raycaster, mouse) {
 	// 检测与场景中物体的交点
 	const intersects = raycaster.intersectObjects(testObjects.children, true);
 
-	if(intersects.length > 0) {
+	if (intersects.length > 0) {
 
 		const object = intersects[0].object;
 		// 切换对象的选择状态
@@ -128,7 +133,7 @@ function onResize(container, camera, composer, renderer, compatSSRPass, bloomEff
 	renderer.setSize(width, height);
 
 	// 更新SSRPass尺寸
-	if(compatSSRPass && compatSSRPass.threePass) {
+	if (compatSSRPass && compatSSRPass.threePass) {
 
 		compatSSRPass.threePass.width = width;
 		compatSSRPass.threePass.height = height;
@@ -137,13 +142,13 @@ function onResize(container, camera, composer, renderer, compatSSRPass, bloomEff
 	}
 
 	// 更新其他效果尺寸
-	if(bloomEffect) {
+	if (bloomEffect) {
 
 		bloomEffect.setSize(width, height);
 
 	}
 
-	if(groundReflector) {
+	if (groundReflector) {
 
 		groundReflector.getRenderTarget().setSize(width, height);
 		groundReflector.resolution.set(width, height);
@@ -153,7 +158,7 @@ function onResize(container, camera, composer, renderer, compatSSRPass, bloomEff
 }
 
 // 主程序入口
-window.addEventListener("load", async() => {
+window.addEventListener("load", async () => {
 
 	// 加载资源
 	const assets = await load();
@@ -178,7 +183,7 @@ window.addEventListener("load", async() => {
 	const { scene, hemiLight, spotLight, plane } = createBasicScene();
 
 	// 加载环境贴图
-	if(assets.get("sky")) {
+	if (assets.get("sky")) {
 
 		scene.background = assets.get("sky");
 		scene.environment = assets.get("sky");
@@ -277,6 +282,11 @@ window.addEventListener("load", async() => {
 		ssrPass.inverted = false;
 		ssrPass.ignoreBackground = true;
 
+		// 分辨率分层优化：设置优化参数
+		ssrPass.setResolutionScaling(params.enableResolutionScaling);
+		ssrPass.setNormalRenderScale(params.normalRenderScale);
+		ssrPass.setDepthRenderScale(params.depthRenderScale);
+
 		// // 调整材质参数
 		// if (ssrPass.ssrMaterial) {
 		//     ssrPass.ssrMaterial.defines.MAX_STEP = Math.sqrt(window.innerWidth * window.innerWidth + window.innerHeight * window.innerHeight);
@@ -346,7 +356,7 @@ window.addEventListener("load", async() => {
 			onMouseClick(event, renderer, camera, testObjects, raycaster, mouse)
 		);
 
-	} catch(error) {
+	} catch (error) {
 
 		console.error("Error setting up SelectiveSSRPass:", error);
 		// 创建错误信息面板
@@ -380,7 +390,7 @@ window.addEventListener("load", async() => {
 		fpsMeter.update(timestamp);
 
 		// 处理自动旋转
-		if(params.autoRotate) {
+		if (params.autoRotate) {
 
 			const timer = timestamp * 0.0003;
 			camera.position.x = Math.sin(timer) * 0.5;
@@ -464,7 +474,7 @@ function setupGUI(pane, options) {
 		ssrPass.infiniteThick = false;
 		ssrPass.blur = true;
 
-		if(groundReflector) {
+		if (groundReflector) {
 
 			// 重置反射器设置
 			groundReflector.material.uniforms.textureMatrix.value.elements[5] = 1;
@@ -478,7 +488,7 @@ function setupGUI(pane, options) {
 			reflectionParams.curveSampling = true;
 
 			// 更新矩阵
-			if(groundReflector.updateMatrices) {
+			if (groundReflector.updateMatrices) {
 
 				groundReflector.updateMatrices();
 
@@ -503,7 +513,7 @@ function setupGUI(pane, options) {
 	folder.addBinding(params, "groundReflector", { label: "启用地面反射" })
 		.on("change", (e) => {
 
-			if(e.value) {
+			if (e.value) {
 
 				compatSSRPass.threePass.groundReflector = groundReflector;
 
@@ -543,11 +553,11 @@ function setupGUI(pane, options) {
 	settingsFolder.addBinding(reflectionParams, "invertY", { label: "反转Y轴反射" })
 		.on("change", (e) => {
 
-			if(groundReflector) {
+			if (groundReflector) {
 
 				groundReflector.material.uniforms.textureMatrix.value.elements[5] = e.value ? -1 : 1;
 				groundReflector.material.uniformsNeedUpdate = true;
-				if(groundReflector.updateMatrices) {
+				if (groundReflector.updateMatrices) {
 
 					groundReflector.updateMatrices();
 
@@ -560,10 +570,10 @@ function setupGUI(pane, options) {
 	settingsFolder.addBinding(reflectionParams, "flipReflector", { label: "翻转整个反射平面" })
 		.on("change", (e) => {
 
-			if(groundReflector) {
+			if (groundReflector) {
 
 				groundReflector.rotation.z = e.value ? Math.PI : 0;
-				if(groundReflector.updateMatrices) {
+				if (groundReflector.updateMatrices) {
 
 					groundReflector.updateMatrices();
 
@@ -587,7 +597,7 @@ function setupGUI(pane, options) {
 			const ssrPass = compatSSRPass.threePass;
 
 			// 优化采样参数
-			if(e.value) {
+			if (e.value) {
 
 				ssrPass.thickness = 0.035;
 				ssrPass.maxDistance = 0.09;
@@ -630,7 +640,7 @@ function setupGUI(pane, options) {
 		step: 0.001
 	}).on("change", (e) => {
 
-		if(groundReflector) {
+		if (groundReflector) {
 
 			groundReflector.maxDistance = e.value;
 
@@ -645,7 +655,7 @@ function setupGUI(pane, options) {
 		step: 0.01
 	}).on("change", (e) => {
 
-		if(groundReflector) {
+		if (groundReflector) {
 
 			groundReflector.opacity = e.value;
 
@@ -657,7 +667,7 @@ function setupGUI(pane, options) {
 		label: "菲涅尔效应"
 	}).on("change", (e) => {
 
-		if(groundReflector) {
+		if (groundReflector) {
 
 			groundReflector.fresnel = e.value;
 
@@ -669,7 +679,7 @@ function setupGUI(pane, options) {
 		label: "距离衰减"
 	}).on("change", (e) => {
 
-		if(groundReflector) {
+		if (groundReflector) {
 
 			groundReflector.distanceAttenuation = e.value;
 
@@ -688,6 +698,131 @@ function setupGUI(pane, options) {
 	// 添加SelectiveSSRPass特有的设置
 	const selectiveFolder = folder.addFolder({ title: "选择性SSR设置" });
 
+	// 分辨率分层优化控制面板
+	const optimizationFolder = selectiveFolder.addFolder({ title: "🚀 分辨率分层优化" });
+
+	// 启用分辨率缩放控制
+	optimizationFolder.addBinding(params, "enableResolutionScaling", {
+		label: "启用分辨率缩放"
+	}).on("change", (e) => {
+		if (ssrPass) {
+			ssrPass.setResolutionScaling(e.value);
+			console.log(`${e.value ? '启用' : '禁用'}分辨率缩放优化`);
+		}
+	});
+
+	// 法线渲染分辨率缩放控制
+	optimizationFolder.addBinding(params, "normalRenderScale", {
+		label: "法线渲染分辨率",
+		min: 0.1,
+		max: 1.0,
+		step: 0.05
+	}).on("change", (e) => {
+		if (ssrPass) {
+			ssrPass.setNormalRenderScale(e.value);
+			const resolution = ssrPass.getNormalRenderResolution();
+			console.log(`法线渲染分辨率: ${resolution.width}x${resolution.height} (${(resolution.scale * 100).toFixed(0)}%)`);
+		}
+	});
+
+	// 深度渲染分辨率缩放控制
+	optimizationFolder.addBinding(params, "depthRenderScale", {
+		label: "深度渲染分辨率",
+		min: 0.1,
+		max: 1.0,
+		step: 0.05
+	}).on("change", (e) => {
+		if (ssrPass) {
+			ssrPass.setDepthRenderScale(e.value);
+			const resolution = ssrPass.getDepthRenderResolution();
+			console.log(`深度渲染分辨率: ${resolution.width}x${resolution.height} (${(resolution.scale * 100).toFixed(0)}%)`);
+		}
+	});
+
+	// 分辨率信息显示
+	const normalResInfo = optimizationFolder.addBinding({
+		info: "1920x1080 (100%)"
+	}, "info", {
+		readonly: true,
+		label: "法线分辨率"
+	});
+
+	const depthResInfo = optimizationFolder.addBinding({
+		info: "1920x1080 (100%)"
+	}, "info", {
+		readonly: true,
+		label: "深度分辨率"
+	});
+
+	// 优化统计信息
+	const optimizationStats = optimizationFolder.addBinding({
+		info: "像素减少: 0%"
+	}, "info", {
+		readonly: true,
+		label: "优化统计"
+	});
+
+	// 性能预设按钮
+	const presetFolder = optimizationFolder.addFolder({ title: "性能预设" });
+
+	presetFolder.addButton({
+		title: "极致性能 (25%)"
+	}).on("click", () => {
+		params.normalRenderScale = 0.25;
+		params.depthRenderScale = 0.25;
+		params.enableResolutionScaling = true;
+		if (ssrPass) {
+			ssrPass.setResolutionScaling(true);
+			ssrPass.setNormalRenderScale(0.25);
+			ssrPass.setDepthRenderScale(0.25);
+		}
+		pane.refresh();
+		console.log("切换到极致性能模式 (25%分辨率)");
+	});
+
+	presetFolder.addButton({
+		title: "平衡模式 (50%)"
+	}).on("click", () => {
+		params.normalRenderScale = 0.5;
+		params.depthRenderScale = 0.5;
+		params.enableResolutionScaling = true;
+		if (ssrPass) {
+			ssrPass.setResolutionScaling(true);
+			ssrPass.setNormalRenderScale(0.5);
+			ssrPass.setDepthRenderScale(0.5);
+		}
+		pane.refresh();
+		console.log("切换到平衡模式 (50%分辨率)");
+	});
+
+	presetFolder.addButton({
+		title: "高质量 (100%)"
+	}).on("click", () => {
+		params.normalRenderScale = 1.0;
+		params.depthRenderScale = 1.0;
+		params.enableResolutionScaling = false;
+		if (ssrPass) {
+			ssrPass.setResolutionScaling(false);
+			ssrPass.setNormalRenderScale(1.0);
+			ssrPass.setDepthRenderScale(1.0);
+		}
+		pane.refresh();
+		console.log("切换到高质量模式 (100%分辨率)");
+	});
+
+	// 定时更新分辨率信息
+	setInterval(() => {
+		if (ssrPass) {
+			const normalRes = ssrPass.getNormalRenderResolution();
+			const depthRes = ssrPass.getDepthRenderResolution();
+			const stats = ssrPass.getOptimizationStats();
+
+			normalResInfo.value = `${normalRes.width}x${normalRes.height} (${(normalRes.scale * 100).toFixed(0)}%)`;
+			depthResInfo.value = `${depthRes.width}x${depthRes.height} (${(depthRes.scale * 100).toFixed(0)}%)`;
+			optimizationStats.value = `总像素减少: ${stats.pixelReduction.total}`;
+		}
+	}, 500);
+
 	// 添加使用金属度阈值开关
 	selectiveFolder.addBinding(params, "useMetalnessThreshold", {
 		label: "使用金属度阈值"
@@ -695,7 +830,7 @@ function setupGUI(pane, options) {
 
 		ssrPass.useMetalnessThreshold = e.value;
 		// 更新选择
-		if(e.value) {
+		if (e.value) {
 
 			ssrPass.updateSelectionBasedOnMetalness();
 

@@ -19,7 +19,8 @@ import {
 	EqualDepth,
 	NotEqualDepth,
 	Layers,
-	Uniform
+	Uniform,
+	Vector2
 } from "three";
 import { Pass, FullScreenQuad } from "./Pass.js";
 import { SSRShader, SSRBlurShader, SSRDepthShader } from "../shaders/SelectiveSSRShader.js";
@@ -47,6 +48,11 @@ class SelectiveSSRPass extends Pass {
 		this.camera = camera;
 		this.composer = composer;
 		this.groundReflector = groundReflector;
+
+		// 分辨率分层优化参数
+		this.normalRenderScale = 0.5; // 法线渲染分辨率比例（0.5 = 一半分辨率）
+		this.depthRenderScale = 0.5; // 深度渲染分辨率比例（0.5 = 一半分辨率）
+		this.enableResolutionScaling = true; // 启用分辨率缩放优化
 
 		this.opacity = SSRShader.uniforms.opacity.value;
 		this.output = 0;
@@ -185,6 +191,15 @@ class SelectiveSSRPass extends Pass {
 			type: HalfFloatType
 		});
 
+		// 低分辨率法线渲染目标（性能优化）
+		const lowResWidth = Math.max(1, Math.floor(this.width * this.normalRenderScale));
+		const lowResHeight = Math.max(1, Math.floor(this.height * this.normalRenderScale));
+		this.normalRenderTargetLowRes = new WebGLRenderTarget(lowResWidth, lowResHeight, {
+			minFilter: NearestFilter,
+			magFilter: NearestFilter,
+			type: HalfFloatType
+		});
+
 		// metalness render target
 
 		this.metalnessRenderTarget = new WebGLRenderTarget(this.width, this.height, {
@@ -248,6 +263,19 @@ class SelectiveSSRPass extends Pass {
 
 		// 创建深度通道
 		this.depthPass = new DepthPass(scene, camera);
+
+		// 创建低分辨率深度渲染目标（性能优化）
+		const depthLowResWidth = Math.max(1, Math.floor(this.width * this.depthRenderScale));
+		const depthLowResHeight = Math.max(1, Math.floor(this.height * this.depthRenderScale));
+
+		// 备份原始深度渲染目标，创建低分辨率版本
+		this.depthPassOriginalRT = this.depthPass.renderTarget;
+		this.depthPassLowResRT = new WebGLRenderTarget(depthLowResWidth, depthLowResHeight, {
+			minFilter: NearestFilter,
+			magFilter: NearestFilter,
+			type: HalfFloatType,
+			depthBuffer: false
+		});
 
 		// 创建深度遮罩材质
 		this.depthMaskMaterial = new DepthMaskMaterial();
@@ -348,6 +376,66 @@ class SelectiveSSRPass extends Pass {
 			// premultipliedAlpha:true,
 		});
 
+		// 上采样材质（用于将低分辨率法线纹理上采样到高分辨率）
+		this.upsampleMaterial = new ShaderMaterial({
+			uniforms: {
+				tDiffuse: { value: null },
+				resolution: { value: new Vector2(this.width, this.height) },
+				lowResolution: { value: new Vector2(lowResWidth, lowResHeight) }
+			},
+			vertexShader: `
+				varying vec2 vUv;
+				void main() {
+					vUv = uv;
+					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+				}
+			`,
+			fragmentShader: `
+				uniform sampler2D tDiffuse;
+				uniform vec2 resolution;
+				uniform vec2 lowResolution;
+				varying vec2 vUv;
+				
+				void main() {
+					// 双线性上采样，保持边缘清晰
+					vec4 color = texture2D(tDiffuse, vUv);
+					gl_FragColor = color;
+				}
+			`,
+			depthTest: false,
+			depthWrite: false
+		});
+
+		// 深度上采样材质（专用于深度纹理上采样）
+		this.depthUpsampleMaterial = new ShaderMaterial({
+			uniforms: {
+				tDepth: { value: null },
+				resolution: { value: new Vector2(this.width, this.height) },
+				lowResolution: { value: new Vector2(depthLowResWidth, depthLowResHeight) }
+			},
+			vertexShader: `
+				varying vec2 vUv;
+				void main() {
+					vUv = uv;
+					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+				}
+			`,
+			fragmentShader: `
+				uniform sampler2D tDepth;
+				uniform vec2 resolution;
+				uniform vec2 lowResolution;
+				varying vec2 vUv;
+				
+				void main() {
+					// 深度纹理上采样，使用最近邻以保持深度精度
+					vec4 depth = texture2D(tDepth, vUv);
+					gl_FragColor = depth;
+				}
+			`,
+			depthTest: false,
+			depthWrite: false
+		});
+
 		this.fsQuad = new FullScreenQuad(null);
 
 		this.originalClearColor = new Color();
@@ -422,14 +510,32 @@ class SelectiveSSRPass extends Pass {
 
 		if (this.groundReflector) { this.groundReflector.visible = false; }
 
-		// 渲染normals
-		this.renderOverride(
-			renderer,
-			this.normalMaterial,
-			this.normalRenderTarget,
-			0,
-			0,
-			effectPassOpts);
+		// 渲染normals（分辨率分层优化）
+		if (this.enableResolutionScaling && this.normalRenderScale < 1.0) {
+			// 低分辨率渲染法线
+			this.renderOverride(
+				renderer,
+				this.normalMaterial,
+				this.normalRenderTargetLowRes,
+				0,
+				0,
+				effectPassOpts);
+
+			// 上采样到高分辨率
+			this.upsampleMaterial.uniforms.tDiffuse.value = this.normalRenderTargetLowRes.texture;
+			this.fsQuad.material = this.upsampleMaterial;
+			renderer.setRenderTarget(this.normalRenderTarget);
+			this.fsQuad.render(renderer);
+		} else {
+			// 高分辨率直接渲染
+			this.renderOverride(
+				renderer,
+				this.normalMaterial,
+				this.normalRenderTarget,
+				0,
+				0,
+				effectPassOpts);
+		}
 		this.depthMaskMaterial.depthBuffer0 = this.composer.depthTexture;
 		this.depthMaskMaterial.inputBuffer = inputBuffer.texture;
 
@@ -463,13 +569,36 @@ class SelectiveSSRPass extends Pass {
 
 		});
 
-		// 3. 渲染选中对象的深度
-		this.depthPass.render(renderer, inputBuffer, undefined, undefined, undefined, undefined, {
-			projectObject: true,
-			updateMatrixWorld: false,
-			useProgramCache: false,
-			...renderUtils.getSubOpths(false)
-		});
+		// 3. 渲染选中对象的深度（分辨率分层优化）
+		if (this.enableResolutionScaling && this.depthRenderScale < 1.0) {
+			// 使用低分辨率渲染深度
+			const originalRT = this.depthPass.renderTarget;
+			this.depthPass.renderTarget = this.depthPassLowResRT;
+
+			this.depthPass.render(renderer, inputBuffer, undefined, undefined, undefined, undefined, {
+				projectObject: true,
+				updateMatrixWorld: false,
+				useProgramCache: false,
+				...renderUtils.getSubOpths(false)
+			});
+
+			// 上采样深度纹理到高分辨率
+			this.depthUpsampleMaterial.uniforms.tDepth.value = this.depthPassLowResRT.texture;
+			this.fsQuad.material = this.depthUpsampleMaterial;
+			renderer.setRenderTarget(originalRT);
+			this.fsQuad.render(renderer);
+
+			// 恢复原始渲染目标
+			this.depthPass.renderTarget = originalRT;
+		} else {
+			// 高分辨率直接渲染
+			this.depthPass.render(renderer, inputBuffer, undefined, undefined, undefined, undefined, {
+				projectObject: true,
+				updateMatrixWorld: false,
+				useProgramCache: false,
+				...renderUtils.getSubOpths(false)
+			});
+		}
 		this.ssrMaterial.uniforms.depthPass1 = new Uniform(this.depthPass.renderTarget.texture);
 
 		// 4. 恢复相机原始层掩码
@@ -789,6 +918,24 @@ class SelectiveSSRPass extends Pass {
 		this.metalnessRenderTarget.setSize(width, height);
 		this.blurRenderTarget.setSize(width, height);
 		this.blurRenderTarget2.setSize(width, height);
+
+		// 更新低分辨率法线渲染目标
+		const lowResWidth = Math.max(1, Math.floor(width * this.normalRenderScale));
+		const lowResHeight = Math.max(1, Math.floor(height * this.normalRenderScale));
+		this.normalRenderTargetLowRes.setSize(lowResWidth, lowResHeight);
+
+		// 更新上采样材质的分辨率参数
+		this.upsampleMaterial.uniforms.resolution.value.set(width, height);
+		this.upsampleMaterial.uniforms.lowResolution.value.set(lowResWidth, lowResHeight);
+
+		// 更新低分辨率深度渲染目标
+		const depthLowResWidth = Math.max(1, Math.floor(width * this.depthRenderScale));
+		const depthLowResHeight = Math.max(1, Math.floor(height * this.depthRenderScale));
+		this.depthPassLowResRT.setSize(depthLowResWidth, depthLowResHeight);
+
+		// 更新深度上采样材质的分辨率参数
+		this.depthUpsampleMaterial.uniforms.resolution.value.set(width, height);
+		this.depthUpsampleMaterial.uniforms.lowResolution.value.set(depthLowResWidth, depthLowResHeight);
 
 		// 更新新添加的渲染目标尺寸
 		if (this.renderTargetMask) {
@@ -1320,6 +1467,95 @@ class SelectiveSSRPass extends Pass {
 
 		}
 
+	}
+
+	/**
+	 * 设置法线渲染分辨率缩放比例
+	 * @param {Number} scale - 分辨率缩放比例 (0.1 - 1.0)
+	 */
+	setNormalRenderScale(scale) {
+		scale = Math.max(0.1, Math.min(1.0, scale));
+		if (this.normalRenderScale !== scale) {
+			this.normalRenderScale = scale;
+			// 重新调整低分辨率渲染目标的尺寸
+			this.setSize(this.width, this.height);
+			console.log(`设置法线渲染分辨率缩放为 ${scale}x (${Math.floor(this.width * scale)}x${Math.floor(this.height * scale)})`);
+		}
+	}
+
+	/**
+	 * 设置深度渲染分辨率缩放比例
+	 * @param {Number} scale - 分辨率缩放比例 (0.1 - 1.0)
+	 */
+	setDepthRenderScale(scale) {
+		scale = Math.max(0.1, Math.min(1.0, scale));
+		if (this.depthRenderScale !== scale) {
+			this.depthRenderScale = scale;
+			// 重新调整低分辨率渲染目标的尺寸
+			this.setSize(this.width, this.height);
+			console.log(`设置深度渲染分辨率缩放为 ${scale}x (${Math.floor(this.width * scale)}x${Math.floor(this.height * scale)})`);
+		}
+	}
+
+	/**
+	 * 设置是否启用分辨率缩放优化
+	 * @param {Boolean} enabled - 是否启用
+	 */
+	setResolutionScaling(enabled) {
+		this.enableResolutionScaling = enabled;
+		console.log(`${enabled ? '启用' : '禁用'}分辨率缩放优化`);
+	}
+
+	/**
+	 * 获取当前法线渲染的实际分辨率
+	 * @returns {Object} - {width, height, scale}
+	 */
+	getNormalRenderResolution() {
+		const lowResWidth = Math.max(1, Math.floor(this.width * this.normalRenderScale));
+		const lowResHeight = Math.max(1, Math.floor(this.height * this.normalRenderScale));
+		return {
+			width: this.enableResolutionScaling ? lowResWidth : this.width,
+			height: this.enableResolutionScaling ? lowResHeight : this.height,
+			scale: this.enableResolutionScaling ? this.normalRenderScale : 1.0
+		};
+	}
+
+	/**
+	 * 获取当前深度渲染的实际分辨率
+	 * @returns {Object} - {width, height, scale}
+	 */
+	getDepthRenderResolution() {
+		const lowResWidth = Math.max(1, Math.floor(this.width * this.depthRenderScale));
+		const lowResHeight = Math.max(1, Math.floor(this.height * this.depthRenderScale));
+		return {
+			width: this.enableResolutionScaling ? lowResWidth : this.width,
+			height: this.enableResolutionScaling ? lowResHeight : this.height,
+			scale: this.enableResolutionScaling ? this.depthRenderScale : 1.0
+		};
+	}
+
+	/**
+	 * 获取优化统计信息
+	 * @returns {Object} - 分辨率和性能统计
+	 */
+	getOptimizationStats() {
+		const normalRes = this.getNormalRenderResolution();
+		const depthRes = this.getDepthRenderResolution();
+		const fullPixels = this.width * this.height;
+		const normalPixels = normalRes.width * normalRes.height;
+		const depthPixels = depthRes.width * depthRes.height;
+
+		return {
+			fullResolution: `${this.width}x${this.height}`,
+			normalResolution: `${normalRes.width}x${normalRes.height} (${(normalRes.scale * 100).toFixed(0)}%)`,
+			depthResolution: `${depthRes.width}x${depthRes.height} (${(depthRes.scale * 100).toFixed(0)}%)`,
+			pixelReduction: {
+				normal: `${((1 - normalPixels / fullPixels) * 100).toFixed(1)}%`,
+				depth: `${((1 - depthPixels / fullPixels) * 100).toFixed(1)}%`,
+				total: `${((1 - (normalPixels + depthPixels) / (fullPixels * 2)) * 100).toFixed(1)}%`
+			},
+			enableResolutionScaling: this.enableResolutionScaling
+		};
 	}
 
 }

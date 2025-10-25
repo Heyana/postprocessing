@@ -22,6 +22,7 @@ export * from "./ShaderPass.js";
 export * from "./ThreeCompatPass.js";
 export * from "./TiltShiftBlurPass.js";
 export * from "./EnhancedThreeCompatPass.js";
+export * from "./SSRCompatPass.js";
 /** @deprecated Renamed to CopyPass. */
 export { CopyPass as SavePass } from "./CopyPass.js";
 /** @deprecated Renamed to DepthCopyPass. */
