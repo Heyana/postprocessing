@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js MRT + G-Buffer 优化方案示例</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            text-shadow: 0 0 5px black;
+            z-index: 100;
+        }
+        #stats {
+            position: absolute;
+            top: 50px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+    </style>
+
+    <!-- G-Buffer 顶点着色器 -->
+    <script id="gbuffer-vert" type="x-shader/x-vertex">
+        in vec3 position;
+        in vec3 normal;
+        in vec2 uv;
+
+        out vec3 vNormal;
+        out vec3 vViewPosition;
+        out vec2 vUv;
+        out float vDepth;
+
+        uniform mat4 modelViewMatrix;
+        uniform mat4 projectionMatrix;
+        uniform mat4 modelMatrix;
+        uniform mat3 normalMatrix;
+        uniform float cameraNear;
+        uniform float cameraFar;
+
+        void main() {
+            vUv = uv;
+            
+            // 计算视图空间位置
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            vViewPosition = mvPosition.xyz;
+            
+            // 计算世界空间法线
+            vec3 transformedNormal = normalMatrix * normal;
+            vNormal = normalize(transformedNormal);
+            
+            // 计算线性深度
+            vDepth = (-mvPosition.z - cameraNear) / (cameraFar - cameraNear);
+            
+            gl_Position = projectionMatrix * mvPosition;
+        }
+    </script>
+
+    <!-- G-Buffer 片元着色器 - 核心：一次渲染输出多个纹理 -->
+    <script id="gbuffer-frag" type="x-shader/x-fragment">
+        precision highp float;
+        precision highp int;
+
+        // MRT 输出：同时输出到4个纹理
+        layout(location = 0) out vec4 gColor;    // 颜色
+        layout(location = 1) out vec4 gNormal;   // 法线
+        layout(location = 2) out vec4 gDepth;    // 深度
+        layout(location = 3) out vec4 gPosition; // 位置
+
+        in vec3 vNormal;
+        in vec3 vViewPosition;
+        in vec2 vUv;
+        in float vDepth;
+
+        uniform sampler2D tDiffuse;
+        uniform vec3 baseColor;
+
+        void main() {
+            // 输出1：基础颜色
+            vec4 texColor = texture(tDiffuse, vUv);
+            gColor = vec4(baseColor * texColor.rgb, 1.0);
+            
+            // 输出2：视图空间法线 (范围 -1~1 映射到 0~1)
+            gNormal = vec4(normalize(vNormal) * 0.5 + 0.5, 1.0);
+            
+            // 输出3：线性深度
+            gDepth = vec4(vec3(vDepth), 1.0);
+            
+            // 输出4：视图空间位置
+            gPosition = vec4(vViewPosition, 1.0);
+        }
+    </script>
+
+    <!-- 后处理顶点着色器 -->
+    <script id="postprocess-vert" type="x-shader/x-vertex">
+        in vec3 position;
+        in vec2 uv;
+        out vec2 vUv;
+
+        uniform mat4 modelViewMatrix;
+        uniform mat4 projectionMatrix;
+
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    </script>
+
+    <!-- 后处理片元着色器 - 使用 G-Buffer 数据 -->
+    <script id="postprocess-frag" type="x-shader/x-fragment">
+        precision highp float;
+        precision highp int;
+
+        layout(location = 0) out vec4 fragColor;
+
+        in vec2 vUv;
+
+        uniform sampler2D tColor;
+        uniform sampler2D tNormal;
+        uniform sampler2D tDepth;
+        uniform sampler2D tPosition;
+        uniform int displayMode; // 0: 最终效果, 1: 颜色, 2: 法线, 3: 深度, 4: AO效果
+
+        // 简单的 SSAO 效果演示
+        vec3 computeSSAO() {
+            vec3 normal = texture(tNormal, vUv).rgb * 2.0 - 1.0;
+            float depth = texture(tDepth, vUv).r;
+            vec3 position = texture(tPosition, vUv).rgb;
+            
+            // 简化的环境光遮蔽计算
+            float ao = 0.0;
+            float radius = 0.5;
+            int samples = 16;
+            
+            for(int i = 0; i < samples; i++) {
+                float angle = float(i) / float(samples) * 6.28318530718;
+                float dist = float(i) / float(samples) * radius;
+                
+                vec2 offset = vec2(cos(angle), sin(angle)) * dist * 0.02;
+                float sampleDepth = texture(tDepth, vUv + offset).r;
+                
+                if(sampleDepth > depth) {
+                    ao += 1.0;
+                }
+            }
+            
+            ao = 1.0 - (ao / float(samples) * 0.8);
+            return vec3(ao);
+        }
+
+        // 简单的边缘检测（基于法线和深度）
+        vec3 computeEdges() {
+            vec2 texelSize = vec2(1.0) / vec2(textureSize(tNormal, 0));
+            
+            // 法线差异检测
+            vec3 n0 = texture(tNormal, vUv).rgb;
+            vec3 n1 = texture(tNormal, vUv + vec2(texelSize.x, 0.0)).rgb;
+            vec3 n2 = texture(tNormal, vUv + vec2(0.0, texelSize.y)).rgb;
+            
+            float normalDiff = length(n0 - n1) + length(n0 - n2);
+            
+            // 深度差异检测
+            float d0 = texture(tDepth, vUv).r;
+            float d1 = texture(tDepth, vUv + vec2(texelSize.x, 0.0)).r;
+            float d2 = texture(tDepth, vUv + vec2(0.0, texelSize.y)).r;
+            
+            float depthDiff = abs(d0 - d1) + abs(d0 - d2);
+            
+            float edge = smoothstep(0.1, 0.2, normalDiff + depthDiff * 10.0);
+            return vec3(1.0 - edge);
+        }
+
+        // 色调映射
+        vec3 linearToSRGB(vec3 color) {
+            return pow(color, vec3(1.0/2.2));
+        }
+
+        void main() {
+            vec3 color = texture(tColor, vUv).rgb;
+            vec3 normal = texture(tNormal, vUv).rgb;
+            float depth = texture(tDepth, vUv).r;
+            
+            vec3 result;
+            
+            if(displayMode == 0) {
+                // 最终效果：颜色 + AO + 边缘
+                vec3 ao = computeSSAO();
+                vec3 edges = computeEdges();
+                result = color * ao * edges;
+                result = linearToSRGB(result);
+            }
+            else if(displayMode == 1) {
+                // 只显示颜色
+                result = linearToSRGB(color);
+            }
+            else if(displayMode == 2) {
+                // 只显示法线
+                result = normal;
+            }
+            else if(displayMode == 3) {
+                // 只显示深度
+                result = vec3(depth);
+            }
+            else if(displayMode == 4) {
+                // 只显示 AO
+                result = computeSSAO();
+            }
+            else if(displayMode == 5) {
+                // 分屏显示所有
+                vec2 uv = vUv * 2.0;
+                if(uv.x < 1.0 && uv.y < 1.0) {
+                    result = linearToSRGB(color); // 左下：颜色
+                } else if(uv.x >= 1.0 && uv.y < 1.0) {
+                    result = normal; // 右下：法线
+                } else if(uv.x < 1.0 && uv.y >= 1.0) {
+                    result = vec3(depth); // 左上：深度
+                } else {
+                    result = computeSSAO(); // 右上：AO
+                }
+            }
+            
+            fragColor = vec4(result, 1.0);
+        }
+    </script>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "../build/three.module.js",
+                "three/addons/": "./jsm/",
+                "run-scene-core": "../build/three.module.js"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="info">
+        <h2>Three.js MRT + G-Buffer 优化示例</h2>
+        <p>按键盘 1-6 切换显示模式</p>
+    </div>
+    <div id="stats">
+        <div>渲染次数/帧: <span id="renderCount">1</span></div>
+        <div>当前模式: <span id="currentMode">最终效果</span></div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let camera, scene, renderer;
+        let gBufferRenderTarget;
+        let postScene, postCamera, postMaterial;
+        let controls;
+        let displayMode = 0;
+
+        const modeNames = [
+            '最终效果 (颜色+AO+边缘)',
+            '颜色通道',
+            '法线通道',
+            '深度通道',
+            'AO效果',
+            '分屏显示全部'
+        ];
+
+        init();
+        animate();
+
+        function init() {
+            // ========== 渲染器设置 ==========
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // ========== 创建 MRT G-Buffer ==========
+            // 核心：使用 count 参数创建多渲染目标
+            const width = window.innerWidth * window.devicePixelRatio;
+            const height = window.innerHeight * window.devicePixelRatio;
+
+            gBufferRenderTarget = new THREE.WebGLRenderTarget(width, height, {
+                count: 4, // 关键：创建4个纹理附件
+                minFilter: THREE.NearestFilter,
+                magFilter: THREE.NearestFilter,
+                type: THREE.FloatType // 使用浮点纹理以保持精度
+            });
+
+            // 命名纹理方便调试
+            gBufferRenderTarget.textures[0].name = 'gColor';
+            gBufferRenderTarget.textures[1].name = 'gNormal';
+            gBufferRenderTarget.textures[2].name = 'gDepth';
+            gBufferRenderTarget.textures[3].name = 'gPosition';
+
+            // ========== 主场景设置 ==========
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+
+            camera = new THREE.PerspectiveCamera(
+                70,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                100
+            );
+            camera.position.set(0, 0, 5);
+
+            // ========== 添加测试物体 ==========
+            // 加载纹理
+            const textureLoader = new THREE.TextureLoader();
+            const texture = textureLoader.load(
+                'textures/uv_grid_opengl.jpg',
+                () => { console.log('纹理加载成功'); }
+            );
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+
+            // 创建 G-Buffer 材质
+            const gBufferMaterial = new THREE.RawShaderMaterial({
+                name: 'G-Buffer Material',
+                vertexShader: document.querySelector('#gbuffer-vert').textContent.trim(),
+                fragmentShader: document.querySelector('#gbuffer-frag').textContent.trim(),
+                uniforms: {
+                    tDiffuse: { value: texture },
+                    baseColor: { value: new THREE.Color(1, 1, 1) },
+                    cameraNear: { value: camera.near },
+                    cameraFar: { value: camera.far }
+                },
+                glslVersion: THREE.GLSL3
+            });
+
+            // 添加多个测试物体
+            const torusKnot = new THREE.Mesh(
+                new THREE.TorusKnotGeometry(1, 0.3, 128, 32),
+                gBufferMaterial.clone()
+            );
+            torusKnot.position.set(-2, 0, 0);
+            torusKnot.material.uniforms.baseColor.value = new THREE.Color(1.0, 0.3, 0.3);
+            scene.add(torusKnot);
+
+            const sphere = new THREE.Mesh(
+                new THREE.SphereGeometry(0.8, 64, 64),
+                gBufferMaterial.clone()
+            );
+            sphere.position.set(2, 0, 0);
+            sphere.material.uniforms.baseColor.value = new THREE.Color(0.3, 1.0, 0.3);
+            scene.add(sphere);
+
+            const box = new THREE.Mesh(
+                new THREE.BoxGeometry(1, 1, 1),
+                gBufferMaterial.clone()
+            );
+            box.position.set(0, 2, 0);
+            box.material.uniforms.baseColor.value = new THREE.Color(0.3, 0.3, 1.0);
+            scene.add(box);
+
+            // ========== 后处理场景设置 ==========
+            postScene = new THREE.Scene();
+            postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+            // 创建后处理材质，使用 G-Buffer 纹理
+            postMaterial = new THREE.RawShaderMaterial({
+                name: 'Post-Process Material',
+                vertexShader: document.querySelector('#postprocess-vert').textContent.trim(),
+                fragmentShader: document.querySelector('#postprocess-frag').textContent.trim(),
+                uniforms: {
+                    tColor: { value: gBufferRenderTarget.textures[0] },
+                    tNormal: { value: gBufferRenderTarget.textures[1] },
+                    tDepth: { value: gBufferRenderTarget.textures[2] },
+                    tPosition: { value: gBufferRenderTarget.textures[3] },
+                    displayMode: { value: displayMode }
+                },
+                glslVersion: THREE.GLSL3
+            });
+
+            const postQuad = new THREE.Mesh(
+                new THREE.PlaneGeometry(2, 2),
+                postMaterial
+            );
+            postScene.add(postQuad);
+
+            // ========== 控制器 ==========
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            // ========== 键盘事件 ==========
+            window.addEventListener('keydown', onKeyDown);
+            window.addEventListener('resize', onWindowResize);
+
+            console.log('初始化完成！');
+            console.log('G-Buffer 纹理数量:', gBufferRenderTarget.textures.length);
+        }
+
+        function onKeyDown(event) {
+            const key = event.key;
+            if (key >= '1' && key <= '6') {
+                displayMode = parseInt(key) - 1;
+                postMaterial.uniforms.displayMode.value = displayMode;
+                document.getElementById('currentMode').textContent = modeNames[displayMode];
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+
+            renderer.setSize(window.innerWidth, window.innerHeight);
+
+            const dpr = renderer.getPixelRatio();
+            gBufferRenderTarget.setSize(
+                window.innerWidth * dpr,
+                window.innerHeight * dpr
+            );
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 更新控制器
+            controls.update();
+
+            // 旋转物体
+            scene.children.forEach((child, index) => {
+                if (child.isMesh) {
+                    child.rotation.x += 0.005 * (index + 1);
+                    child.rotation.y += 0.007 * (index + 1);
+                }
+            });
+
+            render();
+        }
+
+        function render() {
+            // ========== 核心渲染流程 ==========
+            
+            // 第1步：渲染场景到 G-Buffer（一次渲染，输出4个纹理）
+            renderer.setRenderTarget(gBufferRenderTarget);
+            renderer.render(scene, camera);
+
+            // 第2步：使用 G-Buffer 进行后处理
+            renderer.setRenderTarget(null);
+            renderer.render(postScene, postCamera);
+
+            // 更新统计信息
+            document.getElementById('renderCount').textContent = '2 (1次G-Buffer + 1次后处理)';
+        }
+
+        // 添加性能监控
+        let lastTime = performance.now();
+        let frames = 0;
+        setInterval(() => {
+            const now = performance.now();
+            const fps = (frames * 1000) / (now - lastTime);
+            lastTime = now;
+            frames = 0;
+        }, 1000);
+
+        function countFrame() {
+            frames++;
+        }
+
+        // 在 animate 中调用
+        const originalAnimate = animate;
+        animate = function() {
+            countFrame();
+            originalAnimate();
+        };
+
+    </script>
+</body>
+</html>
+
