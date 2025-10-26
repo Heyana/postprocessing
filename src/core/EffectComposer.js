@@ -384,8 +384,8 @@ export class EffectComposer {
 		}
 
 		const normalTarget = new WebGLRenderTarget(this.inputBuffer.width, this.inputBuffer.height, {
-			minFilter: NearestFilter,
-			magFilter: NearestFilter,
+			minFilter: LinearFilter,
+			magFilter: LinearFilter,
 			format: RGBAFormat,
 			type: HalfFloatType
 		});

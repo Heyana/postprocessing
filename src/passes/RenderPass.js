@@ -2,7 +2,7 @@ import { OverrideMaterialManager } from "../core/OverrideMaterialManager.js";
 import { ClearPass } from "./ClearPass.js";
 import { Pass } from "./Pass.js";
 import { timeLog, timeEndLog, log } from "../utils/PerformanceLogger.js";
-import { WebGLRenderTarget, RawShaderMaterial, FloatType, RGBAFormat, Vector2, Color, GLSL3, Matrix4, Matrix3, NearestFilter } from "three";
+import { WebGLRenderTarget, RawShaderMaterial, FloatType, RGBAFormat, Vector2, Color, GLSL3, Matrix4, Matrix3, LinearFilter, HalfFloatType } from "three";
 
 /**
  * A pass that renders a given scene into the input buffer or to screen.
@@ -408,8 +408,9 @@ export class RenderPass extends Pass {
 			count: 4, // MRT: color, normal, depth, position
 			type: FloatType,
 			format: RGBAFormat,
-			minFilter: NearestFilter,
-			magFilter: NearestFilter,
+			minFilter: LinearFilter,
+			magFilter: LinearFilter,
+			type: HalfFloatType,
 			depthBuffer: true,
 			stencilBuffer: false
 		});

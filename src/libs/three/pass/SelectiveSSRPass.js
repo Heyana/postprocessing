@@ -13,6 +13,7 @@ import {
 	UniformsUtils,
 	UnsignedShortType,
 	WebGLRenderTarget,
+	LinearFilter,
 	HalfFloatType,
 	RGBADepthPacking,
 	BasicDepthPacking,
@@ -165,12 +166,12 @@ class SelectiveSSRPass extends Pass {
 
 		const depthTexture = new DepthTexture();
 		depthTexture.type = UnsignedShortType;
-		depthTexture.minFilter = NearestFilter;
-		depthTexture.magFilter = NearestFilter;
+		depthTexture.minFilter = LinearFilter;
+		depthTexture.magFilter = LinearFilter;
 
 		this.beautyRenderTarget = new WebGLRenderTarget(this.width, this.height, {
-			minFilter: NearestFilter,
-			magFilter: NearestFilter,
+			minFilter: LinearFilter,
+			magFilter: LinearFilter,
 			type: HalfFloatType,
 			depthTexture: depthTexture,
 			depthBuffer: true
@@ -178,16 +179,17 @@ class SelectiveSSRPass extends Pass {
 
 		// for bouncing
 		this.prevRenderTarget = new WebGLRenderTarget(this.width, this.height, {
-			minFilter: NearestFilter,
-			magFilter: NearestFilter
+			minFilter: LinearFilter,
+			magFilter: LinearFilter,
+			type: HalfFloatType,
 		});
 
 		// normal render target (only create if not using G-Buffer)
 		if (!this.usingGBuffer) {
 			this.normalRenderTarget = new WebGLRenderTarget(this.width, this.height, {
-				minFilter: NearestFilter,
-				magFilter: NearestFilter,
-				type: HalfFloatType
+				minFilter: LinearFilter,
+				magFilter: LinearFilter,
+				type: HalfFloatType,
 			});
 		} else {
 			this.normalRenderTarget = null;
@@ -271,8 +273,8 @@ class SelectiveSSRPass extends Pass {
 
 		// 创建遮罩渲染目标
 		this.renderTargetMask = new WebGLRenderTarget(this.width, this.height, {
-			minFilter: NearestFilter,
-			magFilter: NearestFilter,
+			minFilter: LinearFilter,
+			magFilter: LinearFilter,
 			type: HalfFloatType,
 			depthBuffer: true
 		});
@@ -510,8 +512,8 @@ class SelectiveSSRPass extends Pass {
 		// 3. 渲染选中对象的深度
 		this.depthPass.render(renderer, inputBuffer, undefined, undefined, undefined, undefined, {
 			...renderUtils.opts.getDepthParamsOpts()
-
 		});
+
 		this.ssrMaterial.uniforms.depthPass1 = new Uniform(this.depthPass.renderTarget.texture);
 
 		// 4. 恢复相机原始层掩码

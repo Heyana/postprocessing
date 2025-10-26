@@ -79,7 +79,7 @@ export class DepthPass extends Pass {
 
 		this.renderTarget = renderTarget;
 
-		if(this.renderTarget === undefined) {
+		if (this.renderTarget === undefined) {
 
 			this.renderTarget = new WebGLRenderTarget(1, 1, {
 				minFilter: NearestFilter,
@@ -191,15 +191,6 @@ export class DepthPass extends Pass {
 
 		timeLog("DepthPass.render");
 		const renderTarget = this.renderToScreen ? null : this.renderTarget;
-
-		// 获取场景中第一个子对象的类名（如果存在）
-		let childClassName = "无子对象";
-		if(this.renderPass.scene && this.renderPass.scene.children && this.renderPass.scene.children.length > 0) {
-
-			childClassName = this.renderPass.scene.children[0].constructor.name;
-
-		}
-		log(`DepthPass 渲染场景, 第一个子对象类型: ${childClassName}`);
 
 		this.renderPass.render(renderer, renderTarget, outputBuffer, deltaTime, stencilTest, depthPass, renderOpts);
 		timeEndLog("DepthPass.render");

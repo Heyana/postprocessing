@@ -19,15 +19,15 @@ import { timeLog, timeEndLog } from "../utils/PerformanceLogger.js";
 
 function prefixSubstrings(prefix, substrings, strings) {
 
-	for(const substring of substrings) {
+	for (const substring of substrings) {
 
 		// Prefix the substring and build a RegExp that searches for the unprefixed version.
 		const prefixed = "$1" + prefix + substring.charAt(0).toUpperCase() + substring.slice(1);
 		const regExp = new RegExp("([^\\.])(\\b" + substring + "\\b)", "g");
 
-		for(const entry of strings.entries()) {
+		for (const entry of strings.entries()) {
 
-			if(entry[1] !== null) {
+			if (entry[1] !== null) {
 
 				// Replace all occurances of the substring with the prefixed version.
 				strings.set(entry[0], entry[1].replace(regExp, prefixed));
@@ -59,15 +59,15 @@ function integrateEffect(prefix, effect, data) {
 
 	data.attributes |= effect.getAttributes();
 
-	if(fragmentShader === undefined) {
+	if (fragmentShader === undefined) {
 
 		throw new Error(`Missing fragment shader (${effect.name})`);
 
-	} else if(mainUvExists && (data.attributes & EffectAttribute.CONVOLUTION) !== 0) {
+	} else if (mainUvExists && (data.attributes & EffectAttribute.CONVOLUTION) !== 0) {
 
 		throw new Error(`Effects that transform UVs are incompatible with convolution effects (${effect.name})`);
 
-	} else if(!mainImageExists && !mainUvExists) {
+	} else if (!mainImageExists && !mainUvExists) {
 
 		throw new Error(`Could not find mainImage or mainUv function (${effect.name})`);
 
@@ -85,14 +85,14 @@ function integrateEffect(prefix, effect, data) {
 		const varyings = new Set();
 		const names = new Set();
 
-		if(mainUvExists) {
+		if (mainUvExists) {
 
 			fragmentMainUv += `\t${prefix}MainUv(UV);\n`;
 			data.uvTransformation = true;
 
 		}
 
-		if(vertexShader !== null && /mainSupport/.test(vertexShader)) {
+		if (vertexShader !== null && /mainSupport/.test(vertexShader)) {
 
 			// Build the mainSupport call (with optional uv parameter).
 			const needsUv = /mainSupport *\([\w\s]*?uv\s*?\)/.test(vertexShader);
@@ -100,10 +100,10 @@ function integrateEffect(prefix, effect, data) {
 			vertexMainSupport += needsUv ? "vUv);\n" : ");\n";
 
 			// Collect names of varyings and functions.
-			for(const m of vertexShader.matchAll(/(?:varying\s+\w+\s+([\S\s]*?);)/g)) {
+			for (const m of vertexShader.matchAll(/(?:varying\s+\w+\s+([\S\s]*?);)/g)) {
 
 				// Handle unusual formatting and commas.
-				for(const n of m[1].split(/\s*,\s*/)) {
+				for (const n of m[1].split(/\s*,\s*/)) {
 
 					data.varyings.add(n);
 					varyings.add(n);
@@ -113,7 +113,7 @@ function integrateEffect(prefix, effect, data) {
 
 			}
 
-			for(const m of vertexShader.matchAll(functionRegExp)) {
+			for (const m of vertexShader.matchAll(functionRegExp)) {
 
 				names.add(m[1]);
 
@@ -121,20 +121,20 @@ function integrateEffect(prefix, effect, data) {
 
 		}
 
-		for(const m of fragmentShader.matchAll(functionRegExp)) {
+		for (const m of fragmentShader.matchAll(functionRegExp)) {
 
 			names.add(m[1]);
 
 		}
 
-		for(const d of effect.defines.keys()) {
+		for (const d of effect.defines.keys()) {
 
 			// Ignore parameters of function-like macros.
 			names.add(d.replace(/\([\w\s,]*\)/g, ""));
 
 		}
 
-		for(const u of effect.uniforms.keys()) {
+		for (const u of effect.uniforms.keys()) {
 
 			names.add(u);
 
@@ -160,9 +160,9 @@ function integrateEffect(prefix, effect, data) {
 		const blendMode = effect.blendMode;
 		data.blendModes.set(blendMode.blendFunction, blendMode);
 
-		if(mainImageExists) {
+		if (mainImageExists) {
 
-			if(effect.inputColorSpace !== null && effect.inputColorSpace !== data.colorSpace) {
+			if (effect.inputColorSpace !== null && effect.inputColorSpace !== data.colorSpace) {
 
 				fragmentMainImage += (effect.inputColorSpace === SRGBColorSpace) ?
 					"color0 = sRGBTransferOETF(color0);\n\t" :
@@ -170,11 +170,11 @@ function integrateEffect(prefix, effect, data) {
 
 			}
 
-			if(effect.outputColorSpace !== NoColorSpace) {
+			if (effect.outputColorSpace !== NoColorSpace) {
 
 				data.colorSpace = effect.outputColorSpace;
 
-			} else if(effect.inputColorSpace !== null) {
+			} else if (effect.inputColorSpace !== null) {
 
 				data.colorSpace = effect.inputColorSpace;
 
@@ -184,7 +184,7 @@ function integrateEffect(prefix, effect, data) {
 			fragmentMainImage += `${prefix}MainImage(color0, UV, `;
 
 			// Check if the effect reads depth in the fragment shader.
-			if((data.attributes & EffectAttribute.DEPTH) !== 0 && depthParamRegExp.test(fragmentShader)) {
+			if ((data.attributes & EffectAttribute.DEPTH) !== 0 && depthParamRegExp.test(fragmentShader)) {
 
 				fragmentMainImage += "depth, ";
 				data.readDepth = true;
@@ -206,7 +206,7 @@ function integrateEffect(prefix, effect, data) {
 		// Include the modified code in the final shader.
 		fragmentHead += fragmentShader + "\n";
 
-		if(vertexShader !== null) {
+		if (vertexShader !== null) {
 
 			vertexHead += vertexShader + "\n";
 
@@ -218,10 +218,10 @@ function integrateEffect(prefix, effect, data) {
 		shaderParts.set(Section.VERTEX_HEAD, vertexHead);
 		shaderParts.set(Section.VERTEX_MAIN_SUPPORT, vertexMainSupport);
 
-		if(effect.extensions !== null) {
+		if (effect.extensions !== null) {
 
 			// Collect required WebGL extensions.
-			for(const extension of effect.extensions) {
+			for (const extension of effect.extensions) {
 
 				data.extensions.add(extension);
 
@@ -323,7 +323,7 @@ export class EffectPass extends Pass {
 
 	set mainScene(value) {
 
-		for(const effect of this.effects) {
+		for (const effect of this.effects) {
 
 			effect.mainScene = value;
 
@@ -335,7 +335,7 @@ export class EffectPass extends Pass {
 
 		this.fullscreenMaterial.copyCameraSettings(value);
 
-		for(const effect of this.effects) {
+		for (const effect of this.effects) {
 
 			effect.mainCamera = value;
 
@@ -391,7 +391,7 @@ export class EffectPass extends Pass {
 
 	setEffects(effects) {
 
-		for(const effect of this.effects) {
+		for (const effect of this.effects) {
 
 			effect.removeEventListener("change", this.listener);
 			effect.removeEventListener("updateEffectPass", this.listener);
@@ -400,7 +400,7 @@ export class EffectPass extends Pass {
 
 		this.effects = effects.sort((a, b) => (b.attributes - a.attributes));
 
-		for(const effect of this.effects) {
+		for (const effect of this.effects) {
 
 			effect.addEventListener("change", this.listener);
 			effect.addEventListener("updateEffectPass", this.listener);
@@ -420,14 +420,14 @@ export class EffectPass extends Pass {
 		const data = new EffectShaderData();
 		let id = 0;
 
-		for(const effect of this.effects) {
+		for (const effect of this.effects) {
 
-			if(effect.blendMode.blendFunction === BlendFunction.DST) {
+			if (effect.blendMode.blendFunction === BlendFunction.DST) {
 
 				// Check if this effect relies on depth and continue.
 				data.attributes |= (effect.getAttributes() & EffectAttribute.DEPTH);
 
-			} else if((data.attributes & effect.getAttributes() & EffectAttribute.CONVOLUTION) !== 0) {
+			} else if ((data.attributes & effect.getAttributes() & EffectAttribute.CONVOLUTION) !== 0) {
 
 				throw new Error(`Convolution effects cannot be merged (${effect.name})`);
 
@@ -446,17 +446,17 @@ export class EffectPass extends Pass {
 		// Integrate the relevant blend functions.
 		const blendRegExp = /\bblend\b/g;
 
-		for(const blendMode of data.blendModes.values()) {
+		for (const blendMode of data.blendModes.values()) {
 
 			fragmentHead += blendMode.getShaderCode().replace(blendRegExp, `blend${blendMode.blendFunction}`) + "\n";
 
 		}
 
 		// Check if any effect relies on depth.
-		if((data.attributes & EffectAttribute.DEPTH) !== 0) {
+		if ((data.attributes & EffectAttribute.DEPTH) !== 0) {
 
 			// Check if depth should be read.
-			if(data.readDepth) {
+			if (data.readDepth) {
 
 				fragmentMainImage = "float depth = readDepth(UV);\n\n\t" + fragmentMainImage;
 
@@ -471,7 +471,7 @@ export class EffectPass extends Pass {
 
 		}
 
-		if(data.colorSpace === SRGBColorSpace) {
+		if (data.colorSpace === SRGBColorSpace) {
 
 			// Convert back to linear.
 			fragmentMainImage += "color0 = sRGBToLinear(color0);\n\t";
@@ -479,7 +479,7 @@ export class EffectPass extends Pass {
 		}
 
 		// Check if any effect transforms UVs in the fragment shader.
-		if(data.uvTransformation) {
+		if (data.uvTransformation) {
 
 			fragmentMainUv = "vec2 transformedUv = vUv;\n" + fragmentMainUv;
 			data.defines.set("UV", "transformedUv");
@@ -495,9 +495,9 @@ export class EffectPass extends Pass {
 		data.shaderParts.set(Section.FRAGMENT_MAIN_UV, fragmentMainUv);
 
 		// Ensure that leading preprocessor directives start on a new line.
-		for(const [key, value] of data.shaderParts) {
+		for (const [key, value] of data.shaderParts) {
 
-			if(value !== null) {
+			if (value !== null) {
 
 				data.shaderParts.set(key, value.trim().replace(/^#/, "\n#"));
 
@@ -545,7 +545,7 @@ export class EffectPass extends Pass {
 		this.fullscreenMaterial.depthBuffer = depthTexture;
 		this.fullscreenMaterial.depthPacking = depthPacking;
 
-		for(const effect of this.effects) {
+		for (const effect of this.effects) {
 
 			effect.setDepthTexture(depthTexture, depthPacking);
 
@@ -565,7 +565,7 @@ export class EffectPass extends Pass {
 
 	afterRender(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass) {
 
-		if(!this.skipRendering || this.renderToScreen) {
+		if (!this.skipRendering || this.renderToScreen) {
 
 			const material = this.fullscreenMaterial;
 			// console.log('Log-- ', material, 'material');
@@ -593,7 +593,7 @@ export class EffectPass extends Pass {
 		timeLog("EffectPass.render");
 
 
-		for(const effect of this.effects) {
+		for (const effect of this.effects) {
 
 			timeLog(`EffectPass.${effect.name}.update`);
 
@@ -619,7 +619,7 @@ export class EffectPass extends Pass {
 
 		this.fullscreenMaterial.setSize(width, height);
 
-		for(const effect of this.effects) {
+		for (const effect of this.effects) {
 
 			effect.setSize(width, height);
 
@@ -640,7 +640,7 @@ export class EffectPass extends Pass {
 		this.renderer = renderer;
 
 		// Initialize effects before building the shader.
-		for(const effect of this.effects) {
+		for (const effect of this.effects) {
 
 			effect.initialize(renderer, alpha, frameBufferType);
 
@@ -649,7 +649,7 @@ export class EffectPass extends Pass {
 		// Initialize the fullscreen material.
 		this.updateMaterial();
 
-		if(frameBufferType !== undefined && frameBufferType !== UnsignedByteType) {
+		if (frameBufferType !== undefined && frameBufferType !== UnsignedByteType) {
 
 			this.fullscreenMaterial.defines.FRAMEBUFFER_PRECISION_HIGH = "1";
 
@@ -665,7 +665,7 @@ export class EffectPass extends Pass {
 
 		super.dispose();
 
-		for(const effect of this.effects) {
+		for (const effect of this.effects) {
 
 			effect.removeEventListener("change", this.listener);
 			effect.removeEventListener("updateEffectPass", this.listener);
@@ -683,7 +683,7 @@ export class EffectPass extends Pass {
 
 	handleEvent(event) {
 
-		switch(event.type) {
+		switch (event.type) {
 
 			case "change":
 				this.recompile();
