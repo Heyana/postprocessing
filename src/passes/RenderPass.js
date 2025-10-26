@@ -2,7 +2,20 @@ import { OverrideMaterialManager } from "../core/OverrideMaterialManager.js";
 import { ClearPass } from "./ClearPass.js";
 import { Pass } from "./Pass.js";
 import { ObjectIdManager } from "../utils/ObjectIdManager.js";
-import { WebGLRenderTarget, RawShaderMaterial, FloatType, RGBAFormat, Vector2, Color, GLSL3, Matrix4, Matrix3, LinearFilter, HalfFloatType, Mesh, PlaneGeometry } from "three";
+import { MRTGBufferMaterialPatcher } from "../materials/MRTGBufferMaterialPatcher.js";
+import {
+	WebGLRenderTarget,
+	RawShaderMaterial,
+	FloatType,
+	RGBAFormat,
+	Vector2,
+	Color,
+	GLSL3,
+	Matrix4,
+	Matrix3,
+	LinearFilter,
+	HalfFloatType
+} from "three";
 const console = {
 	log: () => { },
 	warn: () => { },
@@ -64,7 +77,11 @@ export class RenderPass extends Pass {
 		this.objectIdManager = null;
 		this.enableObjectId = options.enableObjectId || false;
 
-		// ObjectId注入优化相关
+		// MRT材质补丁器（新方案）
+		this.mrtPatcher = null;
+		this.useMRTOptimization = options.useMRTOptimization !== false; // 默认启用
+
+		// ObjectId注入优化相关（旧方案，保留兼容）
 		this.injectedObjects = new WeakSet(); // 已注入ObjectId的对象
 		this.objectIdUniforms = new WeakMap(); // 对象到ObjectId uniform的映射
 		this.objectIdOutputUniforms = new WeakMap(); // 对象到ObjectId输出控制uniform的映射
@@ -76,7 +93,14 @@ export class RenderPass extends Pass {
 			// 如果启用了对象ID，初始化对象ID管理器
 			if (this.enableObjectId) {
 				this.objectIdManager = new ObjectIdManager();
-				this.objectIdManager.setDebug(true); // 启用调试模式
+				this.objectIdManager.setDebug(false); // 默认关闭调试
+
+				// 初始化MRT材质补丁器（新方案）
+				if (this.useMRTOptimization) {
+					this.mrtPatcher = new MRTGBufferMaterialPatcher(this.objectIdManager);
+					this.mrtPatcher.setDebug(false);
+					console.log("⚡ RenderPass: 使用MRT优化方案（一次渲染输出所有数据）");
+				}
 			}
 		}
 
@@ -357,53 +381,101 @@ export class RenderPass extends Pass {
 
 		}
 
-		renderer.setRenderTarget(renderTarget);
+		// ⚡ MRT优化方案：一次渲染输出所有数据
+		if (this.enableGBuffer && this.useMRTOptimization && this.mrtPatcher && this.enableObjectId) {
 
-		if (this.overrideMaterialManager !== null) {
-
-			renderResult = this.overrideMaterialManager.render(renderer, scene, camera, renderOpts);
-
-		} else {
-
-			renderResult = renderer.render(scene, camera, renderOpts);
-
-		}
-
-		// G-Buffer rendering (after normal scene rendering)
-		if (this.enableGBuffer && this.gBufferRenderTarget && this.gBufferMaterial) {
-			this.prepareGBufferMaterial();
-
-			// Save current overrideMaterial
-			const originalOverrideMaterial = scene.overrideMaterial;
-
-			// 如果启用了对象ID，使用优化的注入渲染
-			if (this.enableObjectId && this.objectIdManager) {
+			// 扫描场景并分配对象ID
+			if (this.objectIdManager) {
 				const scanResult = this.objectIdManager.scanScene(scene);
-				// 减少日志输出
 				if (scanResult.assigned > 0) {
 					console.log(`🆔 场景扫描: ${scanResult.total}个对象，新分配${scanResult.assigned}个ID`);
 				}
-
-				// 使用智能ObjectId注入渲染
-				this.renderGBufferWithSmartObjectId(renderer, scene, camera);
-			} else {
-				// 传统G-Buffer渲染（无对象ID）
-				// 重要：RawShaderMaterial需要手动更新矩阵uniform
-				this.gBufferMaterial.uniformsNeedUpdate = true;
-
-				// 设置默认对象ID（背景）
-				this.gBufferMaterial.uniforms.objectId.value = 0;
-
-				// Render G-Buffer
-				scene.overrideMaterial = this.gBufferMaterial;
-				renderer.setRenderTarget(this.gBufferRenderTarget);
-				renderer.clear();
-				renderer.render(scene, camera);
 			}
 
-			// Restore original overrideMaterial
-			scene.overrideMaterial = originalOverrideMaterial;
+			// 注入MRT输出代码到所有材质（只在第一次调用）
+			if (!this._mrtPatched) {
+				const patchCount = this.mrtPatcher.patchScene(scene, camera);
+				if (patchCount > 0) {
+					this._mrtPatched = true;
+					console.log(`✅ MRT材质注入完成，共${patchCount}个材质`);
+				}
+			}
 
+			// 渲染到MRT render target（同时输出lit color + G-Buffer + ObjectId）
+			renderer.setRenderTarget(this.gBufferRenderTarget);
+
+			if (this.clearPass.enabled) {
+				renderer.clear();
+			}
+
+			if (this.overrideMaterialManager !== null) {
+				renderResult = this.overrideMaterialManager.render(renderer, scene, camera, renderOpts);
+			} else {
+				renderResult = renderer.render(scene, camera, renderOpts);
+			}
+
+			// ⚡ 优化：直接交换纹理，避免额外的复制渲染
+			// lit color已经在gBufferRenderTarget.textures[0]中
+			// 让inputBuffer直接引用这个纹理，后续passes可以直接读取
+			if (!this.renderToScreen && inputBuffer) {
+				// 保存原始纹理引用（如果需要恢复）
+				if (!this._originalInputTexture) {
+					this._originalInputTexture = inputBuffer.texture;
+				}
+				// 直接让inputBuffer的texture指向MRT的第一个输出
+				inputBuffer.texture = this.gBufferRenderTarget.textures[0];
+			}
+
+		} else {
+			// 传统方案：先渲染正常画面，再渲染G-Buffer（两次渲染）
+			renderer.setRenderTarget(renderTarget);
+
+			if (this.overrideMaterialManager !== null) {
+
+				renderResult = this.overrideMaterialManager.render(renderer, scene, camera, renderOpts);
+
+			} else {
+
+				renderResult = renderer.render(scene, camera, renderOpts);
+
+			}
+
+			// G-Buffer rendering (after normal scene rendering)
+			if (this.enableGBuffer && this.gBufferRenderTarget && this.gBufferMaterial) {
+				this.prepareGBufferMaterial();
+
+				// Save current overrideMaterial
+				const originalOverrideMaterial = scene.overrideMaterial;
+
+				// 如果启用了对象ID，使用优化的注入渲染
+				if (this.enableObjectId && this.objectIdManager) {
+					const scanResult = this.objectIdManager.scanScene(scene);
+					// 减少日志输出
+					if (scanResult.assigned > 0) {
+						console.log(`🆔 场景扫描: ${scanResult.total}个对象，新分配${scanResult.assigned}个ID`);
+					}
+
+					// 使用智能ObjectId注入渲染
+					this.renderGBufferWithSmartObjectId(renderer, scene, camera);
+				} else {
+					// 传统G-Buffer渲染（无对象ID）
+					// 重要：RawShaderMaterial需要手动更新矩阵uniform
+					this.gBufferMaterial.uniformsNeedUpdate = true;
+
+					// 设置默认对象ID（背景）
+					this.gBufferMaterial.uniforms.objectId.value = 0;
+
+					// Render G-Buffer
+					scene.overrideMaterial = this.gBufferMaterial;
+					renderer.setRenderTarget(this.gBufferRenderTarget);
+					renderer.clear();
+					renderer.render(scene, camera);
+				}
+
+				// Restore original overrideMaterial
+				scene.overrideMaterial = originalOverrideMaterial;
+
+			}
 		}
 
 		// Restore original values.
@@ -427,7 +499,7 @@ export class RenderPass extends Pass {
 		const height = Math.max(1, Math.floor(512 * this.resolutionScale));
 
 		this.gBufferRenderTarget = new WebGLRenderTarget(width, height, {
-			count: 5, // MRT: color, normal, depth, position, objectId
+			count: 5, // MRT: pc_fragColor(0) + gNormal(1) + gDepth(2) + gPosition(3) + gObjectId(4)
 			type: FloatType,
 			format: RGBAFormat,
 			minFilter: LinearFilter,
@@ -572,8 +644,14 @@ export class RenderPass extends Pass {
 			return null;
 		}
 
+		// 注意：使用MRT优化方案时，纹理布局为：
+		// texture[0]: pc_fragColor (Three.js的lit color)
+		// texture[1]: gNormal
+		// texture[2]: gDepth  
+		// texture[3]: gPosition
+		// texture[4]: gObjectId
 		return {
-			gColor: this.gBufferRenderTarget.textures[0],
+			gColor: this.gBufferRenderTarget.textures[0],  // pc_fragColor (带光照的颜色)
 			gNormal: this.gBufferRenderTarget.textures[1],
 			gDepth: this.gBufferRenderTarget.textures[2],
 			gPosition: this.gBufferRenderTarget.textures[3],
@@ -658,6 +736,7 @@ export class RenderPass extends Pass {
 
 
 	}
+
 
 	/**
 	 * ⚡ 智能ObjectId注入渲染 - 使用onBeforeCompile一次性注入，避免每帧材质替换
@@ -816,6 +895,16 @@ export class RenderPass extends Pass {
 	dispose() {
 		this.disableGBufferGeneration();
 
+		// 清理MRT材质补丁器
+		if (this.mrtPatcher) {
+			this.mrtPatcher.clear();
+			this.mrtPatcher = null;
+		}
+
+		// 恢复原始纹理引用
+		this._originalInputTexture = null;
+		this._mrtPatched = false;
+
 		// 清理ObjectId注入相关资源
 		this.cleanupObjectIdInjection();
 
@@ -833,7 +922,7 @@ export class RenderPass extends Pass {
 			this.overrideMaterialManager.dispose();
 		}
 
-		console.log("🧹 RenderPass: 所有资源已释放（包括ObjectId注入）");
+		console.log("🧹 RenderPass: 所有资源已释放（包括MRT优化和ObjectId注入）");
 	}
 
 }

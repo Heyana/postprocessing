@@ -175,8 +175,9 @@ window.addEventListener("load", async () => {
         powerPreference: "high-performance"
         // antialias: false,
         // stencil: false,
-        // depth: true
+        // depth: true,
     });
+    console.log('Log-- ', renderer.capabilities.isWebGL2, 'renderer.capabilities.isWebGL2');
 
     // renderer.debug.checkShaderErrors = (window.location.hostname === "localhost");
     // renderer.shadowMap.type = VSMShadowMap;

@@ -29,6 +29,7 @@ export * from "./TangentSpaceInteriorMaterial.js";
 export * from "./FakeInteriorMaterial.js";
 export * from "./InteriorRoomMaterial.js";
 export * from "./FlowRiverMaterial.js";
+export * from "./MRTGBufferMaterialPatcher.js";
 /** @deprecated Renamed to KawaseBlurMaterial. */
 export { KawaseBlurMaterial as ConvolutionMaterial } from "./KawaseBlurMaterial.js";
 /** @deprecated Renamed to EdgeDetectionMaterial. */
