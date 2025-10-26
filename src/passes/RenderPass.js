@@ -1,8 +1,13 @@
 import { OverrideMaterialManager } from "../core/OverrideMaterialManager.js";
 import { ClearPass } from "./ClearPass.js";
 import { Pass } from "./Pass.js";
-import { timeLog, timeEndLog, log } from "../utils/PerformanceLogger.js";
-import { WebGLRenderTarget, RawShaderMaterial, FloatType, RGBAFormat, Vector2, Color, GLSL3, Matrix4, Matrix3, LinearFilter, HalfFloatType } from "three";
+import { ObjectIdManager } from "../utils/ObjectIdManager.js";
+import { WebGLRenderTarget, RawShaderMaterial, FloatType, RGBAFormat, Vector2, Color, GLSL3, Matrix4, Matrix3, LinearFilter, HalfFloatType, Mesh, PlaneGeometry } from "three";
+const console = {
+	log: () => { },
+	warn: () => { },
+	error: () => { },
+};
 
 /**
  * A pass that renders a given scene into the input buffer or to screen.
@@ -56,9 +61,17 @@ export class RenderPass extends Pass {
 		// G-Buffer properties
 		this.gBufferRenderTarget = null;
 		this.gBufferMaterial = null;
+		this.objectIdManager = null;
+		this.enableObjectId = options.enableObjectId || false;
 
 		if (this.enableGBuffer) {
 			this.initializeGBuffer();
+
+			// 如果启用了对象ID，初始化对象ID管理器
+			if (this.enableObjectId) {
+				this.objectIdManager = new ObjectIdManager();
+				this.objectIdManager.setDebug(true); // 启用调试模式
+			}
 		}
 
 		/**
@@ -302,7 +315,6 @@ export class RenderPass extends Pass {
 
 	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass, renderOpts = {}, effectPassOpts) {
 
-		timeLog("RenderPass.render");
 		const scene = this.scene;
 		const camera = this.camera;
 		const selection = this.selection;
@@ -358,18 +370,37 @@ export class RenderPass extends Pass {
 			// Save current overrideMaterial
 			const originalOverrideMaterial = scene.overrideMaterial;
 
+			// 如果启用了对象ID，扫描场景以分配ID
+			if (this.enableObjectId && this.objectIdManager) {
+				const scanResult = this.objectIdManager.scanScene(scene);
 
+				// TODO: 暂时禁用复杂的对象ID渲染，使用简化版本
+				console.warn("⚠️ 对象ID渲染暂时禁用，使用传统G-Buffer渲染");
 
-			// 重要：RawShaderMaterial需要手动更新矩阵uniform
-			// 但由于使用overrideMaterial时Three.js会自动为每个对象更新这些矩阵
-			// 我们需要让Three.js知道这些uniform需要自动更新
-			this.gBufferMaterial.uniformsNeedUpdate = true;
+				// 传统G-Buffer渲染（暂时不支持对象ID）
+				this.gBufferMaterial.uniformsNeedUpdate = true;
 
-			// Render G-Buffer
-			scene.overrideMaterial = this.gBufferMaterial;
-			renderer.setRenderTarget(this.gBufferRenderTarget);
-			renderer.clear();
-			renderer.render(scene, camera);
+				// 设置默认对象ID（背景）
+				this.gBufferMaterial.uniforms.objectId.value = 0;
+
+				scene.overrideMaterial = this.gBufferMaterial;
+				renderer.setRenderTarget(this.gBufferRenderTarget);
+				renderer.clear();
+				renderer.render(scene, camera);
+			} else {
+				// 传统G-Buffer渲染（无对象ID）
+				// 重要：RawShaderMaterial需要手动更新矩阵uniform
+				this.gBufferMaterial.uniformsNeedUpdate = true;
+
+				// 设置默认对象ID（背景）
+				this.gBufferMaterial.uniforms.objectId.value = 0;
+
+				// Render G-Buffer
+				scene.overrideMaterial = this.gBufferMaterial;
+				renderer.setRenderTarget(this.gBufferRenderTarget);
+				renderer.clear();
+				renderer.render(scene, camera);
+			}
 
 			// Restore original overrideMaterial
 			scene.overrideMaterial = originalOverrideMaterial;
@@ -388,7 +419,6 @@ export class RenderPass extends Pass {
 		scene.background = background;
 		renderer.shadowMap.autoUpdate = shadowMapAutoUpdate;
 
-		timeEndLog("RenderPass.render");
 		return renderResult;
 
 	}
@@ -405,7 +435,7 @@ export class RenderPass extends Pass {
 		const height = Math.max(1, Math.floor(512 * this.resolutionScale));
 
 		this.gBufferRenderTarget = new WebGLRenderTarget(width, height, {
-			count: 4, // MRT: color, normal, depth, position
+			count: 5, // MRT: color, normal, depth, position, objectId
 			type: FloatType,
 			format: RGBAFormat,
 			minFilter: LinearFilter,
@@ -415,12 +445,13 @@ export class RenderPass extends Pass {
 			stencilBuffer: false
 		});
 
-		console.log("🔧 RenderPass: 初始化G-Buffer渲染目标");
+		console.log("🔧 RenderPass: 初始化G-Buffer渲染目标 (带对象ID)");
 		console.log("  - 尺寸:", width + "x" + height);
 		console.log("  - MRT计数:", this.gBufferRenderTarget.count);
 		console.log("  - 纹理格式:", RGBAFormat);
 		console.log("  - 纹理类型:", FloatType);
 		console.log("  - 生成纹理数量:", this.gBufferRenderTarget.textures?.length);
+		console.log("  - 支持对象ID: ✅");
 
 		// Create G-Buffer material using RawShaderMaterial with GLSL3 (like GBufferPass)
 		this.gBufferMaterial = new RawShaderMaterial({
@@ -464,11 +495,12 @@ export class RenderPass extends Pass {
 				precision highp float;
 				precision highp int;
 
-				// MRT 输出：同时输出到4个纹理
+				// MRT 输出：同时输出到5个纹理
 				layout(location = 0) out vec4 gColor;    // 颜色 + metalness (alpha)
 				layout(location = 1) out vec4 gNormal;   // 法线 + roughness (alpha)
 				layout(location = 2) out vec4 gDepth;    // 深度
 				layout(location = 3) out vec4 gPosition; // 位置
+				layout(location = 4) out vec4 gObjectId; // 对象ID
 
 				in vec3 vNormal;
 				in vec3 vViewPosition;
@@ -479,6 +511,8 @@ export class RenderPass extends Pass {
 				uniform vec3 diffuse;
 				uniform float metalness;
 				uniform float roughness;
+				// 对象ID
+				uniform float objectId;
 
 				void main() {
 					// 基础颜色 - 使用uniform提供的默认值
@@ -501,6 +535,10 @@ export class RenderPass extends Pass {
 					
 					// 输出4：视图空间位置
 					gPosition = vec4(vViewPosition, 1.0);
+					
+					// 输出5：对象ID (归一化到0-1范围)
+					float normalizedObjectId = objectId / 255.0;
+					gObjectId = vec4(normalizedObjectId, normalizedObjectId, normalizedObjectId, 1.0);
 				}
 			`,
 			uniforms: {
@@ -511,6 +549,8 @@ export class RenderPass extends Pass {
 				roughness: { value: 1.0 },
 				cameraNear: { value: 0.1 },
 				cameraFar: { value: 1000 },
+				// 对象ID
+				objectId: { value: 0.0 },
 
 				// Three.js内置uniform - RawShaderMaterial需要手动提供
 				modelViewMatrix: { value: new Matrix4() },
@@ -544,7 +584,8 @@ export class RenderPass extends Pass {
 			gColor: this.gBufferRenderTarget.textures[0],
 			gNormal: this.gBufferRenderTarget.textures[1],
 			gDepth: this.gBufferRenderTarget.textures[2],
-			gPosition: this.gBufferRenderTarget.textures[3]
+			gPosition: this.gBufferRenderTarget.textures[3],
+			gObjectId: this.gBufferRenderTarget.textures[4]
 		};
 
 	}
@@ -623,6 +664,114 @@ export class RenderPass extends Pass {
 		this.gBufferMaterial.uniforms.metalness.value = 0.0; // 非金属
 		this.gBufferMaterial.uniforms.roughness.value = 1.0; // 粗糙
 
+
+	}
+
+	/**
+	 * Render G-Buffer with object ID support
+	 * 
+	 * @param {WebGLRenderer} renderer - The renderer
+	 * @param {Scene} scene - The scene to render
+	 * @param {Camera} camera - The camera
+	 * @private
+	 */
+	renderGBufferWithObjectId(renderer, scene, camera) {
+
+		if (!this.objectIdManager) {
+			console.error("RenderPass: ObjectIdManager not initialized");
+			return;
+		}
+
+		// 设置渲染目标
+		renderer.setRenderTarget(this.gBufferRenderTarget);
+		renderer.clear();
+
+		// 保存原始状态
+		const originalOverrideMaterial = scene.overrideMaterial;
+		const originalAutoUpdate = scene.matrixAutoUpdate;
+		const originalShadowMapAutoUpdate = renderer.shadowMap.autoUpdate;
+
+		// 禁用自动更新以提高性能
+		scene.matrixAutoUpdate = false;
+		renderer.shadowMap.autoUpdate = false;
+
+		// 确保G-Buffer材质正确初始化
+		this.gBufferMaterial.uniformsNeedUpdate = true;
+
+		// 更新相机参数以确保材质的uniform正确
+		this.prepareGBufferMaterial();
+
+		// 收集所有网格对象
+		const meshObjects = [];
+		scene.traverse((object) => {
+			if (object.isMesh && object.visible) {
+				meshObjects.push(object);
+			}
+		});
+
+		// 为每个对象单独渲染（使用overrideMaterial方式）
+		for (const object of meshObjects) {
+
+			// 获取对象ID
+			const objectId = this.objectIdManager.getObjectId(object);
+
+			// 设置G-Buffer材质的objectId uniform
+			this.gBufferMaterial.uniforms.objectId.value = objectId;
+
+			// 保存其他对象的可见性
+			const hiddenObjects = [];
+			for (const otherObject of meshObjects) {
+				if (otherObject !== object && otherObject.visible) {
+					otherObject.visible = false;
+					hiddenObjects.push(otherObject);
+				}
+			}
+
+			// 使用overrideMaterial渲染当前对象
+			scene.overrideMaterial = this.gBufferMaterial;
+			renderer.render(scene, camera);
+
+			// 恢复其他对象的可见性
+			for (const hiddenObject of hiddenObjects) {
+				hiddenObject.visible = true;
+			}
+
+		}
+
+		// 恢复原始状态
+		scene.matrixAutoUpdate = originalAutoUpdate;
+		renderer.shadowMap.autoUpdate = originalShadowMapAutoUpdate;
+		scene.overrideMaterial = originalOverrideMaterial;
+
+		console.log("🆔 RenderPass: G-Buffer带对象ID渲染完成");
+
+	}
+
+	/**
+	 * Get ObjectId Manager
+	 * 
+	 * @returns {ObjectIdManager|null} The object ID manager
+	 */
+	getObjectIdManager() {
+
+		return this.objectIdManager;
+
+	}
+
+	/**
+	 * Enable object ID generation
+	 * 
+	 * @param {boolean} enable - Whether to enable object ID
+	 */
+	enableObjectIdGeneration(enable = true) {
+
+		this.enableObjectId = enable;
+
+		if (enable && !this.objectIdManager && this.enableGBuffer) {
+			this.objectIdManager = new ObjectIdManager();
+			this.objectIdManager.setDebug(true);
+			console.log("🆔 RenderPass: 对象ID管理器已启用");
+		}
 
 	}
 

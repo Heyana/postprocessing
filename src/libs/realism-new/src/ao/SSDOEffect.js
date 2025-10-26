@@ -13,13 +13,13 @@ import { Uniform } from "three";
 export class SSDOEffect extends AOEffect {
 
 	/**
-     * 创建SSDO效果
-     *
-     * @param {Camera} camera - 相机
-     * @param {Texture} normalBuffer - 场景法线纹理
-     * @param {Texture} colorBuffer - 场景颜色纹理
-     * @param {Object} options - 配置选项
-     */
+	 * 创建SSDO效果
+	 *
+	 * @param {Camera} camera - 相机
+	 * @param {Texture} normalBuffer - 场景法线纹理
+	 * @param {Texture} colorBuffer - 场景颜色纹理
+	 * @param {Object} options - 配置选项
+	 */
 	constructor(composer, camera, scene, options = {}) {
 
 		const defaultSSDOOptions = {
@@ -48,8 +48,8 @@ export class SSDOEffect extends AOEffect {
 	}
 
 	/**
-     * 设置反应式属性
-     */
+	 * 设置反应式属性
+	 */
 	makeOptionsReactive(options) {
 
 		// 先调用父类的方法
@@ -60,7 +60,7 @@ export class SSDOEffect extends AOEffect {
 			"indirectLightIntensity", "indirectLightDistance", "colorBleeding"
 		];
 
-		for(const key of ssdoSpecificProps) {
+		for (const key of ssdoSpecificProps) {
 
 			Object.defineProperty(this, key, {
 				get() {
@@ -70,35 +70,34 @@ export class SSDOEffect extends AOEffect {
 				},
 				set(value) {
 
-					if(value === null || value === undefined) { return; }
+					if (value === null || value === undefined) { return; }
 					options[key] = value;
 
-					switch(key) {
+					switch (key) {
 
 						case "indirectLightIntensity":
-							console.log("Log-- ", this, value, "this");
-							if(this.uniforms.get("indirectLightIntensity")) {
+							if (this.uniforms.get("indirectLightIntensity")) {
 
 								this.uniforms.get("indirectLightIntensity").value = value;
 
 							}
 
 							// 同时更新SSDO Pass中的uniform
-							if(this.aoPass && this.aoPass.fullscreenMaterial.uniforms.indirectLightIntensity) {
+							if (this.aoPass && this.aoPass.fullscreenMaterial.uniforms.indirectLightIntensity) {
 
 								this.aoPass.fullscreenMaterial.uniforms.indirectLightIntensity.value = value;
 
 							}
 							break;
 						case "indirectLightDistance":
-							if(this.aoPass && this.aoPass.fullscreenMaterial.uniforms.indirectLightDistance) {
+							if (this.aoPass && this.aoPass.fullscreenMaterial.uniforms.indirectLightDistance) {
 
 								this.aoPass.fullscreenMaterial.uniforms.indirectLightDistance.value = value;
 
 							}
 							break;
 						case "colorBleeding":
-							if(this.aoPass && this.aoPass.fullscreenMaterial.uniforms.colorBleeding) {
+							if (this.aoPass && this.aoPass.fullscreenMaterial.uniforms.colorBleeding) {
 
 								this.aoPass.fullscreenMaterial.uniforms.colorBleeding.value = value;
 

@@ -15,26 +15,26 @@ import { blueNoiseBase64 } from "src/libs/realism-effects/src/utils/TextureAsset
 export class SnowOverlayEffect extends Effect {
 
 	/**
-     * 构造一个新的积雪覆盖效果
-     *
-     * @param {Camera} camera - 相机对象，用于深度计算
-     * @param {Texture} normalBuffer - 法线信息缓冲区
-     * @param {Texture} depthBuffer - 深度信息缓冲区
-     * @param {Object} [options] - 效果选项
-     * @param {BlendFunction} [options.blendFunction=BlendFunction.NORMAL] - 混合模式
-     * @param {Number} [options.snowAmount=0.5] - 积雪量，0-1
-     * @param {Number} [options.snowHeight=20.0] - 雪线高度，越高积雪越少
-     * @param {Number} [options.snowBrightness=1.5] - 雪的亮度
-     * @param {Boolean} [options.additiveBlending=false] - 是否使用加性混合
-     * @param {Color|String|Number} [options.snowColor=0xffffff] - 雪的颜色
-     * @param {Number} [options.alphaTest=0.1] - 透明度测试阈值
-     * @param {Number} [options.slopeMinAngle=0.1] - 最小积雪角度（约6度）
-     * @param {Number} [options.slopeMaxAngle=0.5] - 最大积雪角度（约30度）
-     * @param {Number} [options.normalThreshold=0.3] - 法线阈值，决定多垂直的表面可以积雪
-     * @param {Number} [options.viewStability=0.5] - 视角稳定性，值越高在极端视角下积雪效果越稳定
-     * @param {Number} [options.snowNoisiness=0.5] - 积雪不均匀度，值越高积雪分布越不均匀
-     * @param {Number} [options.snowAccumulation=0.5] - 积雪堆积强度，值越高在坡度变化处积雪堆积越明显
-     */
+	 * 构造一个新的积雪覆盖效果
+	 *
+	 * @param {Camera} camera - 相机对象，用于深度计算
+	 * @param {Texture} normalBuffer - 法线信息缓冲区
+	 * @param {Texture} depthBuffer - 深度信息缓冲区
+	 * @param {Object} [options] - 效果选项
+	 * @param {BlendFunction} [options.blendFunction=BlendFunction.NORMAL] - 混合模式
+	 * @param {Number} [options.snowAmount=0.5] - 积雪量，0-1
+	 * @param {Number} [options.snowHeight=20.0] - 雪线高度，越高积雪越少
+	 * @param {Number} [options.snowBrightness=1.5] - 雪的亮度
+	 * @param {Boolean} [options.additiveBlending=false] - 是否使用加性混合
+	 * @param {Color|String|Number} [options.snowColor=0xffffff] - 雪的颜色
+	 * @param {Number} [options.alphaTest=0.1] - 透明度测试阈值
+	 * @param {Number} [options.slopeMinAngle=0.1] - 最小积雪角度（约6度）
+	 * @param {Number} [options.slopeMaxAngle=0.5] - 最大积雪角度（约30度）
+	 * @param {Number} [options.normalThreshold=0.3] - 法线阈值，决定多垂直的表面可以积雪
+	 * @param {Number} [options.viewStability=0.5] - 视角稳定性，值越高在极端视角下积雪效果越稳定
+	 * @param {Number} [options.snowNoisiness=0.5] - 积雪不均匀度，值越高积雪分布越不均匀
+	 * @param {Number} [options.snowAccumulation=0.5] - 积雪堆积强度，值越高在坡度变化处积雪堆积越明显
+	 */
 	composer;
 	constructor(camera, normalBuffer, composer, {
 		blendFunction = BlendFunction.NORMAL,
@@ -84,7 +84,6 @@ export class SnowOverlayEffect extends Effect {
 		this.camera = camera;
 		this.uniforms.get("depthBuffer").value = this.composer.createDepthTexture();
 		this.depthBuffer = composer.createDepthTexture();
-		console.log("Log-- ", this.depthBuffer, "      this.depthBuffer");
 		this.normalBuffer = normalBuffer;
 
 		// 创建或加载噪声纹理
@@ -93,14 +92,13 @@ export class SnowOverlayEffect extends Effect {
 	}
 
 	/**
-     * 创建噪声纹理，用于雪花的随机变化
-     *
-     * @private
-     */
+	 * 创建噪声纹理，用于雪花的随机变化
+	 *
+	 * @private
+	 */
 	_createNoiseTexture() {
 
 		const texture = new TextureLoader().load(blueNoiseBase64);
-		console.log("Log-- ", texture, "texture");
 		texture.wrapS = RepeatWrapping;
 		texture.wrapT = RepeatWrapping;
 		texture.needsUpdate = true;
@@ -110,10 +108,10 @@ export class SnowOverlayEffect extends Effect {
 	}
 
 	/**
-     * 积雪量
-     *
-     * @type {Number}
-     */
+	 * 积雪量
+	 *
+	 * @type {Number}
+	 */
 	get snowAmount() {
 
 		return this.uniforms.get("snowAmount").value;
@@ -127,10 +125,10 @@ export class SnowOverlayEffect extends Effect {
 	}
 
 	/**
-     * 雪线高度
-     *
-     * @type {Number}
-     */
+	 * 雪线高度
+	 *
+	 * @type {Number}
+	 */
 	get snowHeight() {
 
 		return this.uniforms.get("snowHeight").value;
@@ -144,10 +142,10 @@ export class SnowOverlayEffect extends Effect {
 	}
 
 	/**
-     * 雪的亮度
-     *
-     * @type {Number}
-     */
+	 * 雪的亮度
+	 *
+	 * @type {Number}
+	 */
 	get snowBrightness() {
 
 		return this.uniforms.get("snowBrightness").value;
@@ -161,10 +159,10 @@ export class SnowOverlayEffect extends Effect {
 	}
 
 	/**
-     * 是否使用加性混合
-     *
-     * @type {Boolean}
-     */
+	 * 是否使用加性混合
+	 *
+	 * @type {Boolean}
+	 */
 	get additiveBlending() {
 
 		return this.uniforms.get("additiveBlending").value;
@@ -178,10 +176,10 @@ export class SnowOverlayEffect extends Effect {
 	}
 
 	/**
-     * 雪的颜色
-     *
-     * @type {Color}
-     */
+	 * 雪的颜色
+	 *
+	 * @type {Color}
+	 */
 	get snowColor() {
 
 		return this.uniforms.get("snowColor").value;
@@ -195,10 +193,10 @@ export class SnowOverlayEffect extends Effect {
 	}
 
 	/**
-     * 透明度测试阈值，低于此值的片段将不会应用积雪
-     *
-     * @type {Number}
-     */
+	 * 透明度测试阈值，低于此值的片段将不会应用积雪
+	 *
+	 * @type {Number}
+	 */
 	get alphaTest() {
 
 		return this.uniforms.get("alphaTest").value;
@@ -212,10 +210,10 @@ export class SnowOverlayEffect extends Effect {
 	}
 
 	/**
-     * 坡度最小角度，低于此值的表面将不会积雪
-     *
-     * @type {Number}
-     */
+	 * 坡度最小角度，低于此值的表面将不会积雪
+	 *
+	 * @type {Number}
+	 */
 	get slopeMinAngle() {
 
 		return this.uniforms.get("slopeMinAngle").value;
@@ -229,10 +227,10 @@ export class SnowOverlayEffect extends Effect {
 	}
 
 	/**
-     * 坡度最大角度，高于此值的表面将完全积雪
-     *
-     * @type {Number}
-     */
+	 * 坡度最大角度，高于此值的表面将完全积雪
+	 *
+	 * @type {Number}
+	 */
 	get slopeMaxAngle() {
 
 		return this.uniforms.get("slopeMaxAngle").value;
@@ -246,11 +244,11 @@ export class SnowOverlayEffect extends Effect {
 	}
 
 	/**
-     * 法线阈值，决定多垂直的表面可以积雪
-     * 值越小，越垂直的表面也会积雪
-     *
-     * @type {Number}
-     */
+	 * 法线阈值，决定多垂直的表面可以积雪
+	 * 值越小，越垂直的表面也会积雪
+	 *
+	 * @type {Number}
+	 */
 	get normalThreshold() {
 
 		return this.uniforms.get("normalThreshold").value;
@@ -264,10 +262,10 @@ export class SnowOverlayEffect extends Effect {
 	}
 
 	/**
-     * 视角稳定性，值越高在极端视角下积雪效果越稳定
-     *
-     * @type {Number}
-     */
+	 * 视角稳定性，值越高在极端视角下积雪效果越稳定
+	 *
+	 * @type {Number}
+	 */
 	get viewStability() {
 
 		return this.uniforms.get("viewStability").value;
@@ -281,10 +279,10 @@ export class SnowOverlayEffect extends Effect {
 	}
 
 	/**
-     * 积雪不均匀度，值越高积雪分布越不均匀
-     *
-     * @type {Number}
-     */
+	 * 积雪不均匀度，值越高积雪分布越不均匀
+	 *
+	 * @type {Number}
+	 */
 	get snowNoisiness() {
 
 		return this.uniforms.get("snowNoisiness").value;
@@ -298,10 +296,10 @@ export class SnowOverlayEffect extends Effect {
 	}
 
 	/**
-     * 积雪堆积强度，值越高在坡度变化处积雪堆积越明显
-     *
-     * @type {Number}
-     */
+	 * 积雪堆积强度，值越高在坡度变化处积雪堆积越明显
+	 *
+	 * @type {Number}
+	 */
 	get snowAccumulation() {
 
 		return this.uniforms.get("snowAccumulation").value;
@@ -315,17 +313,17 @@ export class SnowOverlayEffect extends Effect {
 	}
 
 	/**
-     * 更新效果
-     *
-     * @param {WebGLRenderer} renderer - 渲染器
-     * @param {WebGLRenderTarget} inputBuffer - 输入缓冲区
-     * @param {Number} [deltaTime] - 渲染帧间隔时间
-     */
+	 * 更新效果
+	 *
+	 * @param {WebGLRenderer} renderer - 渲染器
+	 * @param {WebGLRenderTarget} inputBuffer - 输入缓冲区
+	 * @param {Number} [deltaTime] - 渲染帧间隔时间
+	 */
 	update(renderer, inputBuffer, deltaTime) {
 
 		// 如果相机参数改变，更新着色器中的相机参数
 		this.uniforms.get("depthBuffer").value = this.composer.depthTexture;
-		if(this.camera) {
+		if (this.camera) {
 
 			this.uniforms.get("cameraNear").value = this.camera.near;
 			this.uniforms.get("cameraFar").value = this.camera.far;
@@ -340,11 +338,11 @@ export class SnowOverlayEffect extends Effect {
 	}
 
 	/**
-     * 当渲染尺寸改变时更新纹素大小
-     *
-     * @param {Number} width - 宽度
-     * @param {Number} height - 高度
-     */
+	 * 当渲染尺寸改变时更新纹素大小
+	 *
+	 * @param {Number} width - 宽度
+	 * @param {Number} height - 高度
+	 */
 	setSize(width, height) {
 
 		this.uniforms.get("texelSize").value.set(1.0 / width, 1.0 / height);

@@ -242,7 +242,6 @@ class SelectiveSSRPass extends Pass {
 
 		if (!composer.depthTexture) { composer.createDepthTexture(); }
 		this.ssrMaterial.uniforms.depthTexture = new Uniform(composer.depthTexture);
-		console.log("Log-- ", composer.depthTexture, "composer.depthTexture");
 		// this.uniforms.get("depthTexture").value = composer.depthTexture;
 
 		this.ssrMaterial.uniforms.tDiffuse.value = this.beautyRenderTarget.texture;
@@ -250,10 +249,8 @@ class SelectiveSSRPass extends Pass {
 		// Use G-Buffer normal or fallback to rendered normal
 		if (this.usingGBuffer) {
 			this.ssrMaterial.uniforms.tNormal.value = this.gBufferTextures.gNormal;
-			console.log("✅ SSR: 使用G-Buffer法线数据");
 		} else {
 			this.ssrMaterial.uniforms.tNormal.value = this.normalRenderTarget?.texture;
-			console.log("⚠️ SSR: 使用传统法线渲染");
 		}
 
 		this.ssrMaterial.defines.SELECTIVE = this.selective;

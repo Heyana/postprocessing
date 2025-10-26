@@ -57,11 +57,18 @@ const params = {
     // 分辨率分层优化参数
     enableResolutionScaling: true, // 启用分辨率缩放优化
     normalRenderScale: 0.5,        // 法线渲染分辨率比例 (0.5 = 50%分辨率)
-    depthRenderScale: 0.5          // 深度渲染分辨率比例 (0.5 = 50%分辨率)
+    depthRenderScale: 0.5,         // 深度渲染分辨率比例 (0.5 = 50%分辨率)
+
+    // 对象ID相关参数
+    enableObjectId: true,          // 启用对象ID系统
+    showObjectIdDebug: false,       // 显示对象ID调试信息
+    objectIdVisualization: 'off'    // 对象ID可视化模式: 'off', 'colorful', 'grayscale'
 };
 
 // 全局变量声明
 let ssrPass = null;
+let objectIdManager = null;
+let debugInfo = { objectCount: 0, idStats: null };
 
 // 加载资源
 async function load() {
@@ -125,7 +132,6 @@ function onMouseClick(event, renderer, camera, testObjects, raycaster, mouse) {
 // 窗口大小调整处理
 function onResize(container, camera, composer, renderer, compatSSRPass, bloomEffect, groundReflector) {
 
-    console.log('Log-- ', 890, '890');
     const width = container.clientWidth, height = container.clientHeight;
     camera.aspect = width / height;
     camera.fov = calculateVerticalFoV(35, Math.max(camera.aspect, 16 / 9));
@@ -254,16 +260,24 @@ window.addEventListener("load", async () => {
 
     try {
 
-        // 创建增强版RenderPass（集成G-Buffer功能）
+        // 创建增强版RenderPass（集成G-Buffer功能和对象ID）
         gBufferPass = new RenderPass(scene, camera, null, {
             enableGBuffer: true,
+            enableObjectId: params.enableObjectId,  // 启用对象ID
             resolutionScale: 1.0
         });
+
+        // 获取对象ID管理器的引用
+        if (params.enableObjectId) {
+            objectIdManager = gBufferPass.getObjectIdManager();
+            console.log("🆔 ObjectIdManager initialized:", objectIdManager);
+        } else {
+            console.log("🆔 对象ID功能已禁用，使用传统G-Buffer渲染");
+        }
 
         // 获取G-Buffer纹理
         const gBufferTextures = gBufferPass.getGBufferTextures();
 
-        console.log('Log-- ', gBufferTextures, 'gBufferTextures');
 
         // 调试G-Buffer纹理
         if (gBufferTextures) {
@@ -272,8 +286,23 @@ window.addEventListener("load", async () => {
             console.log("  - gNormal:", gBufferTextures.gNormal);
             console.log("  - gDepth:", gBufferTextures.gDepth);
             console.log("  - gPosition:", gBufferTextures.gPosition);
+            if (params.enableObjectId && gBufferTextures.gObjectId) {
+                console.log("  - gObjectId:", gBufferTextures.gObjectId);
+                console.log("🆔 对象ID纹理已生成");
+            } else if (params.enableObjectId) {
+                console.warn("⚠️ 对象ID已启用但纹理未生成");
+            }
         } else {
             console.warn("⚠️ G-Buffer纹理为null!");
+        }
+
+        // 更新调试信息
+        if (objectIdManager) {
+            const scanResult = objectIdManager.scanScene(scene, false); // 不强制更新，只统计
+            debugInfo.objectCount = scanResult.total; // 使用总网格数
+            debugInfo.idStats = objectIdManager.getStats();
+            console.log("📈 对象ID统计:", debugInfo.idStats);
+            console.log("🔍 扫描结果:", scanResult);
         }
 
         // 创建SelectiveSSRPass并传入G-Buffer纹理
@@ -400,10 +429,12 @@ window.addEventListener("load", async () => {
 
     // 渲染循环
     let t0 = 0;
+    let frameCount = 0;
     requestAnimationFrame(function render(timestamp) {
 
         const deltaTime = timestamp - t0;
         t0 = timestamp;
+        frameCount++;
 
         fpsMeter.update(timestamp);
 
@@ -420,6 +451,22 @@ window.addEventListener("load", async () => {
 
             controls.update(timestamp);
 
+        }
+
+        // 更新对象ID统计信息（每30帧更新一次以提高性能）
+        if (params.enableObjectId && objectIdManager && frameCount % 30 === 0) {
+            // 内联统计更新逻辑
+            if (objectIdManager && params.enableObjectId) {
+                const stats = objectIdManager.getStats();
+                const scanResult = objectIdManager.scanScene(scene, false);
+                debugInfo.idStats = stats;
+                debugInfo.objectCount = scanResult.total;
+
+                if (params.showObjectIdDebug) {
+                    console.log("📈 对象ID统计更新:", stats);
+                    console.log("🔍 场景扫描:", scanResult);
+                }
+            }
         }
 
         // 渲染场景
@@ -852,6 +899,190 @@ function setupGUI(pane, options) {
     // 调试工具
     const debugFolder = selectiveFolder.addFolder({ title: "调试工具" });
 
+    // 对象ID调试控制
+    const objectIdFolder = debugFolder.addFolder({ title: "对象ID调试" });
+
+    objectIdFolder.addBinding(params, "enableObjectId", {
+        label: "启用对象ID"
+    }).on("change", (e) => {
+        if (gBufferPass) {
+            gBufferPass.enableObjectIdGeneration(e.value);
+            objectIdManager = gBufferPass.getObjectIdManager();
+            console.log("🆔 对象ID状态更新:", e.value);
+        }
+    });
+
+    objectIdFolder.addBinding(params, "showObjectIdDebug", {
+        label: "显示调试信息"
+    });
+
+    objectIdFolder.addBinding(params, "objectIdVisualization", {
+        label: "可视化模式",
+        options: {
+            "关闭": "off",
+            "彩色": "colorful",
+            "灰度": "grayscale"
+        }
+    }).on("change", (e) => {
+        console.log("🎭 对象ID可视化模式:", e.value);
+
+        // 实现可视化逻辑
+        if (e.value === "off") {
+            // 关闭可视化，切换到默认模式
+            compatSSRPass.threePass.output = SelectiveSSRPass.OUTPUT.Default;
+        } else {
+            // 切换到对象ID可视化模式
+            compatSSRPass.threePass.output = SelectiveSSRPass.OUTPUT.GBufferObjectId;
+
+            // 设置可视化模式（如果材质存在）
+            if (compatSSRPass.threePass.gBufferObjectIdMaterial) {
+                const mode = e.value === "colorful" ? 0 : 1; // 0=彩色, 1=灰度
+                compatSSRPass.threePass.gBufferObjectIdMaterial.uniforms.visualizationMode.value = mode;
+                console.log(`设置可视化模式: ${e.value} (${mode})`);
+            }
+        }
+    });
+
+    // 对象ID状态显示
+    const objectIdStats = {
+        objectCount: 0,
+        allocatedIds: 0,
+        usagePercentage: "0%",
+        nextId: 1
+    };
+
+    objectIdFolder.addBinding(objectIdStats, "objectCount", {
+        label: "对象数量",
+        readonly: true
+    });
+
+    objectIdFolder.addBinding(objectIdStats, "allocatedIds", {
+        label: "已分配ID",
+        readonly: true
+    });
+
+    objectIdFolder.addBinding(objectIdStats, "usagePercentage", {
+        label: "使用率",
+        readonly: true
+    });
+
+    // 更新统计信息的函数
+    const updateObjectIdStats = () => {
+        if (objectIdManager && params.enableObjectId) {
+            const stats = objectIdManager.getStats();
+            objectIdStats.allocatedIds = stats.allocatedCount;
+            objectIdStats.usagePercentage = stats.usagePercentage;
+            objectIdStats.nextId = stats.nextId;
+
+            // 统计场景中的对象数量
+            let meshCount = 0;
+            scene.traverse((obj) => {
+                if (obj.isMesh) meshCount++;
+            });
+            objectIdStats.objectCount = meshCount;
+
+            // 同时更新全局debugInfo
+            debugInfo.idStats = stats;
+        }
+    };
+
+    // 对象ID快速可视化按钮
+    objectIdFolder.addButton({
+        title: "🎭 彩色可视化"
+    }).on("click", () => {
+        params.objectIdVisualization = "colorful";
+        compatSSRPass.threePass.output = SelectiveSSRPass.OUTPUT.GBufferObjectId;
+        if (compatSSRPass.threePass.gBufferObjectIdMaterial) {
+            compatSSRPass.threePass.gBufferObjectIdMaterial.uniforms.visualizationMode.value = 0;
+        }
+        console.log("🎭 切换到彩色对象ID可视化");
+    });
+
+    objectIdFolder.addButton({
+        title: "⬜ 灰度可视化"
+    }).on("click", () => {
+        params.objectIdVisualization = "grayscale";
+        compatSSRPass.threePass.output = SelectiveSSRPass.OUTPUT.GBufferObjectId;
+        if (compatSSRPass.threePass.gBufferObjectIdMaterial) {
+            compatSSRPass.threePass.gBufferObjectIdMaterial.uniforms.visualizationMode.value = 1;
+        }
+        console.log("⬜ 切换到灰度对象ID可视化");
+    });
+
+    // 对象ID操作按钮
+    objectIdFolder.addButton({
+        title: "🔍 检查场景状态"
+    }).on("click", () => {
+        if (objectIdManager) {
+            const scanResult = objectIdManager.scanScene(scene, false); // 不强制更新，只统计
+            const stats = objectIdManager.getStats();
+
+            console.log("🔍 场景对象ID状态检查:");
+            console.log(`  - 网格对象数量: ${scanResult.total}`);
+            console.log(`  - 已分配ID数: ${scanResult.existing}`);
+            console.log(`  - 未分配ID数: ${scanResult.total - scanResult.existing}`);
+            console.log(`  - ID分配率: ${((scanResult.existing / scanResult.total) * 100).toFixed(1)}%`);
+            console.log(`  - ID使用统计:`, stats);
+
+            if (typeof updateObjectIdStats === 'function') {
+                updateObjectIdStats();
+            }
+        }
+    });
+
+    objectIdFolder.addButton({
+        title: "🔄 重新分配ID"
+    }).on("click", () => {
+        if (objectIdManager) {
+            const scanResult = objectIdManager.scanScene(scene, true); // 强制更新
+            console.log(`🔄 强制重新分配ID: 更新${scanResult.assigned}个，共${scanResult.total}个网格`);
+            if (typeof updateObjectIdStats === 'function') {
+                updateObjectIdStats();
+            }
+        }
+    });
+
+    objectIdFolder.addButton({
+        title: "清除所有ID"
+    }).on("click", () => {
+        if (objectIdManager) {
+            objectIdManager.clear();
+            console.log("🧯️ 所有对象ID已清除");
+            if (typeof updateObjectIdStats === 'function') {
+                updateObjectIdStats();
+            }
+        }
+    });
+
+    objectIdFolder.addButton({
+        title: "🚀 清理材质缓存"
+    }).on("click", () => {
+        if (gBufferPass && gBufferPass.clearMaterialCache) {
+            gBufferPass.clearMaterialCache();
+            console.log("🧹 手动清理材质缓存完成");
+        } else {
+            console.warn("⚠️ 材质缓存清理功能不可用");
+        }
+    });
+
+    objectIdFolder.addButton({
+        title: "输出ID统计"
+    }).on("click", () => {
+        if (objectIdManager) {
+            const stats = objectIdManager.getStats();
+            console.log("📈 对象ID统计信息:", stats);
+
+            // 显示详细信息
+            console.log("🔍 详细信息:");
+            scene.traverse((obj) => {
+                if (obj.isMesh && objectIdManager.objectToId.has(obj)) {
+                    const id = objectIdManager.getObjectId(obj);
+                    console.log(`  - ${obj.name || obj.uuid.substr(0, 8)}: ID=${id}`);
+                }
+            });
+        }
+    });
+
     // G-Buffer调试信息按钮
     debugFolder.addButton({
         title: "检查G-Buffer状态"
@@ -863,6 +1094,7 @@ function setupGUI(pane, options) {
             console.log("  - gNormal纹理:", gBufferTextures.gNormal ? "✅" : "❌");
             console.log("  - gDepth纹理:", gBufferTextures.gDepth ? "✅" : "❌");
             console.log("  - gPosition纹理:", gBufferTextures.gPosition ? "✅" : "❌");
+            console.log("  - gObjectId纹理:", gBufferTextures.gObjectId ? "✅" : "❌");
             console.log("  - 渲染目标大小:", gBufferTextures.gColor?.image?.width + "x" + gBufferTextures.gColor?.image?.height);
             console.log("  - SSR使用G-Buffer:", ssrPass.usingGBuffer ? "✅" : "❌");
 
@@ -909,6 +1141,7 @@ function setupGUI(pane, options) {
         "Metalness": SelectiveSSRPass.OUTPUT.Metalness,
         "G-Buffer Color": SelectiveSSRPass.OUTPUT.GBufferColor,
         "G-Buffer Position": SelectiveSSRPass.OUTPUT.GBufferPosition,
+        "G-Buffer ObjectId": SelectiveSSRPass.OUTPUT.GBufferObjectId, // 对象ID可视化
         "Mask": SelectiveSSRPass.OUTPUT.Mask,
         "Debug": SelectiveSSRPass.OUTPUT.Debug
     };
@@ -931,6 +1164,7 @@ function setupGUI(pane, options) {
             console.log("  - gNormal:", gBufferTextures?.gNormal ? "✅" : "❌");
             console.log("  - gDepth:", gBufferTextures?.gDepth ? "✅" : "❌");
             console.log("  - gPosition:", gBufferTextures?.gPosition ? "✅" : "❌");
+            console.log("  - gObjectId:", gBufferTextures?.gObjectId ? "✅" : "❌");
         }
     });
 
@@ -963,6 +1197,27 @@ function setupGUI(pane, options) {
     }).on("click", () => {
         compatSSRPass.threePass.output = SelectiveSSRPass.OUTPUT.GBufferPosition;
         console.log("📍 切换到G-Buffer位置通道");
+    });
+
+    channelFolder.addButton({
+        title: "🆔 对象ID通道"
+    }).on("click", () => {
+        compatSSRPass.threePass.output = SelectiveSSRPass.OUTPUT.GBufferObjectId;
+        console.log("🆔 切换到G-Buffer对象ID通道");
+
+        // 检查对象ID纹理是否可用
+        const gBufferTextures = gBufferPass.getGBufferTextures();
+        if (gBufferTextures && gBufferTextures.gObjectId) {
+            console.log("✅ 对象ID纹理可用");
+
+            // 显示统计信息
+            if (objectIdManager) {
+                const stats = objectIdManager.getStats();
+                console.log("📈 对象ID统计:", stats);
+            }
+        } else {
+            console.warn("⚠️ 对象ID纹理不可用，请检查enableObjectId设置");
+        }
     });
 
     channelFolder.addButton({
@@ -1030,6 +1285,9 @@ function setupGUI(pane, options) {
             SelectiveSSRPass.OUTPUT.Beauty,
             SelectiveSSRPass.OUTPUT.Depth,
             SelectiveSSRPass.OUTPUT.Normal,
+            SelectiveSSRPass.OUTPUT.GBufferColor,
+            SelectiveSSRPass.OUTPUT.GBufferPosition,
+            SelectiveSSRPass.OUTPUT.GBufferObjectId, // 新增对象ID模式
             SelectiveSSRPass.OUTPUT.Mask,
             SelectiveSSRPass.OUTPUT.Debug
         ];
@@ -1045,6 +1303,37 @@ function setupGUI(pane, options) {
 
         // 更新控件值
         outputFolder.children[0].value = modes[nextIndex];
+
+        // 特殊处理对象ID模式
+        if (modes[nextIndex] === SelectiveSSRPass.OUTPUT.GBufferObjectId) {
+            console.log("🆔 循环切换到对象ID可视化模式");
+
+            // 设置默认彩色模式
+            if (compatSSRPass.threePass.gBufferObjectIdMaterial) {
+                compatSSRPass.threePass.gBufferObjectIdMaterial.uniforms.visualizationMode.value = 0;
+            }
+
+            // 检查对象ID状态
+            if (objectIdManager) {
+                const stats = objectIdManager.getStats();
+                console.log("📈 当前对象ID统计:", stats);
+            }
+        } else {
+            // 显示其他模式名称
+            const modeNames = {
+                [SelectiveSSRPass.OUTPUT.Default]: "默认模式",
+                [SelectiveSSRPass.OUTPUT.SSR]: "SSR效果",
+                [SelectiveSSRPass.OUTPUT.Beauty]: "原始场景",
+                [SelectiveSSRPass.OUTPUT.Depth]: "深度通道",
+                [SelectiveSSRPass.OUTPUT.Normal]: "法线通道",
+                [SelectiveSSRPass.OUTPUT.GBufferColor]: "G-Buffer颜色",
+                [SelectiveSSRPass.OUTPUT.GBufferPosition]: "G-Buffer位置",
+                [SelectiveSSRPass.OUTPUT.Mask]: "掩码通道",
+                [SelectiveSSRPass.OUTPUT.Debug]: "调试模式"
+            };
+            const modeName = modeNames[modes[nextIndex]] || `模式${modes[nextIndex]}`;
+            console.log(`🔄 循环切换到: ${modeName}`);
+        }
 
     });
 

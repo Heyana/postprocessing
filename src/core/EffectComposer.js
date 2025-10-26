@@ -827,7 +827,6 @@ export class EffectComposer {
 
 		for (const pass of this.passes) {
 
-			console.log('Log-- ', pass.useRealSize, 'pass.useRealSize');
 			if (pass.useRealSize) {
 				pass.setSize(drawingBufferSize.width, drawingBufferSize.height);
 			} else {

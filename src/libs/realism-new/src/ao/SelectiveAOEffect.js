@@ -103,7 +103,6 @@ export class SelectiveAOEffect extends Effect {
 		// 创建深度通道
 		this.depthPass = new DepthPass(scene, camera);
 
-		console.log("Log-- ", options.useMultisampling, "options.useMultisampling");
 		// 创建深度遮罩材质（根据配置决定是否使用多采样）
 		if (options.useMultisampling) {
 
