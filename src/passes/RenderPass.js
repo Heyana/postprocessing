@@ -64,6 +64,12 @@ export class RenderPass extends Pass {
 		this.objectIdManager = null;
 		this.enableObjectId = options.enableObjectId || false;
 
+		// ObjectId注入优化相关
+		this.injectedObjects = new WeakSet(); // 已注入ObjectId的对象
+		this.objectIdUniforms = new WeakMap(); // 对象到ObjectId uniform的映射
+		this.objectIdOutputUniforms = new WeakMap(); // 对象到ObjectId输出控制uniform的映射
+		this.needsObjectIdSetup = true; // 是否需要重新设置ObjectId
+
 		if (this.enableGBuffer) {
 			this.initializeGBuffer();
 
@@ -370,23 +376,16 @@ export class RenderPass extends Pass {
 			// Save current overrideMaterial
 			const originalOverrideMaterial = scene.overrideMaterial;
 
-			// 如果启用了对象ID，扫描场景以分配ID
+			// 如果启用了对象ID，使用优化的注入渲染
 			if (this.enableObjectId && this.objectIdManager) {
 				const scanResult = this.objectIdManager.scanScene(scene);
+				// 减少日志输出
+				if (scanResult.assigned > 0) {
+					console.log(`🆔 场景扫描: ${scanResult.total}个对象，新分配${scanResult.assigned}个ID`);
+				}
 
-				// TODO: 暂时禁用复杂的对象ID渲染，使用简化版本
-				console.warn("⚠️ 对象ID渲染暂时禁用，使用传统G-Buffer渲染");
-
-				// 传统G-Buffer渲染（暂时不支持对象ID）
-				this.gBufferMaterial.uniformsNeedUpdate = true;
-
-				// 设置默认对象ID（背景）
-				this.gBufferMaterial.uniforms.objectId.value = 0;
-
-				scene.overrideMaterial = this.gBufferMaterial;
-				renderer.setRenderTarget(this.gBufferRenderTarget);
-				renderer.clear();
-				renderer.render(scene, camera);
+				// 使用智能ObjectId注入渲染
+				this.renderGBufferWithSmartObjectId(renderer, scene, camera);
 			} else {
 				// 传统G-Buffer渲染（无对象ID）
 				// 重要：RawShaderMaterial需要手动更新矩阵uniform
@@ -405,13 +404,6 @@ export class RenderPass extends Pass {
 			// Restore original overrideMaterial
 			scene.overrideMaterial = originalOverrideMaterial;
 
-		} else {
-			if (this.enableGBuffer) {
-				console.warn("⚠️ RenderPass: G-Buffer已启用但资源未准备好");
-				console.log("  - enableGBuffer:", this.enableGBuffer);
-				console.log("  - gBufferRenderTarget:", !!this.gBufferRenderTarget);
-				console.log("  - gBufferMaterial:", !!this.gBufferMaterial);
-			}
 		}
 
 		// Restore original values.
@@ -668,84 +660,104 @@ export class RenderPass extends Pass {
 	}
 
 	/**
-	 * Render G-Buffer with object ID support
+	 * ⚡ 智能ObjectId注入渲染 - 使用onBeforeCompile一次性注入，避免每帧材质替换
 	 * 
 	 * @param {WebGLRenderer} renderer - The renderer
 	 * @param {Scene} scene - The scene to render
 	 * @param {Camera} camera - The camera
 	 * @private
 	 */
-	renderGBufferWithObjectId(renderer, scene, camera) {
-
+	renderGBufferWithSmartObjectId(renderer, scene, camera) {
 		if (!this.objectIdManager) {
 			console.error("RenderPass: ObjectIdManager not initialized");
 			return;
+		}
+
+		// 扫描场景并分配ObjectId
+		const scanResult = this.objectIdManager.scanScene(scene);
+
+		// 首次渲染时输出调试信息
+		if (!this._hasLoggedObjectIds) {
+			console.log("🆔 对象ID分配情况:");
+			let count = 0;
+			scene.traverse((object) => {
+				if (object.isMesh && object.visible) {
+					const id = this.objectIdManager.getObjectId(object);
+					console.log(`  - ${object.name || 'Mesh'} [${object.uuid.substr(0, 8)}]: ID=${id}`);
+					count++;
+				}
+			});
+			console.log(`  总计: ${count}个对象`);
+			this._hasLoggedObjectIds = true;
 		}
 
 		// 设置渲染目标
 		renderer.setRenderTarget(this.gBufferRenderTarget);
 		renderer.clear();
 
-		// 保存原始状态
-		const originalOverrideMaterial = scene.overrideMaterial;
-		const originalAutoUpdate = scene.matrixAutoUpdate;
-		const originalShadowMapAutoUpdate = renderer.shadowMap.autoUpdate;
+		// 🎯 方案：为每个对象创建独立的G-Buffer材质克隆，设置不同的ObjectId
+		const originalMaterials = new WeakMap();
+		const gBufferClones = new Map(); // 缓存材质克隆以提高性能
 
-		// 禁用自动更新以提高性能
-		scene.matrixAutoUpdate = false;
-		renderer.shadowMap.autoUpdate = false;
-
-		// 确保G-Buffer材质正确初始化
-		this.gBufferMaterial.uniformsNeedUpdate = true;
-
-		// 更新相机参数以确保材质的uniform正确
-		this.prepareGBufferMaterial();
-
-		// 收集所有网格对象
-		const meshObjects = [];
+		// 第一步：保存原始材质并替换为G-Buffer材质克隆
 		scene.traverse((object) => {
 			if (object.isMesh && object.visible) {
-				meshObjects.push(object);
+				// 保存原始材质
+				originalMaterials.set(object, object.material);
+
+				// 获取对象ID
+				const objectId = this.objectIdManager.getObjectId(object);
+
+				// 检查是否已有该ID的材质克隆
+				let gBufferClone;
+				if (gBufferClones.has(objectId)) {
+					gBufferClone = gBufferClones.get(objectId);
+				} else {
+					// 创建G-Buffer材质的克隆
+					gBufferClone = this.gBufferMaterial.clone();
+
+					// 深度克隆uniforms对象
+					gBufferClone.uniforms = {};
+					Object.keys(this.gBufferMaterial.uniforms).forEach(key => {
+						const uniform = this.gBufferMaterial.uniforms[key];
+						if (uniform && uniform.value !== undefined) {
+							// 对于Matrix和Vector类型，直接引用（Three.js会自动更新）
+							// 对于基本类型，创建新的引用
+							if (key === 'objectId') {
+								gBufferClone.uniforms[key] = { value: objectId };
+							} else {
+								gBufferClone.uniforms[key] = { value: uniform.value };
+							}
+						}
+					});
+
+					// 缓存该材质
+					gBufferClones.set(objectId, gBufferClone);
+
+					console.log(`  创建材质克隆 for ObjectId=${objectId}`);
+				}
+
+				// 替换对象的材质
+				object.material = gBufferClone;
 			}
 		});
 
-		// 为每个对象单独渲染（使用overrideMaterial方式）
-		for (const object of meshObjects) {
+		// 第二步：渲染场景
+		const originalOverrideMaterial = scene.overrideMaterial;
+		scene.overrideMaterial = null; // 不使用overrideMaterial，使用每个对象自己的材质
+		renderer.render(scene, camera);
 
-			// 获取对象ID
-			const objectId = this.objectIdManager.getObjectId(object);
-
-			// 设置G-Buffer材质的objectId uniform
-			this.gBufferMaterial.uniforms.objectId.value = objectId;
-
-			// 保存其他对象的可见性
-			const hiddenObjects = [];
-			for (const otherObject of meshObjects) {
-				if (otherObject !== object && otherObject.visible) {
-					otherObject.visible = false;
-					hiddenObjects.push(otherObject);
-				}
+		// 第三步：恢复原始材质
+		scene.traverse((object) => {
+			if (object.isMesh && originalMaterials.has(object)) {
+				object.material = originalMaterials.get(object);
 			}
+		});
 
-			// 使用overrideMaterial渲染当前对象
-			scene.overrideMaterial = this.gBufferMaterial;
-			renderer.render(scene, camera);
-
-			// 恢复其他对象的可见性
-			for (const hiddenObject of hiddenObjects) {
-				hiddenObject.visible = true;
-			}
-
-		}
-
-		// 恢复原始状态
-		scene.matrixAutoUpdate = originalAutoUpdate;
-		renderer.shadowMap.autoUpdate = originalShadowMapAutoUpdate;
 		scene.overrideMaterial = originalOverrideMaterial;
-
-		console.log("🆔 RenderPass: G-Buffer带对象ID渲染完成");
-
 	}
+
+
 
 	/**
 	 * Get ObjectId Manager
@@ -764,23 +776,54 @@ export class RenderPass extends Pass {
 	 * @param {boolean} enable - Whether to enable object ID
 	 */
 	enableObjectIdGeneration(enable = true) {
-
 		this.enableObjectId = enable;
 
 		if (enable && !this.objectIdManager && this.enableGBuffer) {
 			this.objectIdManager = new ObjectIdManager();
 			this.objectIdManager.setDebug(true);
+			this.needsObjectIdSetup = true; // 标记需要重新设置
 			console.log("🆔 RenderPass: 对象ID管理器已启用");
 		}
+	}
 
+	/**
+	 * 强制重新设置ObjectId注入（当场景发生变化时）
+	 */
+	forceObjectIdSetup() {
+		this.needsObjectIdSetup = true;
+		this.injectedObjects.clear();
+		this.objectIdUniforms.clear();
+		this.objectIdOutputUniforms.clear();
+		console.log("🔄 强制重新设置ObjectId注入");
+	}
+
+	/**
+	 * 清理ObjectId相关资源
+	 * @private
+	 */
+	cleanupObjectIdInjection() {
+		// 清理WeakMap和WeakSet会自动处理，但我们需要重置标记
+		this.injectedObjects = new WeakSet();
+		this.objectIdUniforms = new WeakMap();
+		this.objectIdOutputUniforms = new WeakMap();
+		this.needsObjectIdSetup = true;
+		console.log("🧹 ObjectId注入资源已清理");
 	}
 
 	/**
 	 * Dispose of resources.
 	 */
 	dispose() {
-
 		this.disableGBufferGeneration();
+
+		// 清理ObjectId注入相关资源
+		this.cleanupObjectIdInjection();
+
+		// 清理ObjectIdManager
+		if (this.objectIdManager) {
+			this.objectIdManager.clear();
+			this.objectIdManager = null;
+		}
 
 		if (this.clearPass) {
 			this.clearPass.dispose();
@@ -790,6 +833,7 @@ export class RenderPass extends Pass {
 			this.overrideMaterialManager.dispose();
 		}
 
+		console.log("🧹 RenderPass: 所有资源已释放（包括ObjectId注入）");
 	}
 
 }

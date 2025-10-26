@@ -819,13 +819,7 @@ class SelectiveSSRPass extends Pass {
 				break;
 
 			case SelectiveSSRPass.OUTPUT.GBufferObjectId:
-				console.log('🆔 尝试显示对象ID可视化');
-				console.log('  - usingGBuffer:', this.usingGBuffer);
-				console.log('  - gBufferTextures:', !!this.gBufferTextures);
-				console.log('  - gObjectId texture:', !!this.gBufferTextures?.gObjectId);
-
 				if (this.usingGBuffer && this.gBufferTextures && this.gBufferTextures.gObjectId) {
-					console.log('✅ G-Buffer对象ID纹理可用');
 					// 创建对象ID可视化材质（如果不存在）
 					if (!this.gBufferObjectIdMaterial) {
 						this.gBufferObjectIdMaterial = new ShaderMaterial({
@@ -834,66 +828,56 @@ class SelectiveSSRPass extends Pass {
 								visualizationMode: { value: 0 } // 0=彩色, 1=灰度
 							},
 							vertexShader: /* glsl */`
-							varying vec2 vUv;
-							void main() {
-								vUv = uv;
-								gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-							}
-						`,
+						varying vec2 vUv;
+						void main() {
+							vUv = uv;
+							gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+						}
+					`,
 							fragmentShader: /* glsl */`
-							uniform sampler2D tDiffuse;
-							uniform int visualizationMode;
-							varying vec2 vUv;
-							
-							// HSV转RGB函数
-							vec3 hsv2rgb(vec3 c) {
-								vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-								vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-								return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-							}
-							
-								void main() {
-									vec4 objectIdData = texture2D(tDiffuse, vUv);
-									float normalizedId = objectIdData.r; // 对象ID已经归一化到[0,1]
-									
-									// 临时调试：放大ID值显示
-									float amplifiedId = normalizedId * 10.0; // 放大5倍
-									
-									if (normalizedId < 0.001) {
-										// 背景（ID=0）显示为深蓝色
-										gl_FragColor = vec4(0.0, 0.0, 0.3, 1.0);
+						uniform sampler2D tDiffuse;
+						uniform int visualizationMode;
+						varying vec2 vUv;
+						
+						// HSV转RGB函数
+						vec3 hsv2rgb(vec3 c) {
+							vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+							vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+							return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+						}
+						
+							void main() {
+								vec4 objectIdData = texture2D(tDiffuse, vUv);
+								float normalizedId = objectIdData.r; // 对象ID已经归一化到[0,1]
+								
+								// 临时调试：放大ID值显示
+								float amplifiedId = normalizedId * 10.0; // 放大10倍
+								
+								if (normalizedId < 0.001) {
+									// 背景（ID=0）显示为深蓝色
+									gl_FragColor = vec4(0.0, 0.0, 0.3, 1.0);
+								} else {
+									if (visualizationMode == 0) {
+										// 彩色模式：使用HSV色相环为不同ID生成不同颜色
+										float hue = fract(normalizedId * 50.0); // 增加颜色差异
+										vec3 hsvColor = vec3(hue, 1.0, 1.0); // 满饱和度和亮度
+										vec3 rgbColor = hsv2rgb(hsvColor);
+										gl_FragColor = vec4(rgbColor, 1.0);
 									} else {
-										if (visualizationMode == 0) {
-											// 彩色模式：使用HSV色相环为不同ID生成不同颜色
-											float hue = fract(normalizedId * 50.0); // 增加颜色差异
-											vec3 hsvColor = vec3(hue, 1.0, 1.0); // 满岭和度和亮度
-											vec3 rgbColor = hsv2rgb(hsvColor);
-											gl_FragColor = vec4(rgbColor, 1.0);
-										} else {
-											// 灰度模式：放大ID值以供调试
-											gl_FragColor = vec4(amplifiedId, amplifiedId, amplifiedId, 1.0);
-										}
+										// 灰度模式：放大ID值以供调试
+										gl_FragColor = vec4(amplifiedId, amplifiedId, amplifiedId, 1.0);
 									}
 								}
-						`
+							}
+					`
 						});
+						console.log('✅ 对象ID可视化材质已创建');
 					}
 
 					this.gBufferObjectIdMaterial.uniforms.tDiffuse.value = this.gBufferTextures.gObjectId;
-					// 默认使用彩色模式
-					this.gBufferObjectIdMaterial.uniforms.visualizationMode.value = 0;
-
-					// 检查纹理属性
-					const texture = this.gBufferTextures.gObjectId;
-					console.log('🔍 对象ID纹理信息:');
-					console.log('  - 尺寸:', texture.image?.width + 'x' + texture.image?.height);
-					console.log('  - 格式:', texture.format, texture.type);
-					console.log('  - 生成数据:', texture.generateMipmaps);
-
 					this.renderPass(renderer, this.gBufferObjectIdMaterial, this.renderToScreen ? null : writeBuffer);
-					console.log("✅ G-Buffer对象ID可视化完成");
 				} else {
-					console.warn("⚠️ G-Buffer对象ID纹理不可用");
+					console.warn("⚠️ G-Buffer对象ID纹理不可用，请启用enableObjectId选项");
 					// 回退到黑色背景
 					this.copyMaterial.uniforms.tDiffuse.value = null;
 					this.copyMaterial.blending = NoBlending;

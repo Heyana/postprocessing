@@ -1055,11 +1055,151 @@ function setupGUI(pane, options) {
     });
 
     objectIdFolder.addButton({
-        title: "🚀 清理材质缓存"
+        title: "🔍 调试ID分配"
+    }).on("click", () => {
+        console.log("🔍 开始调试对象ID分配...");
+
+        if (objectIdManager) {
+            console.log("📊 对象ID管理器状态:");
+            const stats = objectIdManager.getStats();
+            console.log(`  - 最大ID: ${stats.maxId}`);
+            console.log(`  - 下一个ID: ${stats.nextId}`);
+            console.log(`  - 已分配数量: ${stats.allocatedCount}`);
+
+            // 输出所有对象的ID和归一化值
+            console.log("🆔 对象ID详细信息:");
+            let count = 0;
+            for (const [id, object] of objectIdManager.idToObject) {
+                const normalizedId = id / 255.0;
+                console.log(`  - 对象${count + 1}: ${object.name || object.uuid.slice(0, 8)}`);
+                console.log(`    原始ID=${id}, 归一化ID=${normalizedId.toFixed(6)}`);
+
+                // 检查归一化值是否会被误判为背景
+                if (normalizedId < 0.001) {
+                    console.warn(`    ⚠️ 这个ID值太小，会被判断为背景！`);
+                } else {
+                    console.log(`    ✅ ID值正常，大于背景阈值0.001`);
+                }
+                count++;
+            }
+
+            // 计算预期的颜色差异
+            if (stats.allocatedCount > 1) {
+                const ids = Array.from(objectIdManager.idToObject.keys()).sort((a, b) => a - b);
+                const minId = ids[0];
+                const maxId = ids[ids.length - 1];
+                console.log("🎨 颜色差异分析:");
+                console.log(`  - ID范围: ${minId} - ${maxId}`);
+                console.log(`  - 归一化范围: ${(minId / 255.0).toFixed(6)} - ${(maxId / 255.0).toFixed(6)}`);
+            }
+        } else {
+            console.warn("⚠️ ObjectIdManager不可用");
+        }
+    });
+
+
+    objectIdFolder.addButton({
+        title: "🔄 强制重新渲染"
+    }).on("click", () => {
+        console.log("🔄 强制重新渲染对象ID...");
+
+        // 强制更新G-Buffer
+        if (gBufferPass && gBufferPass.forceGBufferUpdate) {
+            gBufferPass.forceGBufferUpdate();
+        }
+
+        // 重新分配ID
+        if (objectIdManager) {
+            objectIdManager.clear();
+            const scanResult = objectIdManager.scanScene(scene, true);
+            console.log(`🔄 重新分配了${scanResult.assigned}个ID`);
+        }
+
+        console.log("🔄 重新渲染完成，请观察颜色变化");
+    });
+
+    // 烘焙ID渲染测试
+    const renderingFolder = pane.addFolder({
+        title: "⚡ 烘焙ID渲染",
+        expanded: false
+    });
+
+    renderingFolder.addButton({
+        title: "📊 渲染性能测试"
+    }).on("click", () => {
+        console.log("📊 开始渲染性能测试...");
+
+        let frameCount = 0;
+        let totalTime = 0;
+        const maxFrames = 60; // 测试60帧
+
+        const performanceTest = () => {
+            const startTime = performance.now();
+
+            // 触发一次渲染
+            if (composer) {
+                composer.render();
+            }
+
+            const endTime = performance.now();
+            totalTime += (endTime - startTime);
+            frameCount++;
+
+            if (frameCount < maxFrames) {
+                requestAnimationFrame(performanceTest);
+            } else {
+                const avgFrameTime = totalTime / frameCount;
+                const fps = 1000 / avgFrameTime;
+
+                console.log("📊 渲染性能测试结果:");
+                console.log(`  - 平均帧时间: ${avgFrameTime.toFixed(2)}ms`);
+                console.log(`  - 估计FPS: ${fps.toFixed(1)}`);
+                console.log(`  - 总耗时: ${totalTime.toFixed(2)}ms (${frameCount}帧)`);
+                console.log(`  - 渲染方案: 烘焙ID一次渲染`);
+            }
+        };
+
+        performanceTest();
+    });
+
+    renderingFolder.addButton({
+        title: "⚡ 直接测试烘焙ID"
+    }).on("click", () => {
+        console.log("⚡ 直接测试烘焙ID渲染...");
+
+        if (gBufferPass && gBufferPass.renderGBufferWithObjectIdOptimized) {
+            const startTime = performance.now();
+
+            // 直接调用烘焙ID渲染方法
+            gBufferPass.renderGBufferWithObjectIdOptimized(renderer, scene, camera);
+
+            const endTime = performance.now();
+
+            console.log("⚡ 烘焙ID渲染完成:");
+            console.log(`  - 耗时: ${(endTime - startTime).toFixed(2)}ms`);
+            console.log(`  - 特点: ID烘焙到着色器常量`);
+            console.log(`  - 优势: 一次renderer.render()调用`);
+            console.log(`  - 缓存: 相同ID复用材质`);
+
+            // 切换到对象ID可视化查看效果
+            if (compatSSRPass && compatSSRPass.threePass) {
+                compatSSRPass.threePass.output = SelectiveSSRPass.OUTPUT.GBufferObjectId;
+                if (compatSSRPass.threePass.gBufferObjectIdMaterial) {
+                    compatSSRPass.threePass.gBufferObjectIdMaterial.uniforms.visualizationMode.value = 0;
+                }
+                console.log("🎨 已切换到ID可视化模式");
+            }
+        } else {
+            console.warn("⚠️ 烘焙ID渲染方法不可用");
+        }
+    });
+
+    renderingFolder.addButton({
+        title: "🧹 清理材质缓存"
     }).on("click", () => {
         if (gBufferPass && gBufferPass.clearMaterialCache) {
             gBufferPass.clearMaterialCache();
-            console.log("🧹 手动清理材质缓存完成");
+            console.log("🧹 材质缓存已清理");
         } else {
             console.warn("⚠️ 材质缓存清理功能不可用");
         }
@@ -1200,15 +1340,27 @@ function setupGUI(pane, options) {
     });
 
     channelFolder.addButton({
-        title: "🆔 对象ID通道"
+        title: "🆔 对象ID通道（彩色）"
     }).on("click", () => {
+        if (!compatSSRPass || !compatSSRPass.threePass) {
+            console.warn("⚠️ SSR Pass 不可用");
+            return;
+        }
+
         compatSSRPass.threePass.output = SelectiveSSRPass.OUTPUT.GBufferObjectId;
-        console.log("🆔 切换到G-Buffer对象ID通道");
+
+        // 设置彩色模式
+        if (compatSSRPass.threePass.gBufferObjectIdMaterial) {
+            compatSSRPass.threePass.gBufferObjectIdMaterial.uniforms.visualizationMode.value = 0;
+        }
+
+        console.log("🆔 切换到对象ID通道（彩色模式）");
 
         // 检查对象ID纹理是否可用
         const gBufferTextures = gBufferPass.getGBufferTextures();
         if (gBufferTextures && gBufferTextures.gObjectId) {
             console.log("✅ 对象ID纹理可用");
+            console.log("  - 纹理尺寸:", gBufferTextures.gObjectId.image?.width + 'x' + gBufferTextures.gObjectId.image?.height);
 
             // 显示统计信息
             if (objectIdManager) {
@@ -1218,6 +1370,24 @@ function setupGUI(pane, options) {
         } else {
             console.warn("⚠️ 对象ID纹理不可用，请检查enableObjectId设置");
         }
+    });
+
+    channelFolder.addButton({
+        title: "🆔 对象ID通道（灰度）"
+    }).on("click", () => {
+        if (!compatSSRPass || !compatSSRPass.threePass) {
+            console.warn("⚠️ SSR Pass 不可用");
+            return;
+        }
+
+        compatSSRPass.threePass.output = SelectiveSSRPass.OUTPUT.GBufferObjectId;
+
+        // 设置灰度模式
+        if (compatSSRPass.threePass.gBufferObjectIdMaterial) {
+            compatSSRPass.threePass.gBufferObjectIdMaterial.uniforms.visualizationMode.value = 1;
+        }
+
+        console.log("🆔 切换到对象ID通道（灰度模式）");
     });
 
     channelFolder.addButton({
