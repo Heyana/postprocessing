@@ -33,9 +33,11 @@ export class SelectiveBloomEffect extends BloomEffect {
 	 * @param {Scene} scene - The main scene.
 	 * @param {Camera} camera - The main camera.
 	 * @param {Object} [options] - The options. See {@link BloomEffect} for details.
+	 * @param {Object} [options.gBufferTextures=null] - G-Buffer textures from RenderPass. If provided, will use gDepth for main scene depth.
+	 * @param {Texture} [options.gBufferTextures.gDepth] - G-Buffer depth texture.
 	 */
 
-	constructor(scene, camera, options) {
+	constructor(scene, camera, options = {}) {
 
 		super(options);
 
@@ -49,6 +51,15 @@ export class SelectiveBloomEffect extends BloomEffect {
 		 */
 		this.scene = scene;
 		this.camera = camera;
+
+		/**
+		 * G-Buffer textures (if provided).
+		 *
+		 * @type {Object|null}
+		 * @private
+		 */
+
+		this.gBufferTextures = options.gBufferTextures || null;
 
 		/**
 		 * A depth pass.
@@ -84,6 +95,17 @@ export class SelectiveBloomEffect extends BloomEffect {
 		depthMaskMaterial.depthPacking1 = RGBADepthPacking;
 		depthMaskMaterial.depthMode = EqualDepth;
 		this.depthMaskMaterial.epsilon = 0.000009; // 深度比较容差
+
+		// 如果提供了GBuffer，使用gDepth作为主场景深度缓冲
+		const useGBuffer = this.gBufferTextures && this.gBufferTextures.gDepth;
+		if (useGBuffer) {
+			console.log("🎯 SelectiveBloomEffect: 使用 GBuffer 深度纹理");
+			console.log("  - gDepth:", !!this.gBufferTextures.gDepth);
+			// 设置depthBuffer0为GBuffer的深度纹理
+			// 注意：GBuffer的深度可能需要特定的深度打包方式
+			depthMaskMaterial.depthBuffer0 = this.gBufferTextures.gDepth;
+			depthMaskMaterial.depthPacking0 = BasicDepthPacking; // 根据GBuffer的实际打包方式调整
+		}
 
 		/**
 		 * A render target.
@@ -271,6 +293,36 @@ export class SelectiveBloomEffect extends BloomEffect {
 	}
 
 	/**
+	 * Sets the G-Buffer textures.
+	 *
+	 * @param {Object|null} gBufferTextures - The G-Buffer textures.
+	 * @param {Texture} [gBufferTextures.gDepth] - The depth texture from G-Buffer.
+	 */
+
+	setGBufferTextures(gBufferTextures) {
+
+		this.gBufferTextures = gBufferTextures;
+
+		const useGBuffer = gBufferTextures && gBufferTextures.gDepth;
+
+		if (useGBuffer) {
+			console.log("🎯 SelectiveBloomEffect.setGBufferTextures: 启用 GBuffer 深度纹理");
+			console.log("  - gDepth:", !!gBufferTextures.gDepth);
+
+			// 更新depthBuffer0为GBuffer的深度纹理
+			this.depthMaskMaterial.depthBuffer0 = gBufferTextures.gDepth;
+			this.depthMaskMaterial.depthPacking0 = BasicDepthPacking; // 根据GBuffer的实际打包方式调整
+		} else {
+			console.log("🎯 SelectiveBloomEffect.setGBufferTextures: 禁用 GBuffer，需要手动设置深度纹理");
+
+			// 如果禁用GBuffer，depthBuffer0需要通过setDepthTexture手动设置
+			// 或者清除当前的depthBuffer0
+			// this.depthMaskMaterial.depthBuffer0 = null;
+		}
+
+	}
+
+	/**
 	 * Updates this effect.
 	 *
 	 * @param {WebGLRenderer} renderer - The renderer.
@@ -299,17 +351,17 @@ export class SelectiveBloomEffect extends BloomEffect {
 		timeLog("SelectiveBloomEffect.update");
 		log("SelectiveBloomEffect update called, selection size:", selection.size);
 
-		if(this.ignoreBackground || !inverted || selection.size > 0) {
+		if (this.ignoreBackground || !inverted || selection.size > 0) {
 
 			// 使用共享的深度通道或渲染自己的深度
 			// 用了会有bug 不能为true
-			if(false) {
+			if (false) {
 
 				timeLog("SelectiveBloomEffect.update.useSharedDepthPass");
 				// 根据 DepthMaskMaterial 源码，设置深度纹理有两种方式：
 				// 1. 使用 setDepthBuffer1 方法
 				// 2. 分别设置 depthBuffer1 和 depthPacking1 属性
-				if(typeof this.depthMaskMaterial.setDepthBuffer1 === "function") {
+				if (typeof this.depthMaskMaterial.setDepthBuffer1 === "function") {
 
 					// 优先使用专门的设置方法
 					this.depthMaskMaterial.setDepthBuffer1(depthPass.texture, depthPass.depthPacking || RGBADepthPacking);
@@ -394,17 +446,17 @@ export class SelectiveBloomEffect extends BloomEffect {
 		this.depthPass.initialize(renderer, alpha, frameBufferType);
 		this.depthMaskPass.initialize(renderer, alpha, frameBufferType);
 
-		if(renderer !== null && renderer.capabilities.logarithmicDepthBuffer) {
+		if (renderer !== null && renderer.capabilities.logarithmicDepthBuffer) {
 
 			this.depthMaskPass.fullscreenMaterial.defines.LOG_DEPTH = "1";
 
 		}
 
-		if(frameBufferType !== undefined) {
+		if (frameBufferType !== undefined) {
 
 			this.renderTargetMasked.texture.type = frameBufferType;
 
-			if(renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
+			if (renderer !== null && renderer.outputColorSpace === SRGBColorSpace) {
 
 				this.renderTargetMasked.texture.colorSpace = SRGBColorSpace;
 

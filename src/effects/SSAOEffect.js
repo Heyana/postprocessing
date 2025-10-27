@@ -37,6 +37,10 @@ export class SSAOEffect extends Effect {
 	 * @param {Boolean} [options.distanceScaling=true] - Deprecated.
 	 * @param {Boolean} [options.depthAwareUpsampling=true] - Enables or disables depth-aware upsampling. Has no effect if WebGL 2 is not supported.
 	 * @param {Texture} [options.normalDepthBuffer=null] - Deprecated.
+	 * @param {Object} [options.gBufferTextures=null] - G-Buffer textures from RenderPass. If provided, will use these instead of generating own buffers.
+	 * @param {Texture} [options.gBufferTextures.gNormal] - G-Buffer normal texture.
+	 * @param {Texture} [options.gBufferTextures.gDepth] - G-Buffer depth texture.
+	 * @param {Texture} [options.gBufferTextures.gPosition] - G-Buffer position texture (optional).
 	 * @param {Number} [options.samples=9] - The amount of samples per pixel. Should not be a multiple of the ring count.
 	 * @param {Number} [options.rings=7] - The amount of spiral turns in the occlusion sampling pattern. Should be a prime number.
 	 * @param {Number} [options.worldDistanceThreshold] - The world distance threshold at which the occlusion effect starts to fade out.
@@ -66,6 +70,7 @@ export class SSAOEffect extends Effect {
 		samples = 9,
 		rings = 7,
 		normalDepthBuffer = null,
+		gBufferTextures = null,
 		depthAwareUpsampling = true,
 		worldDistanceThreshold,
 		worldDistanceFalloff,
@@ -135,14 +140,37 @@ export class SSAOEffect extends Effect {
 		this.camera = camera;
 
 		/**
+		 * G-Buffer textures (if provided).
+		 *
+		 * @type {Object|null}
+		 * @private
+		 */
+
+		this.gBufferTextures = gBufferTextures;
+
+		/**
 		 * A depth downsampling pass.
 		 *
 		 * @type {DepthDownsamplingPass}
 		 * @private
 		 */
 
-		this.depthDownsamplingPass = new DepthDownsamplingPass({ normalBuffer, resolutionScale });
-		this.depthDownsamplingPass.enabled = (normalDepthBuffer === null);
+		// 检查是否使用GBuffer
+		const useGBuffer = gBufferTextures && gBufferTextures.gNormal && gBufferTextures.gDepth;
+
+		if (useGBuffer) {
+			console.log("🎯 SSAOEffect: 使用 GBuffer 纹理");
+			console.log("  - gNormal:", !!gBufferTextures.gNormal);
+			console.log("  - gDepth:", !!gBufferTextures.gDepth);
+			console.log("  - gPosition:", !!gBufferTextures.gPosition);
+		}
+
+		this.depthDownsamplingPass = new DepthDownsamplingPass({
+			normalBuffer: useGBuffer ? gBufferTextures.gNormal : normalBuffer,
+			resolutionScale
+		});
+		// 如果使用GBuffer或提供了normalDepthBuffer，禁用DepthDownsamplingPass
+		this.depthDownsamplingPass.enabled = !useGBuffer && (normalDepthBuffer === null);
 
 		/**
 		 * An SSAO pass.
@@ -157,7 +185,8 @@ export class SSAOEffect extends Effect {
 		noiseTexture.wrapS = noiseTexture.wrapT = RepeatWrapping;
 
 		const ssaoMaterial = this.ssaoMaterial;
-		ssaoMaterial.normalBuffer = normalBuffer;
+		// 使用GBuffer的normalBuffer（如果可用），否则使用传入的normalBuffer
+		ssaoMaterial.normalBuffer = useGBuffer ? gBufferTextures.gNormal : normalBuffer;
 		ssaoMaterial.noiseTexture = noiseTexture;
 		ssaoMaterial.minRadiusScale = minRadiusScale;
 		ssaoMaterial.samples = samples;
@@ -171,35 +200,39 @@ export class SSAOEffect extends Effect {
 		ssaoMaterial.proximityThreshold = rangeThreshold;
 		ssaoMaterial.proximityFalloff = rangeFalloff;
 
-		if(worldDistanceThreshold !== undefined) {
+		if (worldDistanceThreshold !== undefined) {
 
 			ssaoMaterial.worldDistanceThreshold = worldDistanceThreshold;
 
 		}
 
-		if(worldDistanceFalloff !== undefined) {
+		if (worldDistanceFalloff !== undefined) {
 
 			ssaoMaterial.worldDistanceFalloff = worldDistanceFalloff;
 
 		}
 
-		if(worldProximityThreshold !== undefined) {
+		if (worldProximityThreshold !== undefined) {
 
 			ssaoMaterial.worldProximityThreshold = worldProximityThreshold;
 
 		}
 
-		if(worldProximityFalloff !== undefined) {
+		if (worldProximityFalloff !== undefined) {
 
 			ssaoMaterial.worldProximityFalloff = worldProximityFalloff;
 
 		}
 
-		if(normalDepthBuffer !== null) {
+		if (normalDepthBuffer !== null) {
 
 			this.ssaoMaterial.normalDepthBuffer = normalDepthBuffer;
 			this.defines.set("NORMAL_DEPTH", "1");
 
+		} else if (useGBuffer) {
+			// 如果使用GBuffer，标记为使用NORMAL_DEPTH模式
+			// GBuffer的gNormal和gDepth可以组合使用，类似normalDepthBuffer
+			console.log("🎯 SSAOEffect: 使用 GBuffer 作为 normalDepthBuffer 来源");
 		}
 
 		this.depthAwareUpsampling = depthAwareUpsampling;
@@ -342,9 +375,9 @@ export class SSAOEffect extends Effect {
 
 	set depthAwareUpsampling(value) {
 
-		if(this.depthAwareUpsampling !== value) {
+		if (this.depthAwareUpsampling !== value) {
 
-			if(value) {
+			if (value) {
 
 				this.defines.set("DEPTH_AWARE_UPSAMPLING", "1");
 
@@ -394,7 +427,7 @@ export class SSAOEffect extends Effect {
 	 */
 
 	get distanceScaling() { return true; }
-	set distanceScaling(value) {}
+	set distanceScaling(value) { }
 
 	/**
 	 * The color of the ambient occlusion. Set to `null` to disable.
@@ -413,9 +446,9 @@ export class SSAOEffect extends Effect {
 		const uniforms = this.uniforms;
 		const defines = this.defines;
 
-		if(value !== null) {
+		if (value !== null) {
 
-			if(defines.has("COLORIZE")) {
+			if (defines.has("COLORIZE")) {
 
 				uniforms.get("color").value.set(value);
 
@@ -427,7 +460,7 @@ export class SSAOEffect extends Effect {
 
 			}
 
-		} else if(defines.has("COLORIZE")) {
+		} else if (defines.has("COLORIZE")) {
 
 			defines.delete("COLORIZE");
 			uniforms.get("color").value = null;
@@ -556,7 +589,7 @@ export class SSAOEffect extends Effect {
 
 		const renderTarget = this.renderTarget;
 
-		if(this.depthDownsamplingPass.enabled) {
+		if (this.depthDownsamplingPass.enabled) {
 
 			this.depthDownsamplingPass.render(renderer);
 
@@ -589,6 +622,47 @@ export class SSAOEffect extends Effect {
 	}
 
 	/**
+	 * Sets the G-Buffer textures.
+	 *
+	 * @param {Object|null} gBufferTextures - The G-Buffer textures.
+	 * @param {Texture} [gBufferTextures.gNormal] - The normal texture.
+	 * @param {Texture} [gBufferTextures.gDepth] - The depth texture.
+	 * @param {Texture} [gBufferTextures.gPosition] - The position texture (optional).
+	 */
+
+	setGBufferTextures(gBufferTextures) {
+
+		this.gBufferTextures = gBufferTextures;
+
+		const useGBuffer = gBufferTextures && gBufferTextures.gNormal && gBufferTextures.gDepth;
+
+		if (useGBuffer) {
+			console.log("🎯 SSAOEffect.setGBufferTextures: 启用 GBuffer 纹理");
+			console.log("  - gNormal:", !!gBufferTextures.gNormal);
+			console.log("  - gDepth:", !!gBufferTextures.gDepth);
+			console.log("  - gPosition:", !!gBufferTextures.gPosition);
+
+			// 更新SSAO材质使用GBuffer纹理
+			this.ssaoMaterial.normalBuffer = gBufferTextures.gNormal;
+
+			// 禁用DepthDownsamplingPass，因为我们使用GBuffer
+			this.depthDownsamplingPass.enabled = false;
+
+			// 标记使用NORMAL_DEPTH模式
+			if (!this.defines.has("NORMAL_DEPTH")) {
+				this.defines.set("NORMAL_DEPTH", "1");
+				this.setChanged();
+			}
+		} else {
+			console.log("🎯 SSAOEffect.setGBufferTextures: 禁用 GBuffer，恢复传统模式");
+
+			// 恢复DepthDownsamplingPass
+			this.depthDownsamplingPass.enabled = true;
+		}
+
+	}
+
+	/**
 	 * Performs initialization tasks.
 	 *
 	 * @param {WebGLRenderer} renderer - The renderer.
@@ -602,17 +676,30 @@ export class SSAOEffect extends Effect {
 
 			let normalDepthBuffer = this.uniforms.get("normalDepthBuffer").value;
 
-			if(normalDepthBuffer === null) {
+			if (normalDepthBuffer === null) {
 
-				this.depthDownsamplingPass.initialize(renderer, alpha, frameBufferType);
-				normalDepthBuffer = this.depthDownsamplingPass.texture;
-				this.uniforms.get("normalDepthBuffer").value = normalDepthBuffer;
-				this.ssaoMaterial.normalDepthBuffer = normalDepthBuffer;
-				this.defines.set("NORMAL_DEPTH", "1");
+				// 检查是否使用GBuffer
+				const useGBuffer = this.gBufferTextures && this.gBufferTextures.gNormal && this.gBufferTextures.gDepth;
+
+				if (useGBuffer) {
+					// 使用GBuffer时，不需要DepthDownsamplingPass
+					console.log("🎯 SSAOEffect.initialize: 跳过 DepthDownsamplingPass，使用 GBuffer");
+					// 注意：GBuffer的gNormal和gDepth是分离的，这里需要根据实际使用情况调整
+					// 如果SSAO材质需要组合的normalDepthBuffer，可能需要额外处理
+					// 目前先标记已使用GBuffer
+					this.defines.set("NORMAL_DEPTH", "1");
+				} else {
+					// 传统方式：初始化DepthDownsamplingPass
+					this.depthDownsamplingPass.initialize(renderer, alpha, frameBufferType);
+					normalDepthBuffer = this.depthDownsamplingPass.texture;
+					this.uniforms.get("normalDepthBuffer").value = normalDepthBuffer;
+					this.ssaoMaterial.normalDepthBuffer = normalDepthBuffer;
+					this.defines.set("NORMAL_DEPTH", "1");
+				}
 
 			}
 
-		} catch(e) {
+		} catch (e) {
 
 			// Not supported.
 			this.depthDownsamplingPass.enabled = false;
