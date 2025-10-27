@@ -17,9 +17,7 @@ const SSRShader = {
 		DISTANCE_ATTENUATION: true,
 		FRESNEL: true,
 		INFINITE_THICK: false,
-		SELECTIVE: false,
-		USE_OBJECT_ID: false,  // 新增：是否使用ObjectId进行选择性渲染
-		DEBUG_OBJECT_ID: false  // 新增：调试ObjectId选择逻辑
+		SELECTIVE: false
 	},
 
 	uniforms: {
@@ -28,8 +26,6 @@ const SSRShader = {
 		"tMetalness": { value: null },
 		"tDepth": { value: null },
 		"maskTexture": { value: null },
-		"tObjectId": { value: null },  // 新增：ObjectId纹理
-		"selectedObjectIds": { value: [] },  // 新增：选中对象ID数组
 		"cameraNear": { value: null },
 		"cameraFar": { value: null },
 		"resolution": { value: new Vector2() },
@@ -74,8 +70,6 @@ const SSRShader = {
 	uniform sampler2D tMetalness;
 	uniform sampler2D tDiffuse;
 	uniform sampler2D maskTexture;
-	uniform sampler2D tObjectId;  // 新增：ObjectId纹理
-	uniform float selectedObjectIds[256];  // 新增：选中对象ID数组，最多256个
 	uniform float cameraRange;
 	uniform vec2 resolution;
 	uniform float opacity;
@@ -131,51 +125,9 @@ const SSRShader = {
 		xy*=resolution;//screen
 		return xy;
 	}
-	// 检查当前像素的对象ID是否在选中列表中
-	bool isObjectSelected(float objectId) {
-		// 如果objectId为0，表示无效ID，不选中
-		if(objectId < 0.001) return false;
-		
-		// 遍历选中的对象ID列表
-		for(int i = 0; i < 256; i++) {
-			float selectedId = selectedObjectIds[i];
-			// 如果遇到0，表示列表结束
-			if(selectedId < 0.001) break;
-			// 如果匹配，返回true
-			// 阈值设置为1/255的一半，确保能匹配到相同的ID
-			// 1/255 ≈ 0.00392，所以使用0.002作为阈值
-			if(abs(objectId - selectedId) < 0.002) return true;
-		}
-		return false;
-	}
-	
 	void main(){
-		#ifdef USE_OBJECT_ID
-			// 使用ObjectId纹理进行选择性渲染
-			vec4 objectIdData = texture2D(tObjectId, vUv);
-			float objectId = objectIdData.r;
-			
-			// 🔍 调试：可视化ObjectId选择结果
-			#ifdef DEBUG_OBJECT_ID
-				// 绿色=选中, 红色=未选中, 蓝色=无效ID
-				if(objectId < 0.001) {
-					gl_FragColor = vec4(0.0, 0.0, 1.0, 1.0); // 蓝色：无效ID
-					return;
-				}
-				if(isObjectSelected(objectId)) {
-					gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0); // 绿色：选中
-				} else {
-					gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); // 红色：未选中
-				}
-				return;
-			#endif
-			
-			if(!isObjectSelected(objectId)) return;
-		#else
-			// 传统的mask纹理方式
 			float metalness=texture2D(maskTexture,vUv).r;
 			if(metalness==0.0) return;
-		#endif
 
 		float depth = getDepth( vUv );
 		float viewZ = getViewZ( depth );

@@ -19,6 +19,7 @@ export * from "./MRTRenderPass.js";
 export * from "./NormalPass.js";
 export * from "./Pass.js";
 export * from "./RenderPass.js";
+export * from "./RenderPassGbuffer.js";
 export * from "./ShaderPass.js";
 export * from "./ThreeCompatPass.js";
 export * from "./TiltShiftBlurPass.js";

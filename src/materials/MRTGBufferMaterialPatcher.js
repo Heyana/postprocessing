@@ -133,17 +133,13 @@ export class MRTGBufferMaterialPatcher {
             }
 
             // 🔑 关键：检查当前渲染目标是否支持 MRT
-            // 如果不是 MRT 目标，跳过注入（避免在 SelectiveSSRPass 的 beautyRenderTarget 中出错）
+            // 注意：我们总是注入MRT代码，但在shader中会检查是否真的需要输出到多个目标
+            // 这样可以确保材质在MRT和非MRT环境下都能正常工作
             const currentRenderTarget = renderer.getRenderTarget();
             const isMRTTarget = currentRenderTarget && currentRenderTarget.textures && currentRenderTarget.textures.length >= 5;
 
-            if (!isMRTTarget) {
-                // 不是 MRT 目标，跳过注入，使用原始 shader
-                if (this.debug) {
-                    console.log('⚠️ 当前渲染目标不是 MRT，跳过注入');
-                }
-                return;
-            }
+            // 将MRT状态传递给shader
+            shader.uniforms.isMRTTarget = { value: isMRTTarget ? 1.0 : 0.0 };
 
             // 注入对象ID uniform
             shader.uniforms.objectId = { value: objectId };
@@ -182,8 +178,8 @@ varying float vLinearDepth;
 // 计算视图空间法线
 vViewNormal = normalize(normalMatrix * normal);
 
-// 计算视图空间位置
-vViewPosition = -mvPosition.xyz;
+// 计算视图空间位置 (与RenderPassGbuffer一致)
+vViewPosition = mvPosition.xyz;
 
 // 计算线性深度
 float depth = -mvPosition.z;
@@ -279,8 +275,8 @@ varying float vLinearDepth;
 // 计算视图空间法线
 vViewNormal = normalize(normalMatrix * normal);
 
-// 计算视图空间位置  
-vViewPosition = -mvPosition.xyz;
+// 计算视图空间位置 (与RenderPassGbuffer一致)
+vViewPosition = mvPosition.xyz;
 
 // 计算线性深度
 float depth = -mvPosition.z;
@@ -358,6 +354,10 @@ uniform float objectId;
         // 如果材质有program，清除它以强制重新编译
         if (material.program) {
             material.program = null;
+        }
+
+        if (this.debug) {
+            console.log(`✅ 成功注入材质: ${material.type || 'Unknown'} (ID: ${objectId})`);
         }
 
         return true;

@@ -40,7 +40,7 @@ import { DepthTestStrategy } from "postprocessing";
 // };
 class SelectiveSSRPass extends Pass {
 
-	constructor({ renderer, scene, camera, width, height, selection, bouncing = false, groundReflector, composer, gBufferTextures = null, objectIdManager = null }) {
+	constructor({ renderer, scene, camera, width, height, selection, bouncing = false, groundReflector, composer, gBufferTextures = null }) {
 
 		super();
 
@@ -50,11 +50,6 @@ class SelectiveSSRPass extends Pass {
 		// G-Buffer支持
 		this.gBufferTextures = gBufferTextures;
 		this.usingGBuffer = !!(gBufferTextures && gBufferTextures.gNormal && gBufferTextures.gDepth);
-
-		// ObjectId支持
-		this.objectIdManager = objectIdManager;
-		this.useObjectId = !!(gBufferTextures && gBufferTextures.gObjectId && objectIdManager);
-		console.log('Log-- ', this.useObjectId, 'this.useObjectId');
 
 		this.clear = true;
 
@@ -554,113 +549,38 @@ class SelectiveSSRPass extends Pass {
 		this.scene.background = background;
 
 
-		// 检查是否使用ObjectId模式
-		let needsShaderUpdate = false;
-
-		if (this.useObjectId && this.gBufferTextures.gObjectId) {
-			// 使用ObjectId模式
-			if (!this.ssrMaterial.defines.USE_OBJECT_ID) {
-				this.ssrMaterial.defines.USE_OBJECT_ID = true;
-				this.ssrMaterial.defines.SELECTIVE = true;
-				needsShaderUpdate = true;
-			}
-
-			// 传递ObjectId纹理（每帧更新，不需要needsUpdate）
-			this.ssrMaterial.uniforms.tObjectId.value = this.gBufferTextures.gObjectId;
-
-			// 获取选中对象的ID列表
-			const selectionItems = this.getSelectionItems();
-			const selectedIds = [];
-
-			for (let i = 0; i < Math.min(selectionItems.length, 256); i++) {
-				const obj = selectionItems[i];
-				if (this.objectIdManager && obj) {
-					const id = this.objectIdManager.getObjectId(obj);
-					if (id !== undefined && id !== null && id > 0) {
-						// ObjectId是整数，需要归一化到[0,1]范围
-						// 使用ObjectIdManager的maxId进行归一化（默认255）
-						const maxId = this.objectIdManager.maxId || 255;
-						selectedIds.push(id / maxId);
-					}
-				}
-			}
-
-			// 填充数组到256个元素（用0填充）
-			while (selectedIds.length < 256) {
-				selectedIds.push(0.0);
-			}
-
-			// 更新选中ID数组（每帧更新，不需要needsUpdate）
-			this.ssrMaterial.uniforms.selectedObjectIds.value = selectedIds;
-
-			// 调试信息 - 当选择集改变时输出
-			if (!this._loggedSelectionInfo) {
-				const validIdCount = selectedIds.filter(id => id > 0).length;
-				console.log('🎯 SSR选择集信息 (ObjectId模式):');
-				console.log('  - 选中对象数量:', selectionItems.length);
-				console.log('  - USE_OBJECT_ID: true');
-				console.log('  - tObjectId纹理:', !!this.gBufferTextures.gObjectId);
-				console.log('  - 有效ID数量:', validIdCount);
-
-				if (validIdCount > 0) {
-					const maxId = this.objectIdManager.maxId || 255;
-					const sampleIds = selectedIds.filter(id => id > 0).slice(0, 3).map(id => (id * maxId).toFixed(0));
-					const sampleNormIds = selectedIds.filter(id => id > 0).slice(0, 3).map(id => id.toFixed(6));
-					console.log('  - 示例ID (前3个):', sampleIds);
-					console.log('  - 归一化ID (前3个):', sampleNormIds);
-					const sampleNames = selectionItems.slice(0, 3).map(o => o.name || o.uuid.substr(0, 8));
-					console.log('  - 示例对象 (前3个):', sampleNames);
-				} else {
-					console.warn('  ⚠️ 没有选中任何对象！请点击场景中的物体来选择。选择后会看到反射效果。');
-				}
-				this._loggedSelectionInfo = true;
-			}
-		} else {
-			// 使用传统mask模式
-			if (this.ssrMaterial.defines.USE_OBJECT_ID) {
-				this.ssrMaterial.defines.USE_OBJECT_ID = false;
-				needsShaderUpdate = true;
-			}
-			if (!this.ssrMaterial.defines.SELECTIVE) {
-				this.ssrMaterial.defines.SELECTIVE = true;
-				needsShaderUpdate = true;
-			}
-
-			this.ssrMaterial.uniforms.maskTexture.value = this.renderTargetMask.texture;
-			this.ssrMaterial.uniforms.maskThreshold.value = this.maskThreshold;
-
-			// 调试：检查选择集状态
-			if (!this._loggedSelectionInfo) {
-				const selectionItems = this.getSelectionItems();
-				console.log('🎯 SSR选择集信息 (Mask模式):');
-				console.log('  - 选中对象数量:', selectionItems.length);
-				console.log('  - SELECTIVE模式:', this.ssrMaterial.defines.SELECTIVE);
-				console.log('  - maskTexture:', !!this.renderTargetMask.texture);
-				if (selectionItems.length > 0) {
-					console.log('  - 选中的对象:', selectionItems.map(o => o.name || o.uuid).slice(0, 3));
-				} else {
-					console.warn('  ⚠️ 没有选中任何对象！请点击场景中的物体来选择。选择后会看到反射效果。');
-				}
-				this._loggedSelectionInfo = true;
-			}
-		}
-
-		// 只在defines改变时才重新编译shader
-		if (needsShaderUpdate) {
-			this.ssrMaterial.needsUpdate = true;
-			console.log('🔄 SSR Shader重新编译，USE_OBJECT_ID:', this.ssrMaterial.defines.USE_OBJECT_ID);
-		}
-
+		this.ssrMaterial.uniforms.maskTexture = {
+			value: this.renderTargetMask.texture
+		};
 		// 渲染metalnesses（如果需要）
 		// if (this.selective) {
 		//     this.renderMetalness(renderer, this.metalnessOnMaterial, this.metalnessRenderTarget, 0, 0);
 		// }
 
-		// 渲染SSR - 更新uniforms（不需要needsUpdate）
+		// 渲染SSR
 		this.ssrMaterial.uniforms.opacity.value = this.opacity;
 		this.ssrMaterial.uniforms.maxDistance.value = this.maxDistance;
 		this.ssrMaterial.uniforms.thickness.value = this.thickness;
 		this.ssrMaterial.uniforms.reflectionStrength.value = this.reflectionStrength;
+		this.ssrMaterial.uniforms.maskTexture = { value: this.renderTargetMask.texture };
+		this.ssrMaterial.uniforms.maskThreshold = { value: this.maskThreshold };
+		this.ssrMaterial.defines.SELECTIVE = true;
+		this.ssrMaterial.needsUpdate = true;
+
+		// 调试：检查选择集状态
+		if (!this._loggedSelectionInfo) {
+			const selectionItems = this.getSelectionItems();
+			console.log('🎯 SSR选择集信息:');
+			console.log('  - 选中对象数量:', selectionItems.length);
+			console.log('  - SELECTIVE模式:', this.ssrMaterial.defines.SELECTIVE);
+			console.log('  - maskTexture:', !!this.renderTargetMask.texture);
+			if (selectionItems.length > 0) {
+				console.log('  - 选中的对象:', selectionItems.map(o => o.name || o.uuid).slice(0, 3));
+			} else {
+				console.warn('  ⚠️ 没有选中任何对象！选择性SSR需要选中对象才有反射效果');
+			}
+			this._loggedSelectionInfo = true;
+		}
 
 		// 🔑 关键：每帧更新 G-Buffer 纹理
 		if (this.usingGBuffer && this.gBufferTextures) {
@@ -1395,9 +1315,6 @@ class SelectiveSSRPass extends Pass {
 			this._selection.add(object);
 			console.log(`已添加对象到SSR选择集: ${object.name || object.uuid}`);
 
-			// 重置日志标志，以便下次render时输出更新后的信息
-			this._loggedSelectionInfo = false;
-
 		} else {
 
 			console.warn("无法添加对象到选择集，Selection对象不可用");
@@ -1418,9 +1335,6 @@ class SelectiveSSRPass extends Pass {
 			this._selection.delete(object);
 			console.log(`已从SSR选择集移除对象: ${object.name || object.uuid}`);
 
-			// 重置日志标志，以便下次render时输出更新后的信息
-			this._loggedSelectionInfo = false;
-
 		} else {
 
 			console.warn("无法从选择集移除对象，Selection对象不可用");
@@ -1438,9 +1352,6 @@ class SelectiveSSRPass extends Pass {
 
 			this._selection.clear();
 			console.log("已清空SSR选择集");
-
-			// 重置日志标志，以便下次render时输出更新后的信息
-			this._loggedSelectionInfo = false;
 
 		} else {
 

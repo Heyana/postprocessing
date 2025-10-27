@@ -11,7 +11,8 @@ import {
     ReflectorForSSRPass,
     SelectiveBloomEffect,
     SelectiveSSRPass,
-    RenderPass
+    RenderPass,
+    // RenderPassGbuffer as RenderPass
 } from "postprocessing";
 import {
     IcosahedronGeometry,
@@ -283,7 +284,7 @@ window.addEventListener("load", async () => {
         // 调试G-Buffer纹理
         if (gBufferTextures) {
             console.log("🎯 G-Buffer纹理检查:");
-            console.log("  - gColor:", gBufferTextures.gColor);
+            console.log("  - gLitColor:", gBufferTextures.gLitColor);
             console.log("  - gNormal:", gBufferTextures.gNormal);
             console.log("  - gDepth:", gBufferTextures.gDepth);
             console.log("  - gPosition:", gBufferTextures.gPosition);
@@ -306,7 +307,7 @@ window.addEventListener("load", async () => {
             console.log("🔍 扫描结果:", scanResult);
         }
 
-        // 创建SelectiveSSRPass并传入G-Buffer纹理和ObjectIdManager
+        // 创建SelectiveSSRPass并传入G-Buffer纹理
         ssrPass = new SelectiveSSRPass({
             renderer,
             scene,
@@ -318,8 +319,7 @@ window.addEventListener("load", async () => {
             metalnessThreshold: params.metalnessThreshold,
             useMetalnessThreshold: params.useMetalnessThreshold,
             composer,
-            gBufferTextures: gBufferTextures,
-            objectIdManager: objectIdManager  // 传递ObjectIdManager以启用基于ObjectId的选择性渲染
+            gBufferTextures: gBufferTextures
         });
 
         // 设置场景引用以启用自动选择
@@ -359,6 +359,8 @@ window.addEventListener("load", async () => {
 
         // 添加G-Buffer Pass（替代RenderPass，同时渲染场景和G-Buffer数据）
         composer.addPass(gBufferPass);
+        // ⚠️ 重要：因为后面还有SSR Pass，所以不能renderToScreen，需要渲染到inputBuffer
+        gBufferPass.renderToScreen = false;
 
         // 创建并添加SelectiveBloom效果
         bloomEffect = new SelectiveBloomEffect(scene, camera, {
@@ -1234,23 +1236,71 @@ function setupGUI(pane, options) {
         if (gBufferTextures) {
             console.log("🔍 G-Buffer状态检查:");
             console.log("  - gColor纹理:", gBufferTextures.gColor ? "✅" : "❌");
+            console.log("  - gLitColor纹理:", gBufferTextures.gLitColor ? "✅" : "❌");
             console.log("  - gNormal纹理:", gBufferTextures.gNormal ? "✅" : "❌");
             console.log("  - gDepth纹理:", gBufferTextures.gDepth ? "✅" : "❌");
             console.log("  - gPosition纹理:", gBufferTextures.gPosition ? "✅" : "❌");
             console.log("  - gObjectId纹理:", gBufferTextures.gObjectId ? "✅" : "❌");
+            console.log("  - depthTexture:", gBufferTextures.depthTexture ? "✅" : "❌");
             console.log("  - 渲染目标大小:", gBufferTextures.gColor?.image?.width + "x" + gBufferTextures.gColor?.image?.height);
             console.log("  - SSR使用G-Buffer:", ssrPass.usingGBuffer ? "✅" : "❌");
+            console.log("  - SSR的gBufferTextures:", ssrPass.gBufferTextures);
 
             // 额外的纹理详细信息
             if (gBufferTextures.gNormal) {
                 console.log("  - gNormal纹理格式:", gBufferTextures.gNormal.format);
                 console.log("  - gNormal纹理类型:", gBufferTextures.gNormal.type);
             }
+
+            // 🔍 新增：检查纹理是否相同
+            console.log("  - gColor === gLitColor:", gBufferTextures.gColor === gBufferTextures.gLitColor);
         } else {
             console.warn("❌ G-Buffer纹理未生成!");
             console.log("  - 检查RenderPass是否启用G-Buffer");
             console.log("  - gBufferPass.enableGBuffer:", gBufferPass.enableGBuffer);
         }
+    });
+
+    // 测试 MRT 渲染按钮
+    debugFolder.addButton({
+        title: "🔬 测试MRT渲染"
+    }).on("click", () => {
+        console.log("🔬 ========== MRT 渲染测试 ==========");
+
+        // 1. 检查 RenderPass 状态
+        console.log("📋 1. RenderPass 状态:");
+        console.log("  - enableGBuffer:", gBufferPass.enableGBuffer);
+        console.log("  - renderToScreen:", gBufferPass.renderToScreen);
+        console.log("  - sceneMaterialsPatched:", gBufferPass.sceneMaterialsPatched);
+
+        // 2. 检查 G-Buffer 渲染目标
+        const gBufferTextures = gBufferPass.getGBufferTextures();
+        console.log("📋 2. G-Buffer 渲染目标:");
+        if (gBufferPass.gBufferRenderTarget) {
+            console.log("  - count:", gBufferPass.gBufferRenderTarget.count);
+            console.log("  - textures数量:", gBufferPass.gBufferRenderTarget.textures?.length);
+            console.log("  - width:", gBufferPass.gBufferRenderTarget.width);
+            console.log("  - height:", gBufferPass.gBufferRenderTarget.height);
+        } else {
+            console.warn("  ❌ gBufferRenderTarget 未创建！");
+        }
+
+        // 3. 检查 SSR Pass 的 G-Buffer 引用
+        console.log("📋 3. SSR Pass 的 G-Buffer 引用:");
+        console.log("  - usingGBuffer:", ssrPass.usingGBuffer);
+        console.log("  - gBufferTextures:", ssrPass.gBufferTextures);
+        if (ssrPass.gBufferTextures) {
+            console.log("    - gLitColor:", !!ssrPass.gBufferTextures.gLitColor);
+            console.log("    - gNormal:", !!ssrPass.gBufferTextures.gNormal);
+            console.log("    - gDepth:", !!ssrPass.gBufferTextures.gDepth);
+        }
+
+        // 4. 切换到 G-Buffer 颜色显示模式
+        console.log("📋 4. 切换到 G-Buffer 颜色显示:");
+        compatSSRPass.threePass.output = SelectiveSSRPass.OUTPUT.GBufferColor;
+        console.log("  ✅ 已切换到 GBufferColor 模式");
+        console.log("  👁️ 现在应该看到 MRT 渲染的颜色通道");
+        console.log("  💡 如果看到正确的彩色场景，说明 MRT 渲染正常");
     });
 
     // 测试法线可视化按钮
