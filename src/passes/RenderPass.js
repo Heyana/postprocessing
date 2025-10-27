@@ -2,7 +2,9 @@ import { OverrideMaterialManager } from "../core/OverrideMaterialManager.js";
 import { ClearPass } from "./ClearPass.js";
 import { Pass } from "./Pass.js";
 import { timeLog, timeEndLog, log } from "../utils/PerformanceLogger.js";
-import { WebGLRenderTarget, RawShaderMaterial, FloatType, RGBAFormat, Vector2, Color, GLSL3, Matrix4, Matrix3, LinearFilter, HalfFloatType } from "three";
+import { WebGLRenderTarget, RawShaderMaterial, FloatType, RGBAFormat, Vector2, Color, GLSL3, Matrix4, Matrix3, LinearFilter, HalfFloatType, ShaderMaterial, Mesh, PlaneGeometry, OrthographicCamera, Scene, DepthTexture, UnsignedShortType } from "three";
+import { MRTGBufferMaterialPatcher } from "../materials/MRTGBufferMaterialPatcher.js";
+import { ObjectIdManager } from "../utils/ObjectIdManager.js";
 
 /**
  * A pass that renders a given scene into the input buffer or to screen.
@@ -57,8 +59,33 @@ export class RenderPass extends Pass {
         this.gBufferRenderTarget = null;
         this.gBufferMaterial = null;
 
+        /**
+         * Object ID Manager for selective rendering
+         * @type {ObjectIdManager}
+         * @private
+         */
+        this.objectIdManager = new ObjectIdManager();
+
+        /**
+         * MRT G-Buffer Material Patcher
+         * @type {MRTGBufferMaterialPatcher}
+         * @private
+         */
+        this.gBufferPatcher = null;
+
+        /**
+         * Flag to track if scene materials have been patched
+         * @type {boolean}
+         * @private
+         */
+        this.sceneMaterialsPatched = false;
+
         if (this.enableGBuffer) {
             this.initializeGBuffer();
+            // 初始化 G-Buffer Patcher
+            this.gBufferPatcher = new MRTGBufferMaterialPatcher(this.objectIdManager);
+            // 初始化复制材质和全屏四边形
+            this.initializeCopyQuad();
         }
 
         /**
@@ -339,47 +366,57 @@ export class RenderPass extends Pass {
 
         }
 
-        renderer.setRenderTarget(renderTarget);
+        // G-Buffer rendering using MRT Patcher (single-pass MRT approach)
+        if (this.enableGBuffer && this.gBufferRenderTarget && this.gBufferPatcher) {
 
-        if (this.overrideMaterialManager !== null) {
+            // 只在第一次渲染时执行扫描和注入（优化性能）
+            if (!this.sceneMaterialsPatched) {
+                // 1. 扫描场景并为所有对象分配ID
+                this.objectIdManager.scanScene(scene);
 
-            renderResult = this.overrideMaterialManager.render(renderer, scene, camera, renderOpts);
+                // 2. 为场景中的所有材质注入MRT输出代码
+                const patchCount = this.gBufferPatcher.patchScene(scene, camera);
+                this.sceneMaterialsPatched = true;
 
-        } else {
+                if (patchCount > 0) {
+                    console.log(`✅ RenderPass: 成功注入 ${patchCount} 个材质`);
+                } else {
+                    console.warn("⚠️ RenderPass: 没有找到可注入的材质");
+                }
+            }
 
-            renderResult = renderer.render(scene, camera, renderOpts);
-
-        }
-
-        // G-Buffer rendering (after normal scene rendering)
-        if (this.enableGBuffer && this.gBufferRenderTarget && this.gBufferMaterial) {
-            this.prepareGBufferMaterial();
-
-            // Save current overrideMaterial
-            const originalOverrideMaterial = scene.overrideMaterial;
-
-
-
-            // 重要：RawShaderMaterial需要手动更新矩阵uniform
-            // 但由于使用overrideMaterial时Three.js会自动为每个对象更新这些矩阵
-            // 我们需要让Three.js知道这些uniform需要自动更新
-            this.gBufferMaterial.uniformsNeedUpdate = true;
-
-            // Render G-Buffer
-            scene.overrideMaterial = this.gBufferMaterial;
+            // 3. 使用MRT渲染目标进行一次性渲染（同时生成G-Buffer和颜色）
             renderer.setRenderTarget(this.gBufferRenderTarget);
             renderer.clear();
-            renderer.render(scene, camera);
 
-            // Restore original overrideMaterial
-            scene.overrideMaterial = originalOverrideMaterial;
+            if (this.overrideMaterialManager !== null) {
+                renderResult = this.overrideMaterialManager.render(renderer, scene, camera, renderOpts);
+            } else {
+                renderResult = renderer.render(scene, camera, renderOpts);
+            }
+
+            // 4. 将MRT的颜色输出（location 0）复制到正常的渲染目标
+            // 这样后续的 pass（如 SSR）可以使用
+            if (renderTarget && this.copyMaterial && this.copyQuad) {
+                const oldAutoClear = renderer.autoClear;
+                renderer.autoClear = false;
+
+                // 复制 gLitColor 到 renderTarget
+                this.copyMaterial.uniforms.tDiffuse.value = this.gBufferRenderTarget.textures[0];
+                renderer.setRenderTarget(renderTarget);
+                renderer.render(this.copyQuad, this.orthoCamera);
+
+                renderer.autoClear = oldAutoClear;
+            }
 
         } else {
-            if (this.enableGBuffer) {
-                console.warn("⚠️ RenderPass: G-Buffer已启用但资源未准备好");
-                console.log("  - enableGBuffer:", this.enableGBuffer);
-                console.log("  - gBufferRenderTarget:", !!this.gBufferRenderTarget);
-                console.log("  - gBufferMaterial:", !!this.gBufferMaterial);
+            // 传统渲染（不使用 G-Buffer）
+            renderer.setRenderTarget(renderTarget);
+
+            if (this.overrideMaterialManager !== null) {
+                renderResult = this.overrideMaterialManager.render(renderer, scene, camera, renderOpts);
+            } else {
+                renderResult = renderer.render(scene, camera, renderOpts);
             }
         }
 
@@ -405,7 +442,7 @@ export class RenderPass extends Pass {
         const height = Math.max(1, Math.floor(512 * this.resolutionScale));
 
         this.gBufferRenderTarget = new WebGLRenderTarget(width, height, {
-            count: 4, // MRT: color, normal, depth, position
+            count: 5, // MRT: litColor(0), normal(1), depth(2), position(3), objectId(4)
             type: FloatType,
             format: RGBAFormat,
             minFilter: LinearFilter,
@@ -415,12 +452,19 @@ export class RenderPass extends Pass {
             stencilBuffer: false
         });
 
-        console.log("🔧 RenderPass: 初始化G-Buffer渲染目标");
+        // 🔑 关键：立即创建深度纹理（在初始化时，而不是第一次渲染时）
+        const depthTexture = new DepthTexture();
+        depthTexture.type = UnsignedShortType;
+        this.gBufferRenderTarget.depthTexture = depthTexture;
+
+        console.log("🔧 RenderPass: 初始化G-Buffer渲染目标 (使用MRT Patcher)");
         console.log("  - 尺寸:", width + "x" + height);
         console.log("  - MRT计数:", this.gBufferRenderTarget.count);
         console.log("  - 纹理格式:", RGBAFormat);
-        console.log("  - 纹理类型:", FloatType);
+        console.log("  - 纹理类型:", HalfFloatType);
         console.log("  - 生成纹理数量:", this.gBufferRenderTarget.textures?.length);
+        console.log("  - 深度纹理:", !!this.gBufferRenderTarget.depthTexture);
+        console.log("  - 支持对象ID: ✅");
 
         // Create G-Buffer material using RawShaderMaterial with GLSL3 (like GBufferPass)
         this.gBufferMaterial = new RawShaderMaterial({
@@ -530,6 +574,49 @@ export class RenderPass extends Pass {
     }
 
     /**
+     * Initialize copy material and fullscreen quad for copying MRT results.
+     *
+     * @private
+     */
+    initializeCopyQuad() {
+
+        // 创建复制材质
+        this.copyMaterial = new ShaderMaterial({
+            uniforms: {
+                tDiffuse: { value: null }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform sampler2D tDiffuse;
+                varying vec2 vUv;
+                void main() {
+                    gl_FragColor = texture2D(tDiffuse, vUv);
+                }
+            `,
+            depthTest: false,
+            depthWrite: false
+        });
+
+        // 创建全屏四边形
+        const geometry = new PlaneGeometry(2, 2);
+        const mesh = new Mesh(geometry, this.copyMaterial);
+        this.copyQuad = new Scene();
+        this.copyQuad.add(mesh);
+
+        // 创建正交相机
+        this.orthoCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+        console.log("🔧 RenderPass: 初始化MRT复制Quad");
+
+    }
+
+    /**
      * Returns the G-Buffer textures.
      *
      * @returns {Object|null} An object containing the G-Buffer textures, or null if G-Buffer is disabled.
@@ -541,11 +628,28 @@ export class RenderPass extends Pass {
         }
 
         return {
-            gColor: this.gBufferRenderTarget.textures[0],
+            gLitColor: this.gBufferRenderTarget.textures[0],  // 渲染的颜色（带光照）
             gNormal: this.gBufferRenderTarget.textures[1],
             gDepth: this.gBufferRenderTarget.textures[2],
-            gPosition: this.gBufferRenderTarget.textures[3]
+            gPosition: this.gBufferRenderTarget.textures[3],
+            gObjectId: this.gBufferRenderTarget.textures[4],  // 对象ID纹理
+            depthTexture: this.gBufferRenderTarget.depthTexture  // 深度缓冲（用于SSR等）
         };
+
+    }
+
+    /**
+     * Get the depth texture from G-Buffer render target.
+     * 
+     * @returns {DepthTexture|null} The depth texture or null if not available.
+     */
+    getDepthTexture() {
+
+        if (!this.enableGBuffer || !this.gBufferRenderTarget) {
+            return null;
+        }
+
+        return this.gBufferRenderTarget.depthTexture;
 
     }
 
@@ -563,6 +667,14 @@ export class RenderPass extends Pass {
             this.initializeGBuffer();
         }
 
+        if (!this.gBufferPatcher) {
+            this.gBufferPatcher = new MRTGBufferMaterialPatcher(this.objectIdManager);
+        }
+
+        if (!this.copyMaterial) {
+            this.initializeCopyQuad();
+        }
+
     }
 
     /**
@@ -571,6 +683,7 @@ export class RenderPass extends Pass {
     disableGBufferGeneration() {
 
         this.enableGBuffer = false;
+        this.sceneMaterialsPatched = false;
 
         if (this.gBufferRenderTarget) {
             this.gBufferRenderTarget.dispose();
@@ -580,6 +693,11 @@ export class RenderPass extends Pass {
         if (this.gBufferMaterial) {
             this.gBufferMaterial.dispose();
             this.gBufferMaterial = null;
+        }
+
+        if (this.gBufferPatcher) {
+            this.gBufferPatcher.clear();
+            this.gBufferPatcher = null;
         }
 
     }
@@ -627,11 +745,92 @@ export class RenderPass extends Pass {
     }
 
     /**
+     * Force re-patching of all scene materials and re-scanning for object IDs.
+     * Call this when you add new objects/materials to the scene dynamically.
+     * This will trigger re-scanning and re-patching on the next render.
+     */
+    repatchSceneMaterials() {
+
+        this.sceneMaterialsPatched = false;
+        console.log("🔄 RenderPass: 场景将在下次渲染时重新扫描和注入材质");
+
+    }
+
+    /**
+     * Get the Object ID Manager.
+     * 
+     * @returns {ObjectIdManager} The object ID manager instance.
+     */
+    getObjectIdManager() {
+
+        return this.objectIdManager;
+
+    }
+
+    /**
+     * Get the G-Buffer Material Patcher.
+     * 
+     * @returns {MRTGBufferMaterialPatcher|null} The patcher instance or null if G-Buffer is disabled.
+     */
+    getGBufferPatcher() {
+
+        return this.gBufferPatcher;
+
+    }
+
+    /**
+     * Get the object ID for a specific object.
+     * 
+     * @param {Object3D} object - The Three.js object.
+     * @returns {number} The object's ID.
+     */
+    getObjectId(object) {
+
+        return this.objectIdManager ? this.objectIdManager.getObjectId(object) : 0;
+
+    }
+
+    /**
+     * Get object by its ID.
+     * 
+     * @param {number} id - The object ID.
+     * @returns {Object3D|null} The object or null if not found.
+     */
+    getObjectById(id) {
+
+        return this.objectIdManager ? this.objectIdManager.getObjectById(id) : null;
+
+    }
+
+    /**
      * Dispose of resources.
      */
     dispose() {
 
         this.disableGBufferGeneration();
+
+        if (this.gBufferPatcher) {
+            this.gBufferPatcher.clear();
+            this.gBufferPatcher = null;
+        }
+
+        if (this.objectIdManager) {
+            this.objectIdManager.clear();
+        }
+
+        if (this.copyMaterial) {
+            this.copyMaterial.dispose();
+            this.copyMaterial = null;
+        }
+
+        if (this.copyQuad) {
+            this.copyQuad.traverse((obj) => {
+                if (obj.geometry) obj.geometry.dispose();
+            });
+            this.copyQuad = null;
+        }
+
+        this.orthoCamera = null;
 
         if (this.clearPass) {
             this.clearPass.dispose();

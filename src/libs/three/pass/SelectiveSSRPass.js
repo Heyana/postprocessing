@@ -33,14 +33,14 @@ import { DepthMaskMaterial, DepthPass, ShaderPass } from "postprocessing";
 // 导入深度测试策略
 import { renderUtils } from "../../../utils/RenderUtils.js";
 import { DepthTestStrategy } from "postprocessing";
-const console = {
-	log: () => { },
-	warn: () => { },
-	error: () => { },
-};
+// const console = {
+// 	log: () => { },
+// 	warn: () => { },
+// 	error: () => { },
+// };
 class SelectiveSSRPass extends Pass {
 
-	constructor({ renderer, scene, camera, width, height, selection, bouncing = false, groundReflector, composer, gBufferTextures = null }) {
+	constructor({ renderer, scene, camera, width, height, selection, bouncing = false, groundReflector, composer, gBufferTextures = null, objectIdManager = null }) {
 
 		super();
 
@@ -50,6 +50,11 @@ class SelectiveSSRPass extends Pass {
 		// G-Buffer支持
 		this.gBufferTextures = gBufferTextures;
 		this.usingGBuffer = !!(gBufferTextures && gBufferTextures.gNormal && gBufferTextures.gDepth);
+
+		// ObjectId支持
+		this.objectIdManager = objectIdManager;
+		this.useObjectId = !!(gBufferTextures && gBufferTextures.gObjectId && objectIdManager);
+		console.log('Log-- ', this.useObjectId, 'this.useObjectId');
 
 		this.clear = true;
 
@@ -237,13 +242,13 @@ class SelectiveSSRPass extends Pass {
 		// this.uniforms.get("depthTexture").value = composer.depthTexture;
 
 		// Use G-Buffer beauty or fallback to rendered beauty
-		// if (this.usingGBuffer && this.gBufferTextures.gColor) {
-		// 	this.ssrMaterial.uniforms.tDiffuse.value = this.gBufferTextures.gColor;
-		// 	console.log("✅ SSR: 使用G-Buffer颜色数据");
-		// } else {
-		this.ssrMaterial.uniforms.tDiffuse.value = this.beautyRenderTarget.texture;
-		console.log("⚠️ SSR: 使用传统Beauty渲染");
-		// }
+		if (this.usingGBuffer && this.gBufferTextures.gLitColor) {
+			this.ssrMaterial.uniforms.tDiffuse.value = this.gBufferTextures.gLitColor;
+			console.log("✅ SSR: 使用G-Buffer颜色数据 (gLitColor)");
+		} else {
+			this.ssrMaterial.uniforms.tDiffuse.value = this.beautyRenderTarget.texture;
+			console.log("⚠️ SSR: 使用传统Beauty渲染");
+		}
 
 		// Use G-Buffer normal or fallback to rendered normal
 		if (this.usingGBuffer) {
@@ -259,9 +264,10 @@ class SelectiveSSRPass extends Pass {
 		this.ssrMaterial.uniforms.tMetalness.value = this.metalnessRenderTarget.texture;
 
 		// Use G-Buffer depth or fallback to beauty depth
-		if (this.usingGBuffer && this.gBufferTextures.gDepth) {
-			this.ssrMaterial.uniforms.tDepth.value = this.gBufferTextures.gDepth;
-			console.log("✅ SSR: 使用G-Buffer深度数据");
+		// 使用 gBufferTextures.depthTexture（传统深度缓冲），而不是 gBufferTextures.gDepth（线性深度纹理）
+		if (this.usingGBuffer && this.gBufferTextures && this.gBufferTextures.depthTexture) {
+			this.ssrMaterial.uniforms.tDepth.value = this.gBufferTextures.depthTexture;
+			console.log("✅ SSR: 使用G-Buffer深度缓冲（传统格式）");
 		} else {
 			this.ssrMaterial.uniforms.tDepth.value = this.beautyRenderTarget.depthTexture;
 			console.log("⚠️ SSR: 使用传统深度渲染");
@@ -445,19 +451,19 @@ class SelectiveSSRPass extends Pass {
 		const background = this.scene.background;
 
 		// 在G-Buffer模式下跳过beauty渲染（由RenderPass提供）
-		// if (!this.usingGBuffer) {
-		// 渲染beauty和depth
-		renderer.setRenderTarget(this.beautyRenderTarget);
-		renderer.clear();
-		if (this.groundReflector) {
-			this.groundReflector.visible = false;
-			this.groundReflector.doRender(this.renderer, this.scene, this.camera);
-			this.groundReflector.visible = true;
+		if (!this.usingGBuffer) {
+			// 渲染beauty和depth
+			renderer.setRenderTarget(this.beautyRenderTarget);
+			renderer.clear();
+			if (this.groundReflector) {
+				this.groundReflector.visible = false;
+				this.groundReflector.doRender(this.renderer, this.scene, this.camera);
+				this.groundReflector.visible = true;
+			}
+			// console.log("⚠️ SSR: 渲染传统Beauty缓冲区");
+		} else {
+			console.log("✅ SSR: 跳过Beauty渲染，使用G-Buffer颜色数据");
 		}
-		// console.log("⚠️ SSR: 渲染传统Beauty缓冲区");
-		// } else {
-		// console.log("✅ SSR: 跳过Beauty渲染，使用G-Buffer颜色数据");
-		// }
 
 		// 暂时移除背景以避免与反射混淆
 		this.scene.background = null;
@@ -548,33 +554,151 @@ class SelectiveSSRPass extends Pass {
 		this.scene.background = background;
 
 
-		this.ssrMaterial.uniforms.maskTexture = {
-			value: this.renderTargetMask.texture
-		};
+		// 检查是否使用ObjectId模式
+		let needsShaderUpdate = false;
+
+		if (this.useObjectId && this.gBufferTextures.gObjectId) {
+			// 使用ObjectId模式
+			if (!this.ssrMaterial.defines.USE_OBJECT_ID) {
+				this.ssrMaterial.defines.USE_OBJECT_ID = true;
+				this.ssrMaterial.defines.SELECTIVE = true;
+				needsShaderUpdate = true;
+			}
+
+			// 传递ObjectId纹理（每帧更新，不需要needsUpdate）
+			this.ssrMaterial.uniforms.tObjectId.value = this.gBufferTextures.gObjectId;
+
+			// 获取选中对象的ID列表
+			const selectionItems = this.getSelectionItems();
+			const selectedIds = [];
+
+			for (let i = 0; i < Math.min(selectionItems.length, 256); i++) {
+				const obj = selectionItems[i];
+				if (this.objectIdManager && obj) {
+					const id = this.objectIdManager.getObjectId(obj);
+					if (id !== undefined && id !== null && id > 0) {
+						// ObjectId是整数，需要归一化到[0,1]范围
+						// 使用ObjectIdManager的maxId进行归一化（默认255）
+						const maxId = this.objectIdManager.maxId || 255;
+						selectedIds.push(id / maxId);
+					}
+				}
+			}
+
+			// 填充数组到256个元素（用0填充）
+			while (selectedIds.length < 256) {
+				selectedIds.push(0.0);
+			}
+
+			// 更新选中ID数组（每帧更新，不需要needsUpdate）
+			this.ssrMaterial.uniforms.selectedObjectIds.value = selectedIds;
+
+			// 调试信息 - 当选择集改变时输出
+			if (!this._loggedSelectionInfo) {
+				const validIdCount = selectedIds.filter(id => id > 0).length;
+				console.log('🎯 SSR选择集信息 (ObjectId模式):');
+				console.log('  - 选中对象数量:', selectionItems.length);
+				console.log('  - USE_OBJECT_ID: true');
+				console.log('  - tObjectId纹理:', !!this.gBufferTextures.gObjectId);
+				console.log('  - 有效ID数量:', validIdCount);
+
+				if (validIdCount > 0) {
+					const maxId = this.objectIdManager.maxId || 255;
+					const sampleIds = selectedIds.filter(id => id > 0).slice(0, 3).map(id => (id * maxId).toFixed(0));
+					const sampleNormIds = selectedIds.filter(id => id > 0).slice(0, 3).map(id => id.toFixed(6));
+					console.log('  - 示例ID (前3个):', sampleIds);
+					console.log('  - 归一化ID (前3个):', sampleNormIds);
+					const sampleNames = selectionItems.slice(0, 3).map(o => o.name || o.uuid.substr(0, 8));
+					console.log('  - 示例对象 (前3个):', sampleNames);
+				} else {
+					console.warn('  ⚠️ 没有选中任何对象！请点击场景中的物体来选择。选择后会看到反射效果。');
+				}
+				this._loggedSelectionInfo = true;
+			}
+		} else {
+			// 使用传统mask模式
+			if (this.ssrMaterial.defines.USE_OBJECT_ID) {
+				this.ssrMaterial.defines.USE_OBJECT_ID = false;
+				needsShaderUpdate = true;
+			}
+			if (!this.ssrMaterial.defines.SELECTIVE) {
+				this.ssrMaterial.defines.SELECTIVE = true;
+				needsShaderUpdate = true;
+			}
+
+			this.ssrMaterial.uniforms.maskTexture.value = this.renderTargetMask.texture;
+			this.ssrMaterial.uniforms.maskThreshold.value = this.maskThreshold;
+
+			// 调试：检查选择集状态
+			if (!this._loggedSelectionInfo) {
+				const selectionItems = this.getSelectionItems();
+				console.log('🎯 SSR选择集信息 (Mask模式):');
+				console.log('  - 选中对象数量:', selectionItems.length);
+				console.log('  - SELECTIVE模式:', this.ssrMaterial.defines.SELECTIVE);
+				console.log('  - maskTexture:', !!this.renderTargetMask.texture);
+				if (selectionItems.length > 0) {
+					console.log('  - 选中的对象:', selectionItems.map(o => o.name || o.uuid).slice(0, 3));
+				} else {
+					console.warn('  ⚠️ 没有选中任何对象！请点击场景中的物体来选择。选择后会看到反射效果。');
+				}
+				this._loggedSelectionInfo = true;
+			}
+		}
+
+		// 只在defines改变时才重新编译shader
+		if (needsShaderUpdate) {
+			this.ssrMaterial.needsUpdate = true;
+			console.log('🔄 SSR Shader重新编译，USE_OBJECT_ID:', this.ssrMaterial.defines.USE_OBJECT_ID);
+		}
+
 		// 渲染metalnesses（如果需要）
 		// if (this.selective) {
 		//     this.renderMetalness(renderer, this.metalnessOnMaterial, this.metalnessRenderTarget, 0, 0);
 		// }
 
-		// 渲染SSR
+		// 渲染SSR - 更新uniforms（不需要needsUpdate）
 		this.ssrMaterial.uniforms.opacity.value = this.opacity;
 		this.ssrMaterial.uniforms.maxDistance.value = this.maxDistance;
 		this.ssrMaterial.uniforms.thickness.value = this.thickness;
 		this.ssrMaterial.uniforms.reflectionStrength.value = this.reflectionStrength;
-		this.ssrMaterial.uniforms.maskTexture = { value: this.renderTargetMask.texture };
-		this.ssrMaterial.uniforms.maskThreshold = { value: this.maskThreshold };
-		this.ssrMaterial.defines.SELECTIVE = true;
-		this.ssrMaterial.needsUpdate = true;
 
-		// 如果使用外部深度纹理，则需要确保更新SSR材质
-		if (this.useExternalDepth && this.externalDepthTexture) {
+		// 🔑 关键：每帧更新 G-Buffer 纹理
+		if (this.usingGBuffer && this.gBufferTextures) {
+			let updated = [];
 
-			this.ssrMaterial.uniforms.tDepth.value = this.externalDepthTexture;
+			// 更新颜色纹理
+			if (this.gBufferTextures.gLitColor) {
+				this.ssrMaterial.uniforms.tDiffuse.value = this.gBufferTextures.gLitColor;
+				updated.push('tDiffuse');
+			}
 
+			// 更新法线纹理
+			if (this.gBufferTextures.gNormal) {
+				this.ssrMaterial.uniforms.tNormal.value = this.gBufferTextures.gNormal;
+				updated.push('tNormal');
+			}
+
+			// 更新深度纹理
+			if (this.gBufferTextures.depthTexture) {
+				this.ssrMaterial.uniforms.tDepth.value = this.gBufferTextures.depthTexture;
+				updated.push('tDepth');
+			}
+
+			// 调试：打印更新信息（只在第一帧）
+			if (!this._loggedGBufferUpdate) {
+				console.log('✅ SSR: 使用G-Buffer渲染，已更新:', updated.join(', '));
+				this._loggedGBufferUpdate = true;
+			}
 		} else {
+			// 使用传统渲染
 
-			this.ssrMaterial.uniforms.tDepth.value = this.beautyRenderTarget.depthTexture;
-
+			if (this.useExternalDepth && this.externalDepthTexture) {
+				// 使用外部深度纹理
+				this.ssrMaterial.uniforms.tDepth.value = this.externalDepthTexture;
+			} else {
+				// 使用传统渲染的纹理
+				this.ssrMaterial.uniforms.tDepth.value = this.beautyRenderTarget.depthTexture;
+			}
 		}
 
 		this.renderPass(renderer, this.ssrMaterial, this.ssrRenderTarget);
@@ -593,7 +717,12 @@ class SelectiveSSRPass extends Pass {
 			case SelectiveSSRPass.OUTPUT.Default:
 				if (this.bouncing) {
 
-					this.copyMaterial.uniforms.tDiffuse.value = this.beautyRenderTarget.texture;
+					// 使用 G-Buffer 颜色或传统 beauty
+					const beautyTexture = (this.usingGBuffer && this.gBufferTextures && this.gBufferTextures.gLitColor)
+						? this.gBufferTextures.gLitColor
+						: this.beautyRenderTarget.texture;
+
+					this.copyMaterial.uniforms.tDiffuse.value = beautyTexture;
 					this.copyMaterial.blending = NoBlending;
 					this.renderPass(renderer, this.copyMaterial, this.prevRenderTarget);
 
@@ -607,7 +736,12 @@ class SelectiveSSRPass extends Pass {
 
 				} else {
 
-					this.copyMaterial.uniforms.tDiffuse.value = this.beautyRenderTarget.texture;
+					// 使用 G-Buffer 颜色或传统 beauty
+					const beautyTexture = (this.usingGBuffer && this.gBufferTextures && this.gBufferTextures.gLitColor)
+						? this.gBufferTextures.gLitColor
+						: this.beautyRenderTarget.texture;
+
+					this.copyMaterial.uniforms.tDiffuse.value = beautyTexture;
 					this.copyMaterial.blending = NoBlending;
 					this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
 
@@ -637,7 +771,11 @@ class SelectiveSSRPass extends Pass {
 				break;
 
 			case SelectiveSSRPass.OUTPUT.Beauty:
-				this.copyMaterial.uniforms.tDiffuse.value = this.beautyRenderTarget.texture;
+				// 使用 G-Buffer 颜色或传统 beauty
+				const beautyTexture = (this.usingGBuffer && this.gBufferTextures && this.gBufferTextures.gLitColor)
+					? this.gBufferTextures.gLitColor
+					: this.beautyRenderTarget.texture;
+				this.copyMaterial.uniforms.tDiffuse.value = beautyTexture;
 				this.copyMaterial.blending = NoBlending;
 				this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
 				break;
@@ -723,17 +861,20 @@ class SelectiveSSRPass extends Pass {
 				break;
 
 			case SelectiveSSRPass.OUTPUT.GBufferColor:
-				if (this.usingGBuffer && this.gBufferTextures && this.gBufferTextures.gColor) {
-					this.copyMaterial.uniforms.tDiffuse.value = this.gBufferTextures.gColor;
+				if (this.usingGBuffer && this.gBufferTextures && this.gBufferTextures.gLitColor) {
+					this.copyMaterial.uniforms.tDiffuse.value = this.gBufferTextures.gLitColor;
 					this.copyMaterial.blending = NoBlending;
 					this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
-					console.log("🎨 显示G-Buffer颜色通道");
+					console.log("🎨 显示G-Buffer颜色通道 (gLitColor)");
 				} else {
 					console.warn("⚠️ G-Buffer颜色纹理不可用");
 					// 回退到Beauty模式
-					this.copyMaterial.uniforms.tDiffuse.value = this.beautyRenderTarget.texture;
-					this.copyMaterial.blending = NoBlending;
-					this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
+					const beautyTexture = this.beautyRenderTarget ? this.beautyRenderTarget.texture : null;
+					if (beautyTexture) {
+						this.copyMaterial.uniforms.tDiffuse.value = beautyTexture;
+						this.copyMaterial.blending = NoBlending;
+						this.renderPass(renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer);
+					}
 				}
 				break;
 
@@ -1186,11 +1327,11 @@ class SelectiveSSRPass extends Pass {
 		} else {
 
 			// Use G-Buffer color or fallback to beauty buffer
-			// if (this.usingGBuffer && this.gBufferTextures && this.gBufferTextures.gColor) {
-			// 	this.ssrMaterial.uniforms.tDiffuse.value = this.gBufferTextures.gColor;
-			// } else {
-			this.ssrMaterial.uniforms.tDiffuse.value = this.beautyRenderTarget.texture;
-			// }
+			if (this.usingGBuffer && this.gBufferTextures && this.gBufferTextures.gLitColor) {
+				this.ssrMaterial.uniforms.tDiffuse.value = this.gBufferTextures.gLitColor;
+			} else {
+				this.ssrMaterial.uniforms.tDiffuse.value = this.beautyRenderTarget.texture;
+			}
 
 		}
 
@@ -1254,6 +1395,9 @@ class SelectiveSSRPass extends Pass {
 			this._selection.add(object);
 			console.log(`已添加对象到SSR选择集: ${object.name || object.uuid}`);
 
+			// 重置日志标志，以便下次render时输出更新后的信息
+			this._loggedSelectionInfo = false;
+
 		} else {
 
 			console.warn("无法添加对象到选择集，Selection对象不可用");
@@ -1274,6 +1418,9 @@ class SelectiveSSRPass extends Pass {
 			this._selection.delete(object);
 			console.log(`已从SSR选择集移除对象: ${object.name || object.uuid}`);
 
+			// 重置日志标志，以便下次render时输出更新后的信息
+			this._loggedSelectionInfo = false;
+
 		} else {
 
 			console.warn("无法从选择集移除对象，Selection对象不可用");
@@ -1291,6 +1438,9 @@ class SelectiveSSRPass extends Pass {
 
 			this._selection.clear();
 			console.log("已清空SSR选择集");
+
+			// 重置日志标志，以便下次render时输出更新后的信息
+			this._loggedSelectionInfo = false;
 
 		} else {
 

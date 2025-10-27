@@ -306,7 +306,7 @@ window.addEventListener("load", async () => {
             console.log("🔍 扫描结果:", scanResult);
         }
 
-        // 创建SelectiveSSRPass并传入G-Buffer纹理
+        // 创建SelectiveSSRPass并传入G-Buffer纹理和ObjectIdManager
         ssrPass = new SelectiveSSRPass({
             renderer,
             scene,
@@ -318,7 +318,8 @@ window.addEventListener("load", async () => {
             metalnessThreshold: params.metalnessThreshold,
             useMetalnessThreshold: params.useMetalnessThreshold,
             composer,
-            gBufferTextures: gBufferTextures
+            gBufferTextures: gBufferTextures,
+            objectIdManager: objectIdManager  // 传递ObjectIdManager以启用基于ObjectId的选择性渲染
         });
 
         // 设置场景引用以启用自动选择
@@ -907,9 +908,10 @@ function setupGUI(pane, options) {
         label: "启用对象ID"
     }).on("change", (e) => {
         if (gBufferPass) {
-            gBufferPass.enableObjectIdGeneration(e.value);
+            // 对象ID在G-Buffer模式下总是启用的
+            // 只需要获取ObjectIdManager引用即可
             objectIdManager = gBufferPass.getObjectIdManager();
-            console.log("🆔 对象ID状态更新:", e.value);
+            console.log("🆔 对象ID功能:", e.value ? "已启用（G-Buffer模式下总是可用）" : "标记为禁用");
         }
     });
 

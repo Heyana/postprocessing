@@ -54,6 +54,8 @@ export class MRTGBufferMaterialPatcher {
     patchScene(scene, camera) {
 
         let patchCount = 0;
+        let totalMaterialCount = 0;
+        let alreadyPatchedCount = 0;
 
         scene.traverse((object) => {
 
@@ -63,10 +65,12 @@ export class MRTGBufferMaterialPatcher {
 
                 materials.forEach(material => {
 
-                    if (this.patchMaterial(material, object, camera)) {
+                    totalMaterialCount++;
 
+                    if (this.patchedMaterials.has(material)) {
+                        alreadyPatchedCount++;
+                    } else if (this.patchMaterial(material, object, camera)) {
                         patchCount++;
-
                     }
 
                 });
@@ -75,11 +79,13 @@ export class MRTGBufferMaterialPatcher {
 
         });
 
-        // 始终打印统计信息
-        console.log(`🔧 MRTGBufferMaterialPatcher: 已注入${patchCount}个材质`);
-
-        if (patchCount === 0) {
-            console.warn('⚠️ 警告：没有找到任何材质需要注入！');
+        // 打印详细统计信息
+        if (patchCount > 0) {
+            console.log(`🔧 MRTGBufferMaterialPatcher: 新注入 ${patchCount} 个材质 (总计: ${totalMaterialCount}, 已存在: ${alreadyPatchedCount})`);
+        } else if (alreadyPatchedCount > 0) {
+            console.log(`🔧 MRTGBufferMaterialPatcher: 所有材质已注入 (总计: ${totalMaterialCount})`);
+        } else if (totalMaterialCount === 0) {
+            console.warn('⚠️ MRTGBufferMaterialPatcher: 场景中没有找到可见的网格材质');
         }
 
         return patchCount;
@@ -121,10 +127,22 @@ export class MRTGBufferMaterialPatcher {
 
         material.onBeforeCompile = (shader, renderer) => {
 
-            console.log('Log-- ', shader.fragmentShader, 'shader.fragmentShader');
             // 先调用原始的onBeforeCompile（如果存在）
             if (originalOnBeforeCompile) {
                 originalOnBeforeCompile(shader, renderer);
+            }
+
+            // 🔑 关键：检查当前渲染目标是否支持 MRT
+            // 如果不是 MRT 目标，跳过注入（避免在 SelectiveSSRPass 的 beautyRenderTarget 中出错）
+            const currentRenderTarget = renderer.getRenderTarget();
+            const isMRTTarget = currentRenderTarget && currentRenderTarget.textures && currentRenderTarget.textures.length >= 5;
+
+            if (!isMRTTarget) {
+                // 不是 MRT 目标，跳过注入，使用原始 shader
+                if (this.debug) {
+                    console.log('⚠️ 当前渲染目标不是 MRT，跳过注入');
+                }
+                return;
             }
 
             // 注入对象ID uniform
@@ -137,22 +155,25 @@ export class MRTGBufferMaterialPatcher {
 
             if (isGLSL3) {
                 // ===== GLSL3 (WebGL2) 方案 =====
-                // 让出location 0给Three.js的pc_fragColor，避免冲突
-                // 我们的MRT从location 1开始
+                // 参考 StandardMRTStencilMaterial.ts 的实现方案
 
-                // 步骤1：修改vertex shader - 添加varying传递
+                // 🔑 关键：设置 GLSL3 版本（必须在WebGL2环境下）
+                shader.glslVersion = '300 es';
+
+                // 步骤1：在 vertex shader 的 #include <common> 后添加 uniform 和 varying 声明
                 shader.vertexShader = shader.vertexShader.replace(
-                    'void main() {',
+                    '#include <common>',
                     /* glsl */`
+#include <common>
+
 uniform float cameraNear;
 uniform float cameraFar;
 varying vec3 vViewNormal;
 varying float vLinearDepth;
-
-void main() {
 `
                 );
 
+                // 步骤2：在vertex shader的fog_vertex之后添加计算代码
                 shader.vertexShader = shader.vertexShader.replace(
                     '#include <fog_vertex>',
                     /* glsl */`
@@ -171,26 +192,32 @@ vLinearDepth = clamp(vLinearDepth, 0.0, 1.0);
 `
                 );
 
-                // 步骤2：在fragment shader的void main()之前插入我们的MRT声明（从location 1开始）
-                // 在 #include <common> 后面添加声明（这个位置Three.js会保留）
-                shader.fragmentShader = shader.fragmentShader.replace(
-                    '#include <common>',
-                    `#include <common>
+                // 步骤3：🔑 关键技巧 - 在整个fragment shader前面添加 #define 重定向 gl_FragColor
+                // 这样Three.js内部所有的gl_FragColor都会被重定向到gLitColor（location 0）
+                shader.fragmentShader = `
+#define gl_FragColor gLitColor
+${shader.fragmentShader}
+`;
 
-// MRT输出声明（Three.js会自动处理location 0）
+                // 步骤4：在 void main() { 前添加 MRT layout 声明
+                shader.fragmentShader = shader.fragmentShader.replace(
+                    'void main() {',
+                    /* glsl */`
+layout(location = 0) out vec4 gLitColor;
 layout(location = 1) out vec4 gNormal;
 layout(location = 2) out vec4 gDepth;
 layout(location = 3) out vec4 gPosition;
 layout(location = 4) out vec4 gObjectId;
 
-// Uniform和varying
 varying vec3 vViewNormal;
 varying float vLinearDepth;
 uniform float objectId;
+
+void main() {
 `
                 );
 
-                // 步骤3：在dithering_fragment之后添加G-Buffer输出
+                // 步骤5：在dithering_fragment之后添加G-Buffer输出
                 const beforeReplace = shader.fragmentShader;
                 shader.fragmentShader = shader.fragmentShader.replace(
                     '#include <dithering_fragment>',
@@ -304,11 +331,9 @@ uniform float objectId;
 
             }
 
-            // 始终打印注入成功信息（用于调试）
-            console.log(`📝 已注入材质: ${material.name || material.type} (ObjectId: ${objectId})`);
-
+            // 调试模式下打印详细信息
             if (this.debug) {
-                // 调试模式下打印修改后的shader
+                console.log(`📝 已注入材质: ${material.name || material.type} (ObjectId: ${objectId})`);
                 console.log('=== Modified Fragment Shader (first 500 chars) ===');
                 console.log(shader.fragmentShader.substring(0, 500));
             }
