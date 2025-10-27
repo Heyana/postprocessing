@@ -22,29 +22,29 @@ import vertexShader from "./glsl/outline-multi.vert";
 export class OutlineMultiEffect extends Effect {
 
 	/**
-     * Constructs a new outline effect.
-     *
-     * @param {Scene} scene - The main scene.
-     * @param {Camera} camera - The main camera.
-     * @param {Object} [options] - The options.
-     * @param {BlendFunction} [options.blendFunction=BlendFunction.SCREEN] - The blend function. Use `BlendFunction.ALPHA` for dark outlines.
-     * @param {Texture} [options.patternTexture=null] - A pattern texture.
-     * @param {Number} [options.patternScale=1.0] - The pattern scale.
-     * @param {Number} [options.edgeStrength=1.0] - The edge strength.
-     * @param {Number} [options.pulseSpeed=0.0] - The pulse speed. A value of zero disables the pulse effect.
-     * @param {Number} [options.visibleEdgeColor=0xffffff] - The color of visible edges.
-     * @param {Number} [options.hiddenEdgeColor=0x22090a] - The color of hidden edges.
-     * @param {KernelSize} [options.kernelSize=KernelSize.VERY_SMALL] - The blur kernel size.
-     * @param {Boolean} [options.blur=false] - Whether the outline should be blurred.
-     * @param {Boolean} [options.xRay=true] - Whether occluded parts of selected objects should be visible.
-     * @param {Number} [options.multisampling=0] - The number of samples used for multisample antialiasing. Requires WebGL 2.
-     * @param {Number} [options.resolutionScale=0.5] - The resolution scale.
-     * @param {Number} [options.resolutionX=Resolution.AUTO_SIZE] - The horizontal resolution.
-     * @param {Number} [options.resolutionY=Resolution.AUTO_SIZE] - The vertical resolution.
-     * @param {Number} [options.width=Resolution.AUTO_SIZE] - Deprecated. Use resolutionX instead.
-     * @param {Number} [options.height=Resolution.AUTO_SIZE] - Deprecated. Use resolutionY instead.
-     * @param {Number[]} [options.layers=[20, 21, 22]] - The layers to use for the different outline colors.
-     */
+	 * Constructs a new outline effect.
+	 *
+	 * @param {Scene} scene - The main scene.
+	 * @param {Camera} camera - The main camera.
+	 * @param {Object} [options] - The options.
+	 * @param {BlendFunction} [options.blendFunction=BlendFunction.SCREEN] - The blend function. Use `BlendFunction.ALPHA` for dark outlines.
+	 * @param {Texture} [options.patternTexture=null] - A pattern texture.
+	 * @param {Number} [options.patternScale=1.0] - The pattern scale.
+	 * @param {Number} [options.edgeStrength=1.0] - The edge strength.
+	 * @param {Number} [options.pulseSpeed=0.0] - The pulse speed. A value of zero disables the pulse effect.
+	 * @param {Number} [options.visibleEdgeColor=0xffffff] - The color of visible edges.
+	 * @param {Number} [options.hiddenEdgeColor=0x22090a] - The color of hidden edges.
+	 * @param {KernelSize} [options.kernelSize=KernelSize.VERY_SMALL] - The blur kernel size.
+	 * @param {Boolean} [options.blur=false] - Whether the outline should be blurred.
+	 * @param {Boolean} [options.xRay=true] - Whether occluded parts of selected objects should be visible.
+	 * @param {Number} [options.multisampling=0] - The number of samples used for multisample antialiasing. Requires WebGL 2.
+	 * @param {Number} [options.resolutionScale=0.5] - The resolution scale.
+	 * @param {Number} [options.resolutionX=Resolution.AUTO_SIZE] - The horizontal resolution.
+	 * @param {Number} [options.resolutionY=Resolution.AUTO_SIZE] - The vertical resolution.
+	 * @param {Number} [options.width=Resolution.AUTO_SIZE] - Deprecated. Use resolutionX instead.
+	 * @param {Number} [options.height=Resolution.AUTO_SIZE] - Deprecated. Use resolutionY instead.
+	 * @param {Number[]} [options.layers=[20, 21, 22]] - The layers to use for the different outline colors.
+	 */
 
 	constructor(scene, camera, {
 		blendFunction = BlendFunction.SCREEN,
@@ -82,7 +82,7 @@ export class OutlineMultiEffect extends Effect {
 		// Handle alpha blending.
 		this.blendMode.addEventListener("change", (event) => {
 
-			if(this.blendMode.blendFunction === BlendFunction.ALPHA) {
+			if (this.blendMode.blendFunction === BlendFunction.ALPHA) {
 
 				this.defines.set("ALPHA", "1");
 
@@ -101,29 +101,29 @@ export class OutlineMultiEffect extends Effect {
 		this.xRay = xRay;
 
 		/**
-         * The main scene.
-         *
-         * @type {Scene}
-         * @private
-         */
+		 * The main scene.
+		 *
+		 * @type {Scene}
+		 * @private
+		 */
 
 		this.scene = scene;
 
 		/**
-         * The main camera.
-         *
-         * @type {Camera}
-         * @private
-         */
+		 * The main camera.
+		 *
+		 * @type {Camera}
+		 * @private
+		 */
 
 		this.camera = camera;
 
 		/**
-         * A render target for the outline mask.
-         *
-         * @type {WebGLRenderTarget}
-         * @private
-         */
+		 * A render target for the outline mask.
+		 *
+		 * @type {WebGLRenderTarget}
+		 * @private
+		 */
 
 		this.renderTargetMask = new WebGLRenderTarget(1, 1);
 		this.renderTargetMask.samples = multisampling;
@@ -131,42 +131,42 @@ export class OutlineMultiEffect extends Effect {
 		this.uniforms.get("maskTexture").value = this.renderTargetMask.texture;
 
 		/**
-         * A render target for the edge detection.
-         *
-         * @type {WebGLRenderTarget}
-         * @private
-         */
+		 * A render target for the edge detection.
+		 *
+		 * @type {WebGLRenderTarget}
+		 * @private
+		 */
 
 		this.renderTargetOutline = new WebGLRenderTarget(1, 1, { depthBuffer: false });
 		this.renderTargetOutline.texture.name = "Outline.Edges";
 		this.uniforms.get("edgeTexture").value = this.renderTargetOutline.texture;
 
 		/**
-         * A clear pass.
-         *
-         * @type {ClearPass}
-         * @private
-         */
+		 * A clear pass.
+		 *
+		 * @type {ClearPass}
+		 * @private
+		 */
 
 		this.clearPass = new ClearPass();
 		this.clearPass.overrideClearColor = new Color(0x000000);
 		this.clearPass.overrideClearAlpha = 1;
 
 		/**
-         * A depth pass.
-         *
-         * @type {DepthPass}
-         * @private
-         */
+		 * A depth pass.
+		 *
+		 * @type {DepthPass}
+		 * @private
+		 */
 
 		this.depthPass = new DepthPass(scene, camera);
 
 		/**
-         * A depth comparison mask pass.
-         *
-         * @type {RenderPass}
-         * @private
-         */
+		 * A depth comparison mask pass.
+		 *
+		 * @type {RenderPass}
+		 * @private
+		 */
 
 		this.maskPass = new RenderPass(scene, camera, new DepthComparisonMaterial(this.depthPass.texture, camera));
 		const clearPass = this.maskPass.clearPass;
@@ -177,10 +177,10 @@ export class OutlineMultiEffect extends Effect {
 		this.maskPass.selection = null;
 
 		/**
-         * A blur pass.
-         *
-         * @type {KawaseBlurPass}
-         */
+		 * A blur pass.
+		 *
+		 * @type {KawaseBlurPass}
+		 */
 
 		this.blurPass = new KawaseBlurPass({ resolutionScale, resolutionX, resolutionY, kernelSize });
 		this.blurPass.enabled = blur;
@@ -188,59 +188,59 @@ export class OutlineMultiEffect extends Effect {
 		resolution.addEventListener("change", (e) => this.setSize(resolution.baseWidth, resolution.baseHeight));
 
 		/**
-         * An outline detection pass.
-         *
-         * @type {ShaderPass}
-         * @private
-         */
+		 * An outline detection pass.
+		 *
+		 * @type {ShaderPass}
+		 * @private
+		 */
 
 		this.outlinePass = new ShaderPass(new OutlineMaterial());
 		const outlineMaterial = this.outlinePass.fullscreenMaterial;
 		outlineMaterial.inputBuffer = this.renderTargetMask.texture;
 
 		/**
-         * The current animation time.
-         *
-         * @type {Number}
-         * @private
-         */
+		 * The current animation time.
+		 *
+		 * @type {Number}
+		 * @private
+		 */
 
 		this.time = 0;
 
 		/**
-         * Indicates whether the outlines should be updated.
-         *
-         * @type {Boolean}
-         * @private
-         */
+		 * Indicates whether the outlines should be updated.
+		 *
+		 * @type {Boolean}
+		 * @private
+		 */
 
 		this.forceUpdate = true;
 
 		/**
-         * The pulse speed. Set to 0 to disable.
-         *
-         * @type {Number}
-         */
+		 * The pulse speed. Set to 0 to disable.
+		 *
+		 * @type {Number}
+		 */
 		this.pulseSpeed = pulseSpeed;
 
 		/**
-         * The layers to use for the different outline colors.
-         * Default: [20, 21, 22]
-         *
-         * @type {Number[]}
-         */
+		 * The layers to use for the different outline colors.
+		 * Default: [20, 21, 22]
+		 *
+		 * @type {Number[]}
+		 */
 		this.layers = layers;
 
 		/**
-         * 按层收集的对象映射
-         * 键：层号，值：该层中的对象集合Set
-         *
-         * @type {Map<Number, Set<Object3D>>}
-         */
+		 * 按层收集的对象映射
+		 * 键：层号，值：该层中的对象集合Set
+		 *
+		 * @type {Map<Number, Set<Object3D>>}
+		 */
 		this.layerObjectsMap = new Map();
 
 		// 初始化每个层的对象集合
-		for(const layer of this.layers) {
+		for (const layer of this.layers) {
 
 			this.layerObjectsMap.set(layer, new Set());
 
@@ -276,10 +276,10 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * The resolution of this effect.
-     *
-     * @type {Resolution}
-     */
+	 * The resolution of this effect.
+	 *
+	 * @type {Resolution}
+	 */
 
 	get resolution() {
 
@@ -288,10 +288,10 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * Returns the resolution.
-     *
-     * @return {Resizer} The resolution.
-     */
+	 * Returns the resolution.
+	 *
+	 * @return {Resizer} The resolution.
+	 */
 
 	getResolution() {
 
@@ -300,13 +300,13 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * The amount of MSAA samples.
-     *
-     * Requires WebGL 2. Set to zero to disable multisampling.
-     *
-     * @experimental Requires three >= r138.
-     * @type {Number}
-     */
+	 * The amount of MSAA samples.
+	 *
+	 * Requires WebGL 2. Set to zero to disable multisampling.
+	 *
+	 * @experimental Requires three >= r138.
+	 * @type {Number}
+	 */
 
 	get multisampling() {
 
@@ -322,10 +322,10 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * The pattern scale.
-     *
-     * @type {Number}
-     */
+	 * The pattern scale.
+	 *
+	 * @type {Number}
+	 */
 
 	get patternScale() {
 
@@ -340,10 +340,10 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * The edge strength.
-     *
-     * @type {Number}
-     */
+	 * The edge strength.
+	 *
+	 * @type {Number}
+	 */
 
 	get edgeStrength() {
 
@@ -358,10 +358,10 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * The visible edge color.
-     *
-     * @type {Color}
-     */
+	 * The visible edge color.
+	 *
+	 * @type {Color}
+	 */
 
 	get visibleEdgeColor() {
 
@@ -376,10 +376,10 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * The hidden edge color.
-     *
-     * @type {Color}
-     */
+	 * The hidden edge color.
+	 *
+	 * @type {Color}
+	 */
 
 	get hiddenEdgeColor() {
 
@@ -394,11 +394,11 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * Returns the blur pass.
-     *
-     * @deprecated Use blurPass instead.
-     * @return {KawaseBlurPass} The blur pass.
-     */
+	 * Returns the blur pass.
+	 *
+	 * @deprecated Use blurPass instead.
+	 * @return {KawaseBlurPass} The blur pass.
+	 */
 
 	getBlurPass() {
 
@@ -407,11 +407,11 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * Returns the selection.
-     *
-     * @deprecated Use selection instead.
-     * @return {Selection} The selection.
-     */
+	 * Returns the selection.
+	 *
+	 * @deprecated Use selection instead.
+	 * @return {Selection} The selection.
+	 */
 
 	getSelection() {
 
@@ -420,11 +420,11 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * Returns the pulse speed.
-     *
-     * @deprecated Use pulseSpeed instead.
-     * @return {Number} The speed.
-     */
+	 * Returns the pulse speed.
+	 *
+	 * @deprecated Use pulseSpeed instead.
+	 * @return {Number} The speed.
+	 */
 
 	getPulseSpeed() {
 
@@ -433,11 +433,11 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * Sets the pulse speed. Set to zero to disable.
-     *
-     * @deprecated Use pulseSpeed instead.
-     * @param {Number} value - The speed.
-     */
+	 * Sets the pulse speed. Set to zero to disable.
+	 *
+	 * @deprecated Use pulseSpeed instead.
+	 * @param {Number} value - The speed.
+	 */
 
 	setPulseSpeed(value) {
 
@@ -446,11 +446,11 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * The current width of the internal render targets.
-     *
-     * @type {Number}
-     * @deprecated Use resolution.width instead.
-     */
+	 * The current width of the internal render targets.
+	 *
+	 * @type {Number}
+	 * @deprecated Use resolution.width instead.
+	 */
 
 	get width() {
 
@@ -465,11 +465,11 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * The current height of the internal render targets.
-     *
-     * @type {Number}
-     * @deprecated Use resolution.height instead.
-     */
+	 * The current height of the internal render targets.
+	 *
+	 * @type {Number}
+	 * @deprecated Use resolution.height instead.
+	 */
 
 	get height() {
 
@@ -484,11 +484,11 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * The selection layer.
-     *
-     * @type {Number}
-     * @deprecated Use selection.layer instead.
-     */
+	 * The selection layer.
+	 *
+	 * @type {Number}
+	 * @deprecated Use selection.layer instead.
+	 */
 
 	get selectionLayer() {
 
@@ -503,11 +503,11 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * Indicates whether dithering is enabled.
-     *
-     * @type {Boolean}
-     * @deprecated
-     */
+	 * Indicates whether dithering is enabled.
+	 *
+	 * @type {Boolean}
+	 * @deprecated
+	 */
 
 	get dithering() {
 
@@ -522,11 +522,11 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * The blur kernel size.
-     *
-     * @type {KernelSize}
-     * @deprecated Use blurPass.kernelSize instead.
-     */
+	 * The blur kernel size.
+	 *
+	 * @type {KernelSize}
+	 * @deprecated Use blurPass.kernelSize instead.
+	 */
 
 	get kernelSize() {
 
@@ -541,11 +541,11 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * Indicates whether the outlines should be blurred.
-     *
-     * @type {Boolean}
-     * @deprecated Use blurPass.enabled instead.
-     */
+	 * Indicates whether the outlines should be blurred.
+	 *
+	 * @type {Boolean}
+	 * @deprecated Use blurPass.enabled instead.
+	 */
 
 	get blur() {
 
@@ -560,10 +560,10 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * Indicates whether X-ray mode is enabled.
-     *
-     * @type {Boolean}
-     */
+	 * Indicates whether X-ray mode is enabled.
+	 *
+	 * @type {Boolean}
+	 */
 
 	get xRay() {
 
@@ -573,9 +573,9 @@ export class OutlineMultiEffect extends Effect {
 
 	set xRay(value) {
 
-		if(this.xRay !== value) {
+		if (this.xRay !== value) {
 
-			if(value) {
+			if (value) {
 
 				this.defines.set("X_RAY", "1");
 
@@ -592,10 +592,10 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * The pattern texture. Set to `null` to disable.
-     *
-     * @type {Texture}
-     */
+	 * The pattern texture. Set to `null` to disable.
+	 *
+	 * @type {Texture}
+	 */
 
 	get patternTexture() {
 
@@ -605,7 +605,7 @@ export class OutlineMultiEffect extends Effect {
 
 	set patternTexture(value) {
 
-		if(value !== null) {
+		if (value !== null) {
 
 			value.wrapS = value.wrapT = RepeatWrapping;
 			this.defines.set("USE_PATTERN", "1");
@@ -624,11 +624,11 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * Returns the current resolution scale.
-     *
-     * @return {Number} The resolution scale.
-     * @deprecated Use resolution instead.
-     */
+	 * Returns the current resolution scale.
+	 *
+	 * @return {Number} The resolution scale.
+	 * @deprecated Use resolution instead.
+	 */
 
 	getResolutionScale() {
 
@@ -637,11 +637,11 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * Sets the resolution scale.
-     *
-     * @param {Number} scale - The new resolution scale.
-     * @deprecated Use resolution instead.
-     */
+	 * Sets the resolution scale.
+	 *
+	 * @param {Number} scale - The new resolution scale.
+	 * @deprecated Use resolution instead.
+	 */
 
 	setResolutionScale(scale) {
 
@@ -650,12 +650,12 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * Updates this effect.
-     *
-     * @param {WebGLRenderer} renderer - The renderer.
-     * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
-     * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
-     */
+	 * Updates this effect.
+	 *
+	 * @param {WebGLRenderer} renderer - The renderer.
+	 * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
+	 * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+	 */
 	update(renderer, inputBuffer, deltaTime) {
 
 		const scene = this.scene;
@@ -678,9 +678,9 @@ export class OutlineMultiEffect extends Effect {
 
 		// 检查是否有对象需要渲染轮廓
 		let hasObjects = false;
-		for(const objects of this.layerObjectsMap.values()) {
+		for (const objects of this.layerObjectsMap.values()) {
 
-			if(objects.size > 0) {
+			if (objects.size > 0) {
 
 				hasObjects = true;
 				break;
@@ -690,7 +690,7 @@ export class OutlineMultiEffect extends Effect {
 		}
 
 		// 如果没有对象需要渲染轮廓，则跳过所有渲染
-		if(!hasObjects && !this.forceUpdate) {
+		if (!hasObjects && !this.forceUpdate) {
 
 			camera.layers.mask = mask;
 			scene.background = background;
@@ -738,7 +738,7 @@ export class OutlineMultiEffect extends Effect {
 			const layerObjects = this.layerObjectsMap.get(layer);
 
 			// 如果该层没有对象，跳过
-			if(layerObjects.size === 0) {
+			if (layerObjects.size === 0) {
 
 				console.log(`跳过空层 ${layer} - 没有对象`);
 				return;
@@ -758,7 +758,7 @@ export class OutlineMultiEffect extends Effect {
 			// 保存并设置对象层
 			layerObjects.forEach(object => {
 
-				if(!originalLayers.has(object)) {
+				if (!originalLayers.has(object)) {
 
 					originalLayers.set(object, object.layers.mask);
 
@@ -800,7 +800,7 @@ export class OutlineMultiEffect extends Effect {
 		});
 
 		// 4. 如果需要，应用模糊效果
-		if(this.blurPass.enabled) {
+		if (this.blurPass.enabled) {
 
 			this.blurPass.render(renderer, this.renderTargetOutline, this.renderTargetOutline);
 
@@ -817,11 +817,11 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * Updates the size of internal render targets.
-     *
-     * @param {Number} width - The width.
-     * @param {Number} height - The height.
-     */
+	 * Updates the size of internal render targets.
+	 *
+	 * @param {Number} width - The width.
+	 * @param {Number} height - The height.
+	 */
 
 	setSize(width, height) {
 
@@ -839,19 +839,19 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * Performs initialization tasks.
-     *
-     * @param {WebGLRenderer} renderer - The renderer.
-     * @param {Boolean} alpha - Whether the renderer uses the alpha channel or not.
-     * @param {Number} frameBufferType - The type of the main frame buffers.
-     */
+	 * Performs initialization tasks.
+	 *
+	 * @param {WebGLRenderer} renderer - The renderer.
+	 * @param {Boolean} alpha - Whether the renderer uses the alpha channel or not.
+	 * @param {Number} frameBufferType - The type of the main frame buffers.
+	 */
 
 	initialize(renderer, alpha, frameBufferType) {
 
 		// No need for high precision: the blur pass operates on a mask texture.
 		this.blurPass.initialize(renderer, alpha, UnsignedByteType);
 
-		if(frameBufferType !== undefined) {
+		if (frameBufferType !== undefined) {
 
 			// These passes ignore the buffer type.
 			this.depthPass.initialize(renderer, alpha, frameBufferType);
@@ -863,16 +863,16 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * 添加对象到指定的层
-     * @param {Object3D} object - 要添加的对象
-     * @param {Number} layer - 目标层编号
-     * @private
-     */
+	 * 添加对象到指定的层
+	 * @param {Object3D} object - 要添加的对象
+	 * @param {Number} layer - 目标层编号
+	 * @private
+	 */
 	_addObjectToLayer(object, layer) {
 
 		// 获取该层的对象集合
 		const layerObjects = this.layerObjectsMap.get(layer);
-		if(layerObjects) {
+		if (layerObjects) {
 
 			// 添加对象到集合
 			layerObjects.add(object);
@@ -887,14 +887,14 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * 从所有层中移除对象
-     * @param {Object3D} object - 要移除的对象
-     * @private
-     */
+	 * 从所有层中移除对象
+	 * @param {Object3D} object - 要移除的对象
+	 * @private
+	 */
 	_removeObjectFromAllLayers(object) {
 
 		// 从每个层的对象集合中移除
-		for(const [layer, layerObjects] of this.layerObjectsMap.entries()) {
+		for (const [layer, layerObjects] of this.layerObjectsMap.entries()) {
 
 			layerObjects.delete(object);
 			// 从对应层中禁用对象
@@ -905,11 +905,11 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * 设置对象的轮廓颜色层
-     * @param {Object3D} object - 要设置颜色的对象
-     * @param {Number} layerIndex - 层索引(0-2)，对应this.layers数组的索引
-     * @returns {OutlineMultiEffect} - 返回this以支持链式调用
-     */
+	 * 设置对象的轮廓颜色层
+	 * @param {Object3D} object - 要设置颜色的对象
+	 * @param {Number} layerIndex - 层索引(0-2)，对应this.layers数组的索引
+	 * @returns {OutlineMultiEffect} - 返回this以支持链式调用
+	 */
 	setOutlineColorLayer(object, layerIndex) {
 
 		// 确保层索引在有效范围内
@@ -930,10 +930,10 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * 设置为红色轮廓 (层索引0)
-     * @param {Object3D} object - 要应用红色轮廓的对象
-     * @returns {OutlineMultiEffect} - 返回this以支持链式调用
-     */
+	 * 设置为红色轮廓 (层索引0)
+	 * @param {Object3D} object - 要应用红色轮廓的对象
+	 * @returns {OutlineMultiEffect} - 返回this以支持链式调用
+	 */
 	setRedOutline(object) {
 
 		return this.setOutlineColorLayer(object, 0);
@@ -941,10 +941,10 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * 设置为绿色轮廓 (层索引1)
-     * @param {Object3D} object - 要应用绿色轮廓的对象
-     * @returns {OutlineMultiEffect} - 返回this以支持链式调用
-     */
+	 * 设置为绿色轮廓 (层索引1)
+	 * @param {Object3D} object - 要应用绿色轮廓的对象
+	 * @returns {OutlineMultiEffect} - 返回this以支持链式调用
+	 */
 	setGreenOutline(object) {
 
 		return this.setOutlineColorLayer(object, 1);
@@ -952,10 +952,10 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * 设置为蓝色轮廓 (层索引2)
-     * @param {Object3D} object - 要应用蓝色轮廓的对象
-     * @returns {OutlineMultiEffect} - 返回this以支持链式调用
-     */
+	 * 设置为蓝色轮廓 (层索引2)
+	 * @param {Object3D} object - 要应用蓝色轮廓的对象
+	 * @returns {OutlineMultiEffect} - 返回this以支持链式调用
+	 */
 	setBlueOutline(object) {
 
 		return this.setOutlineColorLayer(object, 2);
@@ -963,10 +963,10 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * 移除对象的轮廓效果
-     * @param {Object3D} object - 要移除轮廓的对象
-     * @returns {OutlineMultiEffect} - 返回this以支持链式调用
-     */
+	 * 移除对象的轮廓效果
+	 * @param {Object3D} object - 要移除轮廓的对象
+	 * @returns {OutlineMultiEffect} - 返回this以支持链式调用
+	 */
 	removeOutline(object) {
 
 		// 从所有层中移除对象
@@ -980,17 +980,17 @@ export class OutlineMultiEffect extends Effect {
 	}
 
 	/**
-     * 自定义轮廓颜色
-     * @param {Number} layerIndex - 层索引(0-2)
-     * @param {Number|Color} visibleColor - 可见部分的轮廓颜色
-     * @param {Number|Color} hiddenColor - 隐藏部分的轮廓颜色
-     * @returns {OutlineMultiEffect} - 返回this以支持链式调用
-     */
+	 * 自定义轮廓颜色
+	 * @param {Number} layerIndex - 层索引(0-2)
+	 * @param {Number|Color} visibleColor - 可见部分的轮廓颜色
+	 * @param {Number|Color} hiddenColor - 隐藏部分的轮廓颜色
+	 * @returns {OutlineMultiEffect} - 返回this以支持链式调用
+	 */
 	setOutlineColor(layerIndex, visibleColor, hiddenColor) {
 
-		if(layerIndex >= 0 && layerIndex < this.outlineColors.length) {
+		if (layerIndex >= 0 && layerIndex < this.outlineColors.length) {
 
-			if(visibleColor !== undefined) {
+			if (visibleColor !== undefined) {
 
 				this.outlineColors[layerIndex].visible = visibleColor instanceof Color
 					? visibleColor.clone()
@@ -998,7 +998,7 @@ export class OutlineMultiEffect extends Effect {
 
 			}
 
-			if(hiddenColor !== undefined) {
+			if (hiddenColor !== undefined) {
 
 				this.outlineColors[layerIndex].hidden = hiddenColor instanceof Color
 					? hiddenColor.clone()

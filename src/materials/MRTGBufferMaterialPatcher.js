@@ -121,6 +121,7 @@ export class MRTGBufferMaterialPatcher {
 
         material.onBeforeCompile = (shader, renderer) => {
 
+            console.log('Log-- ', shader.fragmentShader, 'shader.fragmentShader');
             // 先调用原始的onBeforeCompile（如果存在）
             if (originalOnBeforeCompile) {
                 originalOnBeforeCompile(shader, renderer);
@@ -171,21 +172,21 @@ vLinearDepth = clamp(vLinearDepth, 0.0, 1.0);
                 );
 
                 // 步骤2：在fragment shader的void main()之前插入我们的MRT声明（从location 1开始）
+                // 在 #include <common> 后面添加声明（这个位置Three.js会保留）
                 shader.fragmentShader = shader.fragmentShader.replace(
-                    'void main() {',
-                    /* glsl */`
-// MRT输出声明 (location 0留给Three.js的pc_fragColor)
+                    '#include <common>',
+                    `#include <common>
+
+// MRT输出声明（Three.js会自动处理location 0）
 layout(location = 1) out vec4 gNormal;
 layout(location = 2) out vec4 gDepth;
 layout(location = 3) out vec4 gPosition;
 layout(location = 4) out vec4 gObjectId;
 
-// Varying和Uniform声明
+// Uniform和varying
 varying vec3 vViewNormal;
 varying float vLinearDepth;
 uniform float objectId;
-
-void main() {
 `
                 );
 

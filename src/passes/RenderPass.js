@@ -1,26 +1,8 @@
 import { OverrideMaterialManager } from "../core/OverrideMaterialManager.js";
 import { ClearPass } from "./ClearPass.js";
 import { Pass } from "./Pass.js";
-import { ObjectIdManager } from "../utils/ObjectIdManager.js";
-import { MRTGBufferMaterialPatcher } from "../materials/MRTGBufferMaterialPatcher.js";
-import {
-	WebGLRenderTarget,
-	RawShaderMaterial,
-	FloatType,
-	RGBAFormat,
-	Vector2,
-	Color,
-	GLSL3,
-	Matrix4,
-	Matrix3,
-	LinearFilter,
-	HalfFloatType
-} from "three";
-const console = {
-	log: () => { },
-	warn: () => { },
-	error: () => { },
-};
+import { timeLog, timeEndLog, log } from "../utils/PerformanceLogger.js";
+import { WebGLRenderTarget, RawShaderMaterial, FloatType, RGBAFormat, Vector2, Color, GLSL3, Matrix4, Matrix3, LinearFilter, HalfFloatType } from "three";
 
 /**
  * A pass that renders a given scene into the input buffer or to screen.
@@ -30,497 +12,420 @@ const console = {
 
 export class RenderPass extends Pass {
 
-	isRenderPass = true;
-
-	/**
-	 * Constructs a new render pass.
-	 *
-	 * @param {Scene} scene - The scene to render.
-	 * @param {Camera} camera - The camera to use to render the scene.
-	 * @param {Material} [overrideMaterial=null] - An override material.
-	 * @param {Object} [options={}] - Additional options.
-	 * @param {Boolean} [options.enableGBuffer=false] - Whether to enable G-Buffer generation.
-	 * @param {Number} [options.resolutionScale=1.0] - Resolution scale for G-Buffer.
-	 */
+    isRenderPass = true;
 
-	constructor(scene, camera, overrideMaterial = null, options = {}) {
+    /**
+     * Constructs a new render pass.
+     *
+     * @param {Scene} scene - The scene to render.
+     * @param {Camera} camera - The camera to use to render the scene.
+     * @param {Material} [overrideMaterial=null] - An override material.
+     * @param {Object} [options={}] - Additional options.
+     * @param {Boolean} [options.enableGBuffer=false] - Whether to enable G-Buffer generation.
+     * @param {Number} [options.resolutionScale=1.0] - Resolution scale for G-Buffer.
+     */
 
-		super("RenderPass", scene, camera);
+    constructor(scene, camera, overrideMaterial = null, options = {}) {
 
-		this.needsSwap = false;
+        super("RenderPass", scene, camera);
 
-		// G-Buffer options
-		this.enableGBuffer = options.enableGBuffer || false;
-		this.resolutionScale = options.resolutionScale || 1.0;
+        this.needsSwap = false;
 
-		/**
-		 * A clear pass.
-		 *
-		 * @type {ClearPass}
-		 * @readonly
-		 */
+        // G-Buffer options
+        this.enableGBuffer = options.enableGBuffer || false;
+        this.resolutionScale = options.resolutionScale || 1.0;
 
-		this.clearPass = new ClearPass();
+        /**
+         * A clear pass.
+         *
+         * @type {ClearPass}
+         * @readonly
+         */
 
-		/**
-		 * An override material manager.
-		 *
-		 * @type {OverrideMaterialManager}
-		 * @private
-		 */
+        this.clearPass = new ClearPass();
 
-		this.overrideMaterialManager = (overrideMaterial === null) ? null : new OverrideMaterialManager(overrideMaterial);
+        /**
+         * An override material manager.
+         *
+         * @type {OverrideMaterialManager}
+         * @private
+         */
 
-		// G-Buffer properties
-		this.gBufferRenderTarget = null;
-		this.gBufferMaterial = null;
-		this.objectIdManager = null;
-		this.enableObjectId = options.enableObjectId || false;
+        this.overrideMaterialManager = (overrideMaterial === null) ? null : new OverrideMaterialManager(overrideMaterial);
 
-		// MRT材质补丁器（新方案）
-		this.mrtPatcher = null;
-		this.useMRTOptimization = options.useMRTOptimization !== false; // 默认启用
+        // G-Buffer properties
+        this.gBufferRenderTarget = null;
+        this.gBufferMaterial = null;
 
-		// ObjectId注入优化相关（旧方案，保留兼容）
-		this.injectedObjects = new WeakSet(); // 已注入ObjectId的对象
-		this.objectIdUniforms = new WeakMap(); // 对象到ObjectId uniform的映射
-		this.objectIdOutputUniforms = new WeakMap(); // 对象到ObjectId输出控制uniform的映射
-		this.needsObjectIdSetup = true; // 是否需要重新设置ObjectId
+        if (this.enableGBuffer) {
+            this.initializeGBuffer();
+        }
 
-		if (this.enableGBuffer) {
-			this.initializeGBuffer();
+        /**
+         * Indicates whether the scene background should be ignored.
+         *
+         * @type {Boolean}
+         */
 
-			// 如果启用了对象ID，初始化对象ID管理器
-			if (this.enableObjectId) {
-				this.objectIdManager = new ObjectIdManager();
-				this.objectIdManager.setDebug(false); // 默认关闭调试
+        this.ignoreBackground = false;
 
-				// 初始化MRT材质补丁器（新方案）
-				if (this.useMRTOptimization) {
-					this.mrtPatcher = new MRTGBufferMaterialPatcher(this.objectIdManager);
-					this.mrtPatcher.setDebug(false);
-					console.log("⚡ RenderPass: 使用MRT优化方案（一次渲染输出所有数据）");
-				}
-			}
-		}
+        /**
+         * Indicates whether the shadow map auto update should be skipped.
+         *
+         * @type {Boolean}
+         */
 
-		/**
-		 * Indicates whether the scene background should be ignored.
-		 *
-		 * @type {Boolean}
-		 */
+        this.skipShadowMapUpdate = false;
 
-		this.ignoreBackground = false;
+        /**
+         * A selection of objects to render.
+         *
+         * @type {Selection}
+         * @readonly
+         */
 
-		/**
-		 * Indicates whether the shadow map auto update should be skipped.
-		 *
-		 * @type {Boolean}
-		 */
+        this.selection = null;
 
-		this.skipShadowMapUpdate = false;
 
-		/**
-		 * A selection of objects to render.
-		 *
-		 * @type {Selection}
-		 * @readonly
-		 */
+        this.useRealSize = true
 
-		this.selection = null;
+    }
 
+    set mainScene(value) {
 
-		this.useRealSize = true
+        this.scene = value;
 
-	}
+    }
 
-	set mainScene(value) {
+    set mainCamera(value) {
 
-		this.scene = value;
+        this.camera = value;
 
-	}
+    }
 
-	set mainCamera(value) {
+    get renderToScreen() {
 
-		this.camera = value;
+        return super.renderToScreen;
 
-	}
+    }
 
-	get renderToScreen() {
+    set renderToScreen(value) {
 
-		return super.renderToScreen;
+        super.renderToScreen = value;
+        this.clearPass.renderToScreen = value;
 
-	}
+    }
 
-	set renderToScreen(value) {
+    /**
+     * The current override material.
+     *
+     * @type {Material}
+     */
 
-		super.renderToScreen = value;
-		this.clearPass.renderToScreen = value;
+    get overrideMaterial() {
 
-	}
+        const manager = this.overrideMaterialManager;
+        return (manager !== null) ? manager.material : null;
 
-	/**
-	 * The current override material.
-	 *
-	 * @type {Material}
-	 */
+    }
 
-	get overrideMaterial() {
+    set overrideMaterial(value) {
 
-		const manager = this.overrideMaterialManager;
-		return (manager !== null) ? manager.material : null;
+        const manager = this.overrideMaterialManager;
 
-	}
+        if (value !== null) {
 
-	set overrideMaterial(value) {
+            if (manager !== null) {
 
-		const manager = this.overrideMaterialManager;
+                manager.setMaterial(value);
 
-		if (value !== null) {
+            } else {
 
-			if (manager !== null) {
+                this.overrideMaterialManager = new OverrideMaterialManager(value);
 
-				manager.setMaterial(value);
+            }
 
-			} else {
+        } else if (manager !== null) {
 
-				this.overrideMaterialManager = new OverrideMaterialManager(value);
+            manager.dispose();
+            this.overrideMaterialManager = null;
 
-			}
+        }
 
-		} else if (manager !== null) {
+    }
 
-			manager.dispose();
-			this.overrideMaterialManager = null;
+    /**
+     * Returns the current override material.
+     *
+     * @deprecated Use overrideMaterial instead.
+     * @return {Material} The material.
+     */
 
-		}
+    getOverrideMaterial() {
 
-	}
+        return this.overrideMaterial;
 
-	/**
-	 * Returns the current override material.
-	 *
-	 * @deprecated Use overrideMaterial instead.
-	 * @return {Material} The material.
-	 */
+    }
 
-	getOverrideMaterial() {
+    /**
+     * Sets the override material.
+     *
+     * @deprecated Use overrideMaterial instead.
+     * @return {Material} value - The material.
+     */
 
-		return this.overrideMaterial;
+    setOverrideMaterial(value) {
 
-	}
+        this.overrideMaterial = value;
 
-	/**
-	 * Sets the override material.
-	 *
-	 * @deprecated Use overrideMaterial instead.
-	 * @return {Material} value - The material.
-	 */
+    }
 
-	setOverrideMaterial(value) {
+    /**
+     * Indicates whether the target buffer should be cleared before rendering.
+     *
+     * @type {Boolean}
+     * @deprecated Use clearPass.enabled instead.
+     */
 
-		this.overrideMaterial = value;
+    get clear() {
 
-	}
+        return this.clearPass.enabled;
 
-	/**
-	 * Indicates whether the target buffer should be cleared before rendering.
-	 *
-	 * @type {Boolean}
-	 * @deprecated Use clearPass.enabled instead.
-	 */
+    }
 
-	get clear() {
+    set clear(value) {
 
-		return this.clearPass.enabled;
+        this.clearPass.enabled = value;
 
-	}
+    }
 
-	set clear(value) {
+    /**
+     * Returns the selection. Default is `null` (no restriction).
+     *
+     * @deprecated Use selection instead.
+     * @return {Selection} The selection.
+     */
 
-		this.clearPass.enabled = value;
+    getSelection() {
 
-	}
+        return this.selection;
 
-	/**
-	 * Returns the selection. Default is `null` (no restriction).
-	 *
-	 * @deprecated Use selection instead.
-	 * @return {Selection} The selection.
-	 */
+    }
 
-	getSelection() {
+    /**
+     * Sets the selection. Set to `null` to disable.
+     *
+     * @deprecated Use selection instead.
+     * @param {Selection} value - The selection.
+     */
 
-		return this.selection;
+    setSelection(value) {
 
-	}
+        this.selection = value;
 
-	/**
-	 * Sets the selection. Set to `null` to disable.
-	 *
-	 * @deprecated Use selection instead.
-	 * @param {Selection} value - The selection.
-	 */
+    }
 
-	setSelection(value) {
+    /**
+     * Indicates whether the scene background is disabled.
+     *
+     * @deprecated Use ignoreBackground instead.
+     * @return {Boolean} Whether the scene background is disabled.
+     */
 
-		this.selection = value;
+    isBackgroundDisabled() {
 
-	}
+        return this.ignoreBackground;
 
-	/**
-	 * Indicates whether the scene background is disabled.
-	 *
-	 * @deprecated Use ignoreBackground instead.
-	 * @return {Boolean} Whether the scene background is disabled.
-	 */
+    }
 
-	isBackgroundDisabled() {
+    /**
+     * Enables or disables the scene background.
+     *
+     * @deprecated Use ignoreBackground instead.
+     * @param {Boolean} value - Whether the scene background should be disabled.
+     */
 
-		return this.ignoreBackground;
+    setBackgroundDisabled(value) {
 
-	}
+        this.ignoreBackground = value;
 
-	/**
-	 * Enables or disables the scene background.
-	 *
-	 * @deprecated Use ignoreBackground instead.
-	 * @param {Boolean} value - Whether the scene background should be disabled.
-	 */
+    }
 
-	setBackgroundDisabled(value) {
+    /**
+     * Indicates whether the shadow map auto update is disabled.
+     *
+     * @deprecated Use skipShadowMapUpdate instead.
+     * @return {Boolean} Whether the shadow map update is disabled.
+     */
 
-		this.ignoreBackground = value;
+    isShadowMapDisabled() {
 
-	}
+        return this.skipShadowMapUpdate;
 
-	/**
-	 * Indicates whether the shadow map auto update is disabled.
-	 *
-	 * @deprecated Use skipShadowMapUpdate instead.
-	 * @return {Boolean} Whether the shadow map update is disabled.
-	 */
+    }
 
-	isShadowMapDisabled() {
+    /**
+     * Enables or disables the shadow map auto update.
+     *
+     * @deprecated Use skipShadowMapUpdate instead.
+     * @param {Boolean} value - Whether the shadow map auto update should be disabled.
+     */
 
-		return this.skipShadowMapUpdate;
+    setShadowMapDisabled(value) {
 
-	}
+        this.skipShadowMapUpdate = value;
 
-	/**
-	 * Enables or disables the shadow map auto update.
-	 *
-	 * @deprecated Use skipShadowMapUpdate instead.
-	 * @param {Boolean} value - Whether the shadow map auto update should be disabled.
-	 */
+    }
 
-	setShadowMapDisabled(value) {
+    /**
+     * Returns the clear pass.
+     *
+     * @deprecated Use clearPass.enabled instead.
+     * @return {ClearPass} The clear pass.
+     */
 
-		this.skipShadowMapUpdate = value;
+    getClearPass() {
 
-	}
+        return this.clearPass;
 
-	/**
-	 * Returns the clear pass.
-	 *
-	 * @deprecated Use clearPass.enabled instead.
-	 * @return {ClearPass} The clear pass.
-	 */
+    }
 
-	getClearPass() {
+    /**
+     * Renders the scene.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
+     * @param {WebGLRenderTarget} outputBuffer - A frame buffer that serves as the output render target unless this pass renders to screen.
+     * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+     * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
+     */
 
-		return this.clearPass;
+    render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass, renderOpts = {}, effectPassOpts) {
 
-	}
+        timeLog("RenderPass.render");
+        const scene = this.scene;
+        const camera = this.camera;
+        const selection = this.selection;
+        const mask = camera.layers.mask;
+        const background = scene.background;
+        const shadowMapAutoUpdate = renderer.shadowMap.autoUpdate;
+        const renderTarget = this.renderToScreen ? null : inputBuffer;
 
-	/**
-	 * Renders the scene.
-	 *
-	 * @param {WebGLRenderer} renderer - The renderer.
-	 * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
-	 * @param {WebGLRenderTarget} outputBuffer - A frame buffer that serves as the output render target unless this pass renders to screen.
-	 * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
-	 * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
-	 */
+        let renderResult = null;
+        // 获取场景中第一个子对象的类名（如果存在）
 
-	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass, renderOpts = {}, effectPassOpts) {
 
-		const scene = this.scene;
-		const camera = this.camera;
-		const selection = this.selection;
-		const mask = camera.layers.mask;
-		const background = scene.background;
-		const shadowMapAutoUpdate = renderer.shadowMap.autoUpdate;
-		const renderTarget = this.renderToScreen ? null : inputBuffer;
+        if (selection !== null) {
 
-		let renderResult = null;
-		// 获取场景中第一个子对象的类名（如果存在）
+            camera.layers.set(selection.getLayer());
 
+        }
 
-		if (selection !== null) {
+        if (this.skipShadowMapUpdate) {
 
-			camera.layers.set(selection.getLayer());
+            renderer.shadowMap.autoUpdate = false;
 
-		}
+        }
 
-		if (this.skipShadowMapUpdate) {
+        if (this.ignoreBackground || this.clearPass.overrideClearColor !== null) {
 
-			renderer.shadowMap.autoUpdate = false;
+            scene.background = null;
 
-		}
+        }
 
-		if (this.ignoreBackground || this.clearPass.overrideClearColor !== null) {
+        if (this.clearPass.enabled) {
 
-			scene.background = null;
+            this.clearPass.render(renderer, inputBuffer);
 
-		}
+        }
 
-		if (this.clearPass.enabled) {
+        renderer.setRenderTarget(renderTarget);
 
-			this.clearPass.render(renderer, inputBuffer);
+        if (this.overrideMaterialManager !== null) {
 
-		}
+            renderResult = this.overrideMaterialManager.render(renderer, scene, camera, renderOpts);
 
-		// ⚡ MRT优化方案：一次渲染输出所有数据
-		if (this.enableGBuffer && this.useMRTOptimization && this.mrtPatcher && this.enableObjectId) {
+        } else {
 
-			// 扫描场景并分配对象ID
-			if (this.objectIdManager) {
-				const scanResult = this.objectIdManager.scanScene(scene);
-				if (scanResult.assigned > 0) {
-					console.log(`🆔 场景扫描: ${scanResult.total}个对象，新分配${scanResult.assigned}个ID`);
-				}
-			}
+            renderResult = renderer.render(scene, camera, renderOpts);
 
-			// 注入MRT输出代码到所有材质（只在第一次调用）
-			if (!this._mrtPatched) {
-				const patchCount = this.mrtPatcher.patchScene(scene, camera);
-				if (patchCount > 0) {
-					this._mrtPatched = true;
-					console.log(`✅ MRT材质注入完成，共${patchCount}个材质`);
-				}
-			}
+        }
 
-			// 渲染到MRT render target（同时输出lit color + G-Buffer + ObjectId）
-			renderer.setRenderTarget(this.gBufferRenderTarget);
+        // G-Buffer rendering (after normal scene rendering)
+        if (this.enableGBuffer && this.gBufferRenderTarget && this.gBufferMaterial) {
+            this.prepareGBufferMaterial();
 
-			if (this.clearPass.enabled) {
-				renderer.clear();
-			}
+            // Save current overrideMaterial
+            const originalOverrideMaterial = scene.overrideMaterial;
 
-			if (this.overrideMaterialManager !== null) {
-				renderResult = this.overrideMaterialManager.render(renderer, scene, camera, renderOpts);
-			} else {
-				renderResult = renderer.render(scene, camera, renderOpts);
-			}
 
-			// ⚡ 优化：直接交换纹理，避免额外的复制渲染
-			// lit color已经在gBufferRenderTarget.textures[0]中
-			// 让inputBuffer直接引用这个纹理，后续passes可以直接读取
-			if (!this.renderToScreen && inputBuffer) {
-				// 保存原始纹理引用（如果需要恢复）
-				if (!this._originalInputTexture) {
-					this._originalInputTexture = inputBuffer.texture;
-				}
-				// 直接让inputBuffer的texture指向MRT的第一个输出
-				inputBuffer.texture = this.gBufferRenderTarget.textures[0];
-			}
 
-		} else {
-			// 传统方案：先渲染正常画面，再渲染G-Buffer（两次渲染）
-			renderer.setRenderTarget(renderTarget);
+            // 重要：RawShaderMaterial需要手动更新矩阵uniform
+            // 但由于使用overrideMaterial时Three.js会自动为每个对象更新这些矩阵
+            // 我们需要让Three.js知道这些uniform需要自动更新
+            this.gBufferMaterial.uniformsNeedUpdate = true;
 
-			if (this.overrideMaterialManager !== null) {
+            // Render G-Buffer
+            scene.overrideMaterial = this.gBufferMaterial;
+            renderer.setRenderTarget(this.gBufferRenderTarget);
+            renderer.clear();
+            renderer.render(scene, camera);
 
-				renderResult = this.overrideMaterialManager.render(renderer, scene, camera, renderOpts);
+            // Restore original overrideMaterial
+            scene.overrideMaterial = originalOverrideMaterial;
 
-			} else {
+        } else {
+            if (this.enableGBuffer) {
+                console.warn("⚠️ RenderPass: G-Buffer已启用但资源未准备好");
+                console.log("  - enableGBuffer:", this.enableGBuffer);
+                console.log("  - gBufferRenderTarget:", !!this.gBufferRenderTarget);
+                console.log("  - gBufferMaterial:", !!this.gBufferMaterial);
+            }
+        }
 
-				renderResult = renderer.render(scene, camera, renderOpts);
+        // Restore original values.
+        camera.layers.mask = mask;
+        scene.background = background;
+        renderer.shadowMap.autoUpdate = shadowMapAutoUpdate;
 
-			}
+        timeEndLog("RenderPass.render");
+        return renderResult;
 
-			// G-Buffer rendering (after normal scene rendering)
-			if (this.enableGBuffer && this.gBufferRenderTarget && this.gBufferMaterial) {
-				this.prepareGBufferMaterial();
+    }
 
-				// Save current overrideMaterial
-				const originalOverrideMaterial = scene.overrideMaterial;
+    /**
+     * Initialize G-Buffer rendering targets and materials.
+     *
+     * @private
+     */
+    initializeGBuffer() {
 
-				// 如果启用了对象ID，使用优化的注入渲染
-				if (this.enableObjectId && this.objectIdManager) {
-					const scanResult = this.objectIdManager.scanScene(scene);
-					// 减少日志输出
-					if (scanResult.assigned > 0) {
-						console.log(`🆔 场景扫描: ${scanResult.total}个对象，新分配${scanResult.assigned}个ID`);
-					}
+        // Create G-Buffer render target with MRT (Multiple Render Targets)
+        const width = Math.max(1, Math.floor(512 * this.resolutionScale));
+        const height = Math.max(1, Math.floor(512 * this.resolutionScale));
 
-					// 使用智能ObjectId注入渲染
-					this.renderGBufferWithSmartObjectId(renderer, scene, camera);
-				} else {
-					// 传统G-Buffer渲染（无对象ID）
-					// 重要：RawShaderMaterial需要手动更新矩阵uniform
-					this.gBufferMaterial.uniformsNeedUpdate = true;
+        this.gBufferRenderTarget = new WebGLRenderTarget(width, height, {
+            count: 4, // MRT: color, normal, depth, position
+            type: FloatType,
+            format: RGBAFormat,
+            minFilter: LinearFilter,
+            magFilter: LinearFilter,
+            type: HalfFloatType,
+            depthBuffer: true,
+            stencilBuffer: false
+        });
 
-					// 设置默认对象ID（背景）
-					this.gBufferMaterial.uniforms.objectId.value = 0;
+        console.log("🔧 RenderPass: 初始化G-Buffer渲染目标");
+        console.log("  - 尺寸:", width + "x" + height);
+        console.log("  - MRT计数:", this.gBufferRenderTarget.count);
+        console.log("  - 纹理格式:", RGBAFormat);
+        console.log("  - 纹理类型:", FloatType);
+        console.log("  - 生成纹理数量:", this.gBufferRenderTarget.textures?.length);
 
-					// Render G-Buffer
-					scene.overrideMaterial = this.gBufferMaterial;
-					renderer.setRenderTarget(this.gBufferRenderTarget);
-					renderer.clear();
-					renderer.render(scene, camera);
-				}
-
-				// Restore original overrideMaterial
-				scene.overrideMaterial = originalOverrideMaterial;
-
-			}
-		}
-
-		// Restore original values.
-		camera.layers.mask = mask;
-		scene.background = background;
-		renderer.shadowMap.autoUpdate = shadowMapAutoUpdate;
-
-		return renderResult;
-
-	}
-
-	/**
-	 * Initialize G-Buffer rendering targets and materials.
-	 *
-	 * @private
-	 */
-	initializeGBuffer() {
-
-		// Create G-Buffer render target with MRT (Multiple Render Targets)
-		const width = Math.max(1, Math.floor(512 * this.resolutionScale));
-		const height = Math.max(1, Math.floor(512 * this.resolutionScale));
-
-		this.gBufferRenderTarget = new WebGLRenderTarget(width, height, {
-			count: 5, // MRT: pc_fragColor(0) + gNormal(1) + gDepth(2) + gPosition(3) + gObjectId(4)
-			type: FloatType,
-			format: RGBAFormat,
-			minFilter: LinearFilter,
-			magFilter: LinearFilter,
-			type: HalfFloatType,
-			depthBuffer: true,
-			stencilBuffer: false
-		});
-
-		console.log("🔧 RenderPass: 初始化G-Buffer渲染目标 (带对象ID)");
-		console.log("  - 尺寸:", width + "x" + height);
-		console.log("  - MRT计数:", this.gBufferRenderTarget.count);
-		console.log("  - 纹理格式:", RGBAFormat);
-		console.log("  - 纹理类型:", FloatType);
-		console.log("  - 生成纹理数量:", this.gBufferRenderTarget.textures?.length);
-		console.log("  - 支持对象ID: ✅");
-
-		// Create G-Buffer material using RawShaderMaterial with GLSL3 (like GBufferPass)
-		this.gBufferMaterial = new RawShaderMaterial({
-			name: 'G-Buffer Material (RenderPass)',
-			vertexShader: /* glsl */`
+        // Create G-Buffer material using RawShaderMaterial with GLSL3 (like GBufferPass)
+        this.gBufferMaterial = new RawShaderMaterial({
+            name: 'G-Buffer Material (RenderPass)',
+            vertexShader: /* glsl */`
 				in vec3 position;
 				in vec3 normal;
 				in vec2 uv;
@@ -555,16 +460,15 @@ export class RenderPass extends Pass {
 					gl_Position = projectionMatrix * mvPosition;
 				}
 			`,
-			fragmentShader: /* glsl */`
+            fragmentShader: /* glsl */`
 				precision highp float;
 				precision highp int;
 
-				// MRT 输出：同时输出到5个纹理
+				// MRT 输出：同时输出到4个纹理
 				layout(location = 0) out vec4 gColor;    // 颜色 + metalness (alpha)
 				layout(location = 1) out vec4 gNormal;   // 法线 + roughness (alpha)
 				layout(location = 2) out vec4 gDepth;    // 深度
 				layout(location = 3) out vec4 gPosition; // 位置
-				layout(location = 4) out vec4 gObjectId; // 对象ID
 
 				in vec3 vNormal;
 				in vec3 vViewPosition;
@@ -575,8 +479,6 @@ export class RenderPass extends Pass {
 				uniform vec3 diffuse;
 				uniform float metalness;
 				uniform float roughness;
-				// 对象ID
-				uniform float objectId;
 
 				void main() {
 					// 基础颜色 - 使用uniform提供的默认值
@@ -599,330 +501,146 @@ export class RenderPass extends Pass {
 					
 					// 输出4：视图空间位置
 					gPosition = vec4(vViewPosition, 1.0);
-					
-					// 输出5：对象ID (归一化到0-1范围)
-					float normalizedObjectId = objectId / 255.0;
-					gObjectId = vec4(normalizedObjectId, normalizedObjectId, normalizedObjectId, 1.0);
 				}
 			`,
-			uniforms: {
-				// RawShaderMaterial需要手动提供所有uniform，包括Three.js内置uniform
-				// 相机参数
-				diffuse: { value: new Color(1, 1, 1) },
-				metalness: { value: 0.0 },
-				roughness: { value: 1.0 },
-				cameraNear: { value: 0.1 },
-				cameraFar: { value: 1000 },
-				// 对象ID
-				objectId: { value: 0.0 },
+            uniforms: {
+                // RawShaderMaterial需要手动提供所有uniform，包括Three.js内置uniform
+                // 相机参数
+                diffuse: { value: new Color(1, 1, 1) },
+                metalness: { value: 0.0 },
+                roughness: { value: 1.0 },
+                cameraNear: { value: 0.1 },
+                cameraFar: { value: 1000 },
 
-				// Three.js内置uniform - RawShaderMaterial需要手动提供
-				modelViewMatrix: { value: new Matrix4() },
-				projectionMatrix: { value: new Matrix4() },
-				modelMatrix: { value: new Matrix4() },
-				normalMatrix: { value: new Matrix3() }
-			},
-			glslVersion: GLSL3
-		});
+                // Three.js内置uniform - RawShaderMaterial需要手动提供
+                modelViewMatrix: { value: new Matrix4() },
+                projectionMatrix: { value: new Matrix4() },
+                modelMatrix: { value: new Matrix4() },
+                normalMatrix: { value: new Matrix3() }
+            },
+            glslVersion: GLSL3
+        });
 
-		console.log("🔧 RenderPass: G-Buffer材质初始化完成");
-		console.log("  - 材质类型: RawShaderMaterial");
-		console.log("  - GLSL版本: GLSL3");
-		console.log("  - 支持MRT: layout(location = N)");
-		console.log("  - 使用in/out语法: ✅");
+        console.log("🔧 RenderPass: G-Buffer材质初始化完成");
+        console.log("  - 材质类型: RawShaderMaterial");
+        console.log("  - GLSL版本: GLSL3");
+        console.log("  - 支持MRT: layout(location = N)");
+        console.log("  - 使用in/out语法: ✅");
 
-	}
+    }
 
-	/**
-	 * Returns the G-Buffer textures.
-	 *
-	 * @returns {Object|null} An object containing the G-Buffer textures, or null if G-Buffer is disabled.
-	 */
-	getGBufferTextures() {
+    /**
+     * Returns the G-Buffer textures.
+     *
+     * @returns {Object|null} An object containing the G-Buffer textures, or null if G-Buffer is disabled.
+     */
+    getGBufferTextures() {
 
-		if (!this.enableGBuffer || !this.gBufferRenderTarget) {
-			return null;
-		}
+        if (!this.enableGBuffer || !this.gBufferRenderTarget) {
+            return null;
+        }
 
-		// 注意：使用MRT优化方案时，纹理布局为：
-		// texture[0]: pc_fragColor (Three.js的lit color)
-		// texture[1]: gNormal
-		// texture[2]: gDepth  
-		// texture[3]: gPosition
-		// texture[4]: gObjectId
-		return {
-			gColor: this.gBufferRenderTarget.textures[0],  // pc_fragColor (带光照的颜色)
-			gNormal: this.gBufferRenderTarget.textures[1],
-			gDepth: this.gBufferRenderTarget.textures[2],
-			gPosition: this.gBufferRenderTarget.textures[3],
-			gObjectId: this.gBufferRenderTarget.textures[4]
-		};
+        return {
+            gColor: this.gBufferRenderTarget.textures[0],
+            gNormal: this.gBufferRenderTarget.textures[1],
+            gDepth: this.gBufferRenderTarget.textures[2],
+            gPosition: this.gBufferRenderTarget.textures[3]
+        };
 
-	}
+    }
 
-	/**
-	 * Enable G-Buffer generation.
-	 *
-	 * @param {Number} [resolutionScale=1.0] - Resolution scale for G-Buffer.
-	 */
-	enableGBufferGeneration(resolutionScale = 1.0) {
+    /**
+     * Enable G-Buffer generation.
+     *
+     * @param {Number} [resolutionScale=1.0] - Resolution scale for G-Buffer.
+     */
+    enableGBufferGeneration(resolutionScale = 1.0) {
 
-		this.enableGBuffer = true;
-		this.resolutionScale = resolutionScale;
+        this.enableGBuffer = true;
+        this.resolutionScale = resolutionScale;
 
-		if (!this.gBufferRenderTarget) {
-			this.initializeGBuffer();
-		}
+        if (!this.gBufferRenderTarget) {
+            this.initializeGBuffer();
+        }
 
-	}
+    }
 
-	/**
-	 * Disable G-Buffer generation.
-	 */
-	disableGBufferGeneration() {
+    /**
+     * Disable G-Buffer generation.
+     */
+    disableGBufferGeneration() {
 
-		this.enableGBuffer = false;
+        this.enableGBuffer = false;
 
-		if (this.gBufferRenderTarget) {
-			this.gBufferRenderTarget.dispose();
-			this.gBufferRenderTarget = null;
-		}
+        if (this.gBufferRenderTarget) {
+            this.gBufferRenderTarget.dispose();
+            this.gBufferRenderTarget = null;
+        }
 
-		if (this.gBufferMaterial) {
-			this.gBufferMaterial.dispose();
-			this.gBufferMaterial = null;
-		}
+        if (this.gBufferMaterial) {
+            this.gBufferMaterial.dispose();
+            this.gBufferMaterial = null;
+        }
 
-	}
+    }
 
-	/**
-	 * Set the size of the render targets.
-	 *
-	 * @param {Number} width - The width.
-	 * @param {Number} height - The height.
-	 */
-	setSize(width, height) {
+    /**
+     * Set the size of the render targets.
+     *
+     * @param {Number} width - The width.
+     * @param {Number} height - The height.
+     */
+    setSize(width, height) {
 
-		if (this.enableGBuffer && this.gBufferRenderTarget) {
-			const gBufferWidth = Math.max(1, Math.floor(width * this.resolutionScale));
-			const gBufferHeight = Math.max(1, Math.floor(height * this.resolutionScale));
+        if (this.enableGBuffer && this.gBufferRenderTarget) {
+            const gBufferWidth = Math.max(1, Math.floor(width * this.resolutionScale));
+            const gBufferHeight = Math.max(1, Math.floor(height * this.resolutionScale));
 
-			this.gBufferRenderTarget.setSize(gBufferWidth, gBufferHeight);
-			// RawShaderMaterial不需要resolution uniform，Three.js会自动处理
-		}
+            this.gBufferRenderTarget.setSize(gBufferWidth, gBufferHeight);
+            // RawShaderMaterial不需要resolution uniform，Three.js会自动处理
+        }
 
-	}
+    }
 
-	/**
-	 * Prepare G-Buffer material uniforms.
-	 *
-	 * @private
-	 */
-	prepareGBufferMaterial() {
+    /**
+     * Prepare G-Buffer material uniforms.
+     *
+     * @private
+     */
+    prepareGBufferMaterial() {
 
-		if (!this.gBufferMaterial) return;
+        if (!this.gBufferMaterial) return;
 
-		// 更新相机参数
-		this.gBufferMaterial.uniforms.cameraNear.value = this.camera.near;
-		this.gBufferMaterial.uniforms.cameraFar.value = this.camera.far;
+        // 更新相机参数
+        this.gBufferMaterial.uniforms.cameraNear.value = this.camera.near;
+        this.gBufferMaterial.uniforms.cameraFar.value = this.camera.far;
 
-		// 更新相机矩阵 - RawShaderMaterial需要手动提供
-		this.gBufferMaterial.uniforms.projectionMatrix.value.copy(this.camera.projectionMatrix);
+        // 更新相机矩阵 - RawShaderMaterial需要手动提供
+        this.gBufferMaterial.uniforms.projectionMatrix.value.copy(this.camera.projectionMatrix);
 
-		// RawShaderMaterial需要手动设置材质属性，使用简单的默认值
-		this.gBufferMaterial.uniforms.diffuse.value.setHex(0xffffff); // 白色默认
-		this.gBufferMaterial.uniforms.metalness.value = 0.0; // 非金属
-		this.gBufferMaterial.uniforms.roughness.value = 1.0; // 粗糙
+        // RawShaderMaterial需要手动设置材质属性，使用简单的默认值
+        this.gBufferMaterial.uniforms.diffuse.value.setHex(0xffffff); // 白色默认
+        this.gBufferMaterial.uniforms.metalness.value = 0.0; // 非金属
+        this.gBufferMaterial.uniforms.roughness.value = 1.0; // 粗糙
 
 
-	}
+    }
 
+    /**
+     * Dispose of resources.
+     */
+    dispose() {
 
-	/**
-	 * ⚡ 智能ObjectId注入渲染 - 使用onBeforeCompile一次性注入，避免每帧材质替换
-	 * 
-	 * @param {WebGLRenderer} renderer - The renderer
-	 * @param {Scene} scene - The scene to render
-	 * @param {Camera} camera - The camera
-	 * @private
-	 */
-	renderGBufferWithSmartObjectId(renderer, scene, camera) {
-		if (!this.objectIdManager) {
-			console.error("RenderPass: ObjectIdManager not initialized");
-			return;
-		}
+        this.disableGBufferGeneration();
 
-		// 扫描场景并分配ObjectId
-		const scanResult = this.objectIdManager.scanScene(scene);
+        if (this.clearPass) {
+            this.clearPass.dispose();
+        }
 
-		// 首次渲染时输出调试信息
-		if (!this._hasLoggedObjectIds) {
-			console.log("🆔 对象ID分配情况:");
-			let count = 0;
-			scene.traverse((object) => {
-				if (object.isMesh && object.visible) {
-					const id = this.objectIdManager.getObjectId(object);
-					console.log(`  - ${object.name || 'Mesh'} [${object.uuid.substr(0, 8)}]: ID=${id}`);
-					count++;
-				}
-			});
-			console.log(`  总计: ${count}个对象`);
-			this._hasLoggedObjectIds = true;
-		}
+        if (this.overrideMaterialManager) {
+            this.overrideMaterialManager.dispose();
+        }
 
-		// 设置渲染目标
-		renderer.setRenderTarget(this.gBufferRenderTarget);
-		renderer.clear();
-
-		// 🎯 方案：为每个对象创建独立的G-Buffer材质克隆，设置不同的ObjectId
-		const originalMaterials = new WeakMap();
-		const gBufferClones = new Map(); // 缓存材质克隆以提高性能
-
-		// 第一步：保存原始材质并替换为G-Buffer材质克隆
-		scene.traverse((object) => {
-			if (object.isMesh && object.visible) {
-				// 保存原始材质
-				originalMaterials.set(object, object.material);
-
-				// 获取对象ID
-				const objectId = this.objectIdManager.getObjectId(object);
-
-				// 检查是否已有该ID的材质克隆
-				let gBufferClone;
-				if (gBufferClones.has(objectId)) {
-					gBufferClone = gBufferClones.get(objectId);
-				} else {
-					// 创建G-Buffer材质的克隆
-					gBufferClone = this.gBufferMaterial.clone();
-
-					// 深度克隆uniforms对象
-					gBufferClone.uniforms = {};
-					Object.keys(this.gBufferMaterial.uniforms).forEach(key => {
-						const uniform = this.gBufferMaterial.uniforms[key];
-						if (uniform && uniform.value !== undefined) {
-							// 对于Matrix和Vector类型，直接引用（Three.js会自动更新）
-							// 对于基本类型，创建新的引用
-							if (key === 'objectId') {
-								gBufferClone.uniforms[key] = { value: objectId };
-							} else {
-								gBufferClone.uniforms[key] = { value: uniform.value };
-							}
-						}
-					});
-
-					// 缓存该材质
-					gBufferClones.set(objectId, gBufferClone);
-
-					console.log(`  创建材质克隆 for ObjectId=${objectId}`);
-				}
-
-				// 替换对象的材质
-				object.material = gBufferClone;
-			}
-		});
-
-		// 第二步：渲染场景
-		const originalOverrideMaterial = scene.overrideMaterial;
-		scene.overrideMaterial = null; // 不使用overrideMaterial，使用每个对象自己的材质
-		renderer.render(scene, camera);
-
-		// 第三步：恢复原始材质
-		scene.traverse((object) => {
-			if (object.isMesh && originalMaterials.has(object)) {
-				object.material = originalMaterials.get(object);
-			}
-		});
-
-		scene.overrideMaterial = originalOverrideMaterial;
-	}
-
-
-
-	/**
-	 * Get ObjectId Manager
-	 * 
-	 * @returns {ObjectIdManager|null} The object ID manager
-	 */
-	getObjectIdManager() {
-
-		return this.objectIdManager;
-
-	}
-
-	/**
-	 * Enable object ID generation
-	 * 
-	 * @param {boolean} enable - Whether to enable object ID
-	 */
-	enableObjectIdGeneration(enable = true) {
-		this.enableObjectId = enable;
-
-		if (enable && !this.objectIdManager && this.enableGBuffer) {
-			this.objectIdManager = new ObjectIdManager();
-			this.objectIdManager.setDebug(true);
-			this.needsObjectIdSetup = true; // 标记需要重新设置
-			console.log("🆔 RenderPass: 对象ID管理器已启用");
-		}
-	}
-
-	/**
-	 * 强制重新设置ObjectId注入（当场景发生变化时）
-	 */
-	forceObjectIdSetup() {
-		this.needsObjectIdSetup = true;
-		this.injectedObjects.clear();
-		this.objectIdUniforms.clear();
-		this.objectIdOutputUniforms.clear();
-		console.log("🔄 强制重新设置ObjectId注入");
-	}
-
-	/**
-	 * 清理ObjectId相关资源
-	 * @private
-	 */
-	cleanupObjectIdInjection() {
-		// 清理WeakMap和WeakSet会自动处理，但我们需要重置标记
-		this.injectedObjects = new WeakSet();
-		this.objectIdUniforms = new WeakMap();
-		this.objectIdOutputUniforms = new WeakMap();
-		this.needsObjectIdSetup = true;
-		console.log("🧹 ObjectId注入资源已清理");
-	}
-
-	/**
-	 * Dispose of resources.
-	 */
-	dispose() {
-		this.disableGBufferGeneration();
-
-		// 清理MRT材质补丁器
-		if (this.mrtPatcher) {
-			this.mrtPatcher.clear();
-			this.mrtPatcher = null;
-		}
-
-		// 恢复原始纹理引用
-		this._originalInputTexture = null;
-		this._mrtPatched = false;
-
-		// 清理ObjectId注入相关资源
-		this.cleanupObjectIdInjection();
-
-		// 清理ObjectIdManager
-		if (this.objectIdManager) {
-			this.objectIdManager.clear();
-			this.objectIdManager = null;
-		}
-
-		if (this.clearPass) {
-			this.clearPass.dispose();
-		}
-
-		if (this.overrideMaterialManager) {
-			this.overrideMaterialManager.dispose();
-		}
-
-		console.log("🧹 RenderPass: 所有资源已释放（包括MRT优化和ObjectId注入）");
-	}
+    }
 
 }

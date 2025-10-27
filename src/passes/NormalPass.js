@@ -62,7 +62,7 @@ export class NormalPass extends Pass {
 
 		this.renderTarget = renderTarget;
 
-		if(this.renderTarget === undefined) {
+		if (this.renderTarget === undefined) {
 
 			this.renderTarget = new WebGLRenderTarget(1, 1, {
 				minFilter: NearestFilter,

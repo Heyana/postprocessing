@@ -60,7 +60,7 @@ const params = {
     depthRenderScale: 0.5,         // 深度渲染分辨率比例 (0.5 = 50%分辨率)
 
     // 对象ID相关参数
-    enableObjectId: true,          // 启用对象ID系统
+    enableObjectId: false,          // 启用对象ID系统
     showObjectIdDebug: false,       // 显示对象ID调试信息
     objectIdVisualization: 'off'    // 对象ID可视化模式: 'off', 'colorful', 'grayscale'
 };
