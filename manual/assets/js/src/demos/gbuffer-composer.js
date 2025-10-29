@@ -377,7 +377,7 @@ window.addEventListener("load", async () => {
 
         // 添加SSRPass
         compatSSRPass.threePass.output = SelectiveSSRPass.OUTPUT.Default;
-        composer.addPass(compatSSRPass);
+        // composer.addPass(compatSSRPass);
 
         // 添加BrightnessContrast效果
         brightnessContrastEffect = new BrightnessContrastEffect({

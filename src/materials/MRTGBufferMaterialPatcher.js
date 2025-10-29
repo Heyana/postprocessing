@@ -178,8 +178,8 @@ varying float vLinearDepth;
 // 计算视图空间法线
 vViewNormal = normalize(normalMatrix * normal);
 
-// 计算视图空间位置 (与RenderPassGbuffer一致)
-vViewPosition = mvPosition.xyz;
+// 计算视图空间位置
+vViewPosition = -mvPosition.xyz;
 
 // 计算线性深度
 float depth = -mvPosition.z;
@@ -275,8 +275,8 @@ varying float vLinearDepth;
 // 计算视图空间法线
 vViewNormal = normalize(normalMatrix * normal);
 
-// 计算视图空间位置 (与RenderPassGbuffer一致)
-vViewPosition = mvPosition.xyz;
+// 计算视图空间位置  
+vViewPosition = -mvPosition.xyz;
 
 // 计算线性深度
 float depth = -mvPosition.z;
