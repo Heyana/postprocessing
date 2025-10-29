@@ -376,10 +376,7 @@ export class RenderPass extends Pass {
 
         } else {
             if (this.enableGBuffer) {
-                console.warn("⚠️ RenderPass: G-Buffer已启用但资源未准备好");
-                console.log("  - enableGBuffer:", this.enableGBuffer);
-                console.log("  - gBufferRenderTarget:", !!this.gBufferRenderTarget);
-                console.log("  - gBufferMaterial:", !!this.gBufferMaterial);
+
             }
         }
 
@@ -414,13 +411,6 @@ export class RenderPass extends Pass {
             depthBuffer: true,
             stencilBuffer: false
         });
-
-        console.log("🔧 RenderPass: 初始化G-Buffer渲染目标");
-        console.log("  - 尺寸:", width + "x" + height);
-        console.log("  - MRT计数:", this.gBufferRenderTarget.count);
-        console.log("  - 纹理格式:", RGBAFormat);
-        console.log("  - 纹理类型:", FloatType);
-        console.log("  - 生成纹理数量:", this.gBufferRenderTarget.textures?.length);
 
         // Create G-Buffer material using RawShaderMaterial with GLSL3 (like GBufferPass)
         this.gBufferMaterial = new RawShaderMaterial({
@@ -521,11 +511,7 @@ export class RenderPass extends Pass {
             glslVersion: GLSL3
         });
 
-        console.log("🔧 RenderPass: G-Buffer材质初始化完成");
-        console.log("  - 材质类型: RawShaderMaterial");
-        console.log("  - GLSL版本: GLSL3");
-        console.log("  - 支持MRT: layout(location = N)");
-        console.log("  - 使用in/out语法: ✅");
+
 
     }
 

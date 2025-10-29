@@ -99,8 +99,6 @@ export class SelectiveBloomEffect extends BloomEffect {
 		// 如果提供了GBuffer，使用gDepth作为主场景深度缓冲
 		const useGBuffer = this.gBufferTextures && this.gBufferTextures.gDepth;
 		if (useGBuffer) {
-			console.log("🎯 SelectiveBloomEffect: 使用 GBuffer 深度纹理");
-			console.log("  - gDepth:", !!this.gBufferTextures.gDepth);
 			// 设置depthBuffer0为GBuffer的深度纹理
 			// 注意：GBuffer的深度可能需要特定的深度打包方式
 			depthMaskMaterial.depthBuffer0 = this.gBufferTextures.gDepth;
