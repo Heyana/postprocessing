@@ -87,12 +87,9 @@ export class PoissionDenoisePass extends Pass {
 		// 检查着色器是否包含亮度阈值定义
 		if (!this.fullscreenMaterial.fragmentShader.includes("IGNORE_BRIGHTNESS_THRESHOLD")) {
 
-			console.warn("警告: 降噪着色器中未找到亮度阈值定义，忽略高亮物体功能可能无法正常工作");
 
 		} else {
 
-			console.log("降噪着色器已包含亮度阈值定义，阈值为:",
-				this.fullscreenMaterial.fragmentShader.match(/IGNORE_BRIGHTNESS_THRESHOLD\s+(\d+\.\d+)/)[1]);
 
 		}
 

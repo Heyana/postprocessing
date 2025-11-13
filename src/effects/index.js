@@ -2,6 +2,8 @@ export * from "./blending/index.js";
 
 export * from "./ASCIIEffect.js";
 export * from "./BloomEffect.js";
+export * from "./SelectiveUnrealBloomEffect.js";
+export * from "./UnrealBloomEffect.js";
 export * from "./BokehEffect.js";
 export * from "./BrightnessContrastEffect.js";
 export * from "./ColorAverageEffect.js";

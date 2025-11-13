@@ -173,14 +173,12 @@ export class SelectiveAOEffect extends Effect {
 
 			if (!this.poissionDenoisePass.renderTarget) {
 
-				console.warn("PoissionDenoisePass创建后renderTarget未定义，尝试通过设置尺寸初始化");
 				// 强制设置初始尺寸，以确保渲染目标被创建
 				const initialWidth = 1;
 				const initialHeight = 1;
 				try {
 
 					this.poissionDenoisePass.setSize(initialWidth, initialHeight);
-					console.log("PoissionDenoisePass渲染目标初始化成功");
 
 				} catch (error) {
 
@@ -218,12 +216,10 @@ export class SelectiveAOEffect extends Effect {
 
 		// 打印一些调试信息
 		const itemCount = this.getSelectionItems().length;
-		console.log(`AO初始化: 忽略对象数量=${itemCount}`);
 
 		// 如果选择为空，打印警告
 		if (itemCount === 0) {
 
-			console.warn("Selection为空，所有物体都将参与AO计算");
 
 		}
 
@@ -448,7 +444,6 @@ export class SelectiveAOEffect extends Effect {
 				this.poissionDenoisePass.setSize(width, height);
 				if (!this.poissionDenoisePass.renderTarget) {
 
-					console.warn("调整大小后，PoissionDenoisePass的renderTarget仍然未定义");
 
 				}
 
