@@ -19,7 +19,7 @@ import {
     BlendFunction,
     EffectComposer,
     RenderPass,
-    SelectiveBloomPass,
+    SelectiveUnrealBloomPass,
     UnrealBloomEffect
 } from "postprocessing";
 
@@ -114,7 +114,7 @@ window.addEventListener("load", () => load().then(() => {
         multisampling: Math.min(4, renderer.capabilities.maxSamples)
     });
 
-    const bloomPass = new SelectiveBloomPass(scene, camera, {
+    const bloomPass = new SelectiveUnrealBloomPass(scene, camera, {
         effect: {
             blendFunction: BlendFunction.ADD,
             strength: 3.0,
@@ -134,6 +134,9 @@ window.addEventListener("load", () => load().then(() => {
         }
     });
     const unrealBloom = bloomPass.effect;
+    // 设置场景和相机，用于深度和遮罩调试功能
+    unrealBloom.mainScene = scene;
+    unrealBloom.mainCamera = camera;
     const bloomSelection = unrealBloom.getSelection();
     bloomSelection.layer = 21;
     pickables.forEach((mesh) => bloomSelection.add(mesh));
@@ -170,9 +173,6 @@ window.addEventListener("load", () => load().then(() => {
         const enabled = event.value;
         thresholdBinding.disabled = !enabled;
         smoothBinding.disabled = !enabled;
-        if (!enabled && unrealBloom.debugMode === UnrealBloomEffect.DebugMode.HIGH_PASS) {
-            unrealBloom.debugMode = UnrealBloomEffect.DebugMode.NONE;
-        }
     });
 
     const colorParams = { color: { r: 1, g: 1, b: 1 } };
@@ -180,29 +180,6 @@ window.addEventListener("load", () => load().then(() => {
         .on("change", (e) => {
             unrealBloom.bloomColor.setRGB(e.value.r, e.value.g, e.value.b);
         });
-
-    const debugModes = [
-        UnrealBloomEffect.DebugMode.NONE,
-        UnrealBloomEffect.DebugMode.SELECTION_MASK,
-        UnrealBloomEffect.DebugMode.HIGH_PASS
-    ];
-    let debugIndex = debugModes.indexOf(unrealBloom.debugMode);
-    folder.addButton({ title: "cycle debug" }).on("click", () => {
-        debugIndex = (debugIndex + 1) % debugModes.length;
-        unrealBloom.debugMode = debugModes[debugIndex];
-        debugModeBinding.refresh();
-    });
-    const debugModeBinding = folder.addBinding(unrealBloom, "debugMode", {
-        label: "debugMode",
-        options: {
-            none: UnrealBloomEffect.DebugMode.NONE,
-            "selection-mask": UnrealBloomEffect.DebugMode.SELECTION_MASK,
-            "high-pass": UnrealBloomEffect.DebugMode.HIGH_PASS
-        }
-    });
-    debugModeBinding.on("change", (event) => {
-        debugIndex = debugModes.indexOf(event.value);
-    });
 
     const depthParams = { epsilon: unrealBloom.depthEpsilon };
     folder.addBinding(depthParams, "epsilon", {
@@ -217,7 +194,6 @@ window.addEventListener("load", () => load().then(() => {
     const viewParams = { showSelection: bloomPass.overlayVisible };
     folder.addBinding(viewParams, "showSelection", { label: "showSelection" }).on("change", (event) => {
         bloomPass.overlayVisible = event.value;
-        unrealBloom.debugMode = event.value ? UnrealBloomEffect.DebugMode.SELECTION_MASK : UnrealBloomEffect.DebugMode.NONE;
     });
 
     pane.addBinding(bloomPass.effectPass, "dithering");
@@ -226,37 +202,51 @@ window.addEventListener("load", () => load().then(() => {
 
     // 添加多视图功能控制
     const outputFolder = pane.addFolder({ title: "多视图输出" });
-    const outputParams = { 
+    const outputParams = {
         outputMode: "Default",
         cycleMode: false
     };
-    
-    // 输出模式选项
+
+    // 输出模式选项（包含所有新的调试模式）
     const outputModeOptions = {
         "Default": "Default",
         "Beauty": "Beauty",
         "Brightness": "Brightness",
+        "HighPass": "HighPass",
+        "Masked": "Masked",
+        "Mask": "Mask",
+        "Depth": "Depth",
+        "Selection": "Selection",
         "Blur1": "Blur1",
         "Blur2": "Blur2",
         "Blur3": "Blur3",
         "Blur4": "Blur4",
         "Blur5": "Blur5",
-        "Composite": "Composite",
-        "Selection": "Selection"
+        "HorizontalBlur1": "HorizontalBlur1",
+        "HorizontalBlur2": "HorizontalBlur2",
+        "HorizontalBlur3": "HorizontalBlur3",
+        "HorizontalBlur4": "HorizontalBlur4",
+        "HorizontalBlur5": "HorizontalBlur5",
+        "VerticalBlur1": "VerticalBlur1",
+        "VerticalBlur2": "VerticalBlur2",
+        "VerticalBlur3": "VerticalBlur3",
+        "VerticalBlur4": "VerticalBlur4",
+        "VerticalBlur5": "VerticalBlur5",
+        "Composite": "Composite"
     };
-    
-    let outputModeBinding = outputFolder.addBinding(outputParams, "outputMode", { 
+
+    let outputModeBinding = outputFolder.addBinding(outputParams, "outputMode", {
         label: "输出模式",
         options: outputModeOptions
     }).on("change", (event) => {
         const modeValue = UnrealBloomEffect.OUTPUT[event.value];
         unrealBloom.setOutputMode(modeValue);
     });
-    
+
     outputFolder.addButton({ title: "循环切换输出模式" }).on("click", () => {
         unrealBloom.cycleOutputMode();
         // 更新UI显示当前模式
-        const currentMode = Object.keys(UnrealBloomEffect.OUTPUT).find(key => 
+        const currentMode = Object.keys(UnrealBloomEffect.OUTPUT).find(key =>
             UnrealBloomEffect.OUTPUT[key] === unrealBloom.output
         );
         if (currentMode) {
@@ -264,89 +254,13 @@ window.addEventListener("load", () => load().then(() => {
             outputModeBinding.refresh();
         }
     });
-    
 
-    
-    // 键盘快捷键支持
-    window.addEventListener("keydown", (event) => {
-        switch (event.key) {
-            case '1':
-                unrealBloom.setOutputMode(UnrealBloomEffect.OUTPUT.Default);
-                outputParams.outputMode = "Default";
-                outputModeBinding.refresh();
-                console.log('输出模式: Default (完整泛光效果)');
-                break;
-            case '2':
-                unrealBloom.setOutputMode(UnrealBloomEffect.OUTPUT.Beauty);
-                outputParams.outputMode = "Beauty";
-                outputModeBinding.refresh();
-                console.log('输出模式: Beauty (原始场景)');
-                break;
-            case '3':
-                unrealBloom.setOutputMode(UnrealBloomEffect.OUTPUT.Brightness);
-                outputParams.outputMode = "Brightness";
-                outputModeBinding.refresh();
-                console.log('输出模式: Brightness (亮度提取)');
-                break;
-            case '4':
-                unrealBloom.setOutputMode(UnrealBloomEffect.OUTPUT.Blur1);
-                outputParams.outputMode = "Blur1";
-                outputModeBinding.refresh();
-                console.log('输出模式: Blur1 (第一级模糊)');
-                break;
-            case '5':
-                unrealBloom.setOutputMode(UnrealBloomEffect.OUTPUT.Blur2);
-                outputParams.outputMode = "Blur2";
-                outputModeBinding.refresh();
-                console.log('输出模式: Blur2 (第二级模糊)');
-                break;
-            case '6':
-                unrealBloom.setOutputMode(UnrealBloomEffect.OUTPUT.Blur3);
-                outputParams.outputMode = "Blur3";
-                outputModeBinding.refresh();
-                console.log('输出模式: Blur3 (第三级模糊)');
-                break;
-            case '7':
-                unrealBloom.setOutputMode(UnrealBloomEffect.OUTPUT.Blur4);
-                outputParams.outputMode = "Blur4";
-                outputModeBinding.refresh();
-                console.log('输出模式: Blur4 (第四级模糊)');
-                break;
-            case '8':
-                unrealBloom.setOutputMode(UnrealBloomEffect.OUTPUT.Blur5);
-                outputParams.outputMode = "Blur5";
-                outputModeBinding.refresh();
-                console.log('输出模式: Blur5 (第五级模糊)');
-                break;
-            case '9':
-                unrealBloom.setOutputMode(UnrealBloomEffect.OUTPUT.Composite);
-                outputParams.outputMode = "Composite";
-                outputModeBinding.refresh();
-                console.log('输出模式: Composite (合成结果)');
-                break;
-            case '0':
-                unrealBloom.setOutputMode(UnrealBloomEffect.OUTPUT.Selection);
-                outputParams.outputMode = "Selection";
-                outputModeBinding.refresh();
-                console.log('输出模式: Selection (选择区域)');
-                break;
-            case ' ':
-                unrealBloom.cycleOutputMode();
-                // 更新UI显示当前模式
-                const currentMode = Object.keys(UnrealBloomEffect.OUTPUT).find(key => 
-                    UnrealBloomEffect.OUTPUT[key] === unrealBloom.output
-                );
-                if (currentMode) {
-                    outputParams.outputMode = currentMode;
-                    outputModeBinding.refresh();
-                }
-                break;
-        }
-    });
-    
+
+
+
     // 显示控制提示
-    console.log('UnrealBloomEffect 多视图功能已启用');
-    console.log('按键控制:');
+    console.log('UnrealBloomEffect 多视图调试功能已启用');
+    console.log('=== 基础输出模式 ===');
     console.log('1: Default (完整泛光效果)');
     console.log('2: Beauty (原始场景)');
     console.log('3: Brightness (亮度提取)');
@@ -357,7 +271,18 @@ window.addEventListener("load", () => load().then(() => {
     console.log('8: Blur5 (第五级模糊)');
     console.log('9: Composite (合成结果)');
     console.log('0: Selection (选择区域)');
-    console.log('空格键: 循环切换输出模式');
+    console.log('');
+    console.log('=== 调试模式 ===');
+    console.log('H: HighPass (高通滤波)');
+    console.log('M: Masked (遮罩处理后)');
+    console.log('Shift+M: Mask (遮罩可视化)');
+    console.log('D: Depth (深度可视化)');
+    console.log('');
+    console.log('=== 详细模糊阶段 ===');
+    console.log('Shift+1-5: HorizontalBlur1-5 (水平模糊)');
+    console.log('Shift+6-0: VerticalBlur1-5 (垂直模糊)');
+    console.log('');
+    console.log('空格键: 循环切换所有输出模式');
 
     // 点击切换选择：命中则加入/移除 bloomSelection
     const ndc = new Vector2();

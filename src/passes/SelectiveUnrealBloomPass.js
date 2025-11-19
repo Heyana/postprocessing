@@ -3,7 +3,8 @@ import {
 	MeshBasicMaterial,
 	OrthographicCamera,
 	PlaneGeometry,
-	Scene
+	Scene,
+	Vector4
 } from "three";
 
 import { Pass } from "./Pass.js";
@@ -16,7 +17,7 @@ const overlayGeometry = /* @__PURE__ */ new PlaneGeometry(2, 2);
  * 将 `UnrealBloomEffect` 封装为可直接插入 EffectComposer 的 Pass，
  * 并内置选择层调试输出。
  */
-export class SelectiveBloomPass extends Pass {
+export class SelectiveUnrealBloomPass extends Pass {
 
 	/**
 	 * @param {Scene} scene - 主场景。
@@ -72,6 +73,18 @@ export class SelectiveBloomPass extends Pass {
 		});
 		this.overlayQuad = new Mesh(overlayGeometry, this.overlayMaterial);
 		this.overlayScene.add(this.overlayQuad);
+
+		// 用于 Selection 输出模式的场景和材质（直接显示选中模型，不应用泛光）
+		this.selectionDisplayScene = new Scene();
+		this.selectionDisplayCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
+		this.selectionDisplayMaterial = new MeshBasicMaterial({
+			map: null,
+			toneMapped: false,
+			depthTest: false,
+			depthWrite: false
+		});
+		this.selectionDisplayQuad = new Mesh(overlayGeometry, this.selectionDisplayMaterial);
+		this.selectionDisplayScene.add(this.selectionDisplayQuad);
 
 	}
 
@@ -132,7 +145,68 @@ export class SelectiveBloomPass extends Pass {
 
 	render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass, opts = {}) {
 
+		// 如果输出模式为 Selection，直接显示选中模型，不应用泛光效果
+		if (this.effect.output === UnrealBloomEffect.OUTPUT.Selection) {
+
+			// 需要先调用 effect.update 来生成 selectionRenderTarget
+			// 但不渲染 EffectPass（跳过泛光混合）
+			this.effect.update(renderer, inputBuffer, deltaTime, depthPass, outputBuffer);
+
+			const selectionRT = this.effect.selectionRenderTarget;
+			if (!selectionRT || selectionRT.texture === null) {
+
+				return;
+
+			}
+
+			// 更新材质纹理
+			if (this.selectionDisplayMaterial.map !== selectionRT.texture) {
+
+				this.selectionDisplayMaterial.map = selectionRT.texture;
+				this.selectionDisplayMaterial.needsUpdate = true;
+
+			}
+
+			// 保存当前渲染状态
+			const previousRenderTarget = renderer.getRenderTarget();
+			const previousViewport = renderer.getViewport(new Vector4());
+			const previousScissor = renderer.getScissor(new Vector4());
+
+			// 直接渲染选择纹理到输出
+			renderer.setRenderTarget(this.renderToScreen ? null : outputBuffer);
+			renderer.setViewport(0, 0, this.bufferWidth, this.bufferHeight);
+			renderer.setScissor(0, 0, this.bufferWidth, this.bufferHeight);
+			renderer.render(this.selectionDisplayScene, this.selectionDisplayCamera, {
+				projectObject: true,
+				updateMatrixWorld: false,
+				useProgramCache: false
+			});
+
+			// 恢复渲染状态
+			renderer.setViewport(previousViewport.x, previousViewport.y, previousViewport.z, previousViewport.w);
+			renderer.setScissor(previousScissor.x, previousScissor.y, previousScissor.z, previousScissor.w);
+			renderer.setRenderTarget(previousRenderTarget);
+
+			// 渲染 overlay（如果启用）
+			this._renderOverlay(renderer, outputBuffer);
+
+			return;
+
+		}
+
+		// 正常渲染流程：应用泛光效果
 		this.effectPass.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest, depthPass, opts);
+
+		// 渲染 overlay（如果启用）
+		this._renderOverlay(renderer, outputBuffer);
+
+	}
+
+	/**
+	 * 渲染选择层调试 overlay
+	 * @private
+	 */
+	_renderOverlay(renderer, outputBuffer) {
 
 		const selection = this.effect.getSelection
 			? this.effect.getSelection()
@@ -166,7 +240,15 @@ export class SelectiveBloomPass extends Pass {
 
 		}
 
+		// Save current render target state to avoid feedback loops
+		const previousRenderTarget = renderer.getRenderTarget();
+		const previousViewport = renderer.getViewport(new Vector4());
+		const previousScissor = renderer.getScissor(new Vector4());
 		const previousScissorTest = renderer.getScissorTest();
+
+		// Explicitly set render target to outputBuffer to avoid feedback loop
+		// This ensures we're not reading from a texture that's currently bound as a render target
+		renderer.setRenderTarget(this.renderToScreen ? null : outputBuffer);
 		renderer.clearDepth();
 		renderer.setViewport(viewport.x, viewport.y, viewport.width, viewport.height);
 		renderer.setScissor(viewport.x, viewport.y, viewport.width, viewport.height);
@@ -176,9 +258,12 @@ export class SelectiveBloomPass extends Pass {
 			updateMatrixWorld: false,
 			useProgramCache: false
 		});
+
+		// Restore previous render target state
 		renderer.setScissorTest(previousScissorTest);
-		renderer.setViewport(0, 0, this.bufferWidth, this.bufferHeight);
-		renderer.setScissor(0, 0, this.bufferWidth, this.bufferHeight);
+		renderer.setViewport(previousViewport.x, previousViewport.y, previousViewport.z, previousViewport.w);
+		renderer.setScissor(previousScissor.x, previousScissor.y, previousScissor.z, previousScissor.w);
+		renderer.setRenderTarget(previousRenderTarget);
 
 	}
 
@@ -228,6 +313,12 @@ export class SelectiveBloomPass extends Pass {
 		if (this.overlayMaterial) {
 
 			this.overlayMaterial.dispose();
+
+		}
+
+		if (this.selectionDisplayMaterial) {
+
+			this.selectionDisplayMaterial.dispose();
 
 		}
 

@@ -33,6 +33,9 @@ class UnrealBloomPass extends Pass {
 		this.threshold = threshold;
 		this.resolution = (resolution !== undefined) ? new Vector2(resolution.x, resolution.y) : new Vector2(256, 256);
 
+		// 添加输出模式，默认为Default
+		this.output = UnrealBloomPass.OUTPUT.Default;
+
 		// create color only once here, reuse it later inside the render function
 		this.clearColor = new Color(0, 0, 0);
 
@@ -212,35 +215,256 @@ class UnrealBloomPass extends Pass {
 
 		if (maskActive) renderer.state.buffers.stencil.setTest(false);
 
-		// Render input to screen
+		// 根据输出模式决定渲染内容
+		switch (this.output) {
+			case UnrealBloomPass.OUTPUT.Beauty:
+				// 只显示原始场景，不应用泛光效果
+				if (this.renderToScreen) {
+					this.fsQuad.material = this.basic;
+					this.basic.map = readBuffer.texture;
+					renderer.setRenderTarget(null);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+				} else {
+					this.copyUniforms['tDiffuse'].value = readBuffer.texture;
+					this.fsQuad.material = this.blendMaterial;
+					renderer.setRenderTarget(writeBuffer);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+				}
+				break;
 
-		if (this.renderToScreen) {
+			case UnrealBloomPass.OUTPUT.Brightness:
+				// 只显示亮度提取结果
+				this.highPassUniforms['tDiffuse'].value = readBuffer.texture;
+				this.highPassUniforms['luminosityThreshold'].value = this.threshold;
+				this.fsQuad.material = this.materialHighPassFilter;
+				renderer.setRenderTarget(this.renderTargetBright);
+				renderer.clear();
+				this.fsQuad.render(renderer);
 
-			this.fsQuad.material = this.basic;
-			this.basic.map = readBuffer.texture;
+				// 输出亮度提取结果
+				this.copyUniforms['tDiffuse'].value = this.renderTargetBright.texture;
+				this.fsQuad.material = this.blendMaterial;
+				if (this.renderToScreen) {
+					renderer.setRenderTarget(null);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+				} else {
+					renderer.setRenderTarget(writeBuffer);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+				}
+				break;
 
-			renderer.setRenderTarget(null);
-			renderer.clear();
-			this.fsQuad.render(renderer);
+			case UnrealBloomPass.OUTPUT.Blur1:
+				// 显示第一级模糊结果
+				this.renderBlurPasses(renderer, readBuffer, 0);
 
+				// 输出第一级模糊结果
+				this.copyUniforms['tDiffuse'].value = this.renderTargetsVertical[0].texture;
+				this.fsQuad.material = this.blendMaterial;
+				if (this.renderToScreen) {
+					renderer.setRenderTarget(null);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+				} else {
+					renderer.setRenderTarget(writeBuffer);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+				}
+				break;
+
+			case UnrealBloomPass.OUTPUT.Blur2:
+				// 显示第二级模糊结果
+				this.renderBlurPasses(renderer, readBuffer, 1);
+
+				// 输出第二级模糊结果
+				this.copyUniforms['tDiffuse'].value = this.renderTargetsVertical[1].texture;
+				this.fsQuad.material = this.blendMaterial;
+				if (this.renderToScreen) {
+					renderer.setRenderTarget(null);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+				} else {
+					renderer.setRenderTarget(writeBuffer);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+				}
+				break;
+
+			case UnrealBloomPass.OUTPUT.Blur3:
+				// 显示第三级模糊结果
+				this.renderBlurPasses(renderer, readBuffer, 2);
+
+				// 输出第三级模糊结果
+				this.copyUniforms['tDiffuse'].value = this.renderTargetsVertical[2].texture;
+				this.fsQuad.material = this.blendMaterial;
+				if (this.renderToScreen) {
+					renderer.setRenderTarget(null);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+				} else {
+					renderer.setRenderTarget(writeBuffer);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+				}
+				break;
+
+			case UnrealBloomPass.OUTPUT.Blur4:
+				// 显示第四级模糊结果
+				this.renderBlurPasses(renderer, readBuffer, 3);
+
+				// 输出第四级模糊结果
+				this.copyUniforms['tDiffuse'].value = this.renderTargetsVertical[3].texture;
+				this.fsQuad.material = this.blendMaterial;
+				if (this.renderToScreen) {
+					renderer.setRenderTarget(null);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+				} else {
+					renderer.setRenderTarget(writeBuffer);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+				}
+				break;
+
+			case UnrealBloomPass.OUTPUT.Blur5:
+				// 显示第五级模糊结果
+				this.renderBlurPasses(renderer, readBuffer, 4);
+
+				// 输出第五级模糊结果
+				this.copyUniforms['tDiffuse'].value = this.renderTargetsVertical[4].texture;
+				this.fsQuad.material = this.blendMaterial;
+				if (this.renderToScreen) {
+					renderer.setRenderTarget(null);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+				} else {
+					renderer.setRenderTarget(writeBuffer);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+				}
+				break;
+
+			case UnrealBloomPass.OUTPUT.Composite:
+				// 显示合成结果，但不与原始场景混合
+				this.renderBlurPasses(renderer, readBuffer, -1);
+
+				// 合成所有mips
+				this.fsQuad.material = this.compositeMaterial;
+				this.compositeMaterial.uniforms['bloomStrength'].value = this.strength;
+				this.compositeMaterial.uniforms['bloomRadius'].value = this.radius;
+				this.compositeMaterial.uniforms['bloomTintColors'].value = this.bloomTintColors;
+
+				renderer.setRenderTarget(this.renderTargetsHorizontal[0]);
+				renderer.clear();
+				this.fsQuad.render(renderer);
+
+				// 输出合成结果
+				this.copyUniforms['tDiffuse'].value = this.renderTargetsHorizontal[0].texture;
+				this.fsQuad.material = this.blendMaterial;
+				if (this.renderToScreen) {
+					renderer.setRenderTarget(null);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+				} else {
+					renderer.setRenderTarget(writeBuffer);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+				}
+				break;
+
+			case UnrealBloomPass.OUTPUT.Default:
+			default:
+				// 原始的完整渲染流程
+				// Render input to screen
+				if (this.renderToScreen) {
+					this.fsQuad.material = this.basic;
+					this.basic.map = readBuffer.texture;
+					renderer.setRenderTarget(null);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+				}
+
+				// 1. Extract Bright Areas
+				this.highPassUniforms['tDiffuse'].value = readBuffer.texture;
+				this.highPassUniforms['luminosityThreshold'].value = this.threshold;
+				this.fsQuad.material = this.materialHighPassFilter;
+
+				renderer.setRenderTarget(this.renderTargetBright);
+				renderer.clear();
+				this.fsQuad.render(renderer);
+
+				// 2. Blur All the mips progressively
+				let inputRenderTarget = this.renderTargetBright;
+
+				for (let i = 0; i < this.nMips; i++) {
+					this.fsQuad.material = this.separableBlurMaterials[i];
+
+					this.separableBlurMaterials[i].uniforms['colorTexture'].value = inputRenderTarget.texture;
+					this.separableBlurMaterials[i].uniforms['direction'].value = UnrealBloomPass.BlurDirectionX;
+					renderer.setRenderTarget(this.renderTargetsHorizontal[i]);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+
+					this.separableBlurMaterials[i].uniforms['colorTexture'].value = this.renderTargetsHorizontal[i].texture;
+					this.separableBlurMaterials[i].uniforms['direction'].value = UnrealBloomPass.BlurDirectionY;
+					renderer.setRenderTarget(this.renderTargetsVertical[i]);
+					renderer.clear();
+					this.fsQuad.render(renderer);
+
+					inputRenderTarget = this.renderTargetsVertical[i];
+				}
+
+				// Composite All the mips
+				this.fsQuad.material = this.compositeMaterial;
+				this.compositeMaterial.uniforms['bloomStrength'].value = this.strength;
+				this.compositeMaterial.uniforms['bloomRadius'].value = this.radius;
+				this.compositeMaterial.uniforms['bloomTintColors'].value = this.bloomTintColors;
+
+				renderer.setRenderTarget(this.renderTargetsHorizontal[0]);
+				renderer.clear();
+				this.fsQuad.render(renderer);
+
+				// Blend it additively over the input texture
+				this.fsQuad.material = this.blendMaterial;
+				this.copyUniforms['tDiffuse'].value = this.renderTargetsHorizontal[0].texture;
+
+				if (maskActive) renderer.state.buffers.stencil.setTest(true);
+
+				if (this.renderToScreen) {
+					renderer.setRenderTarget(null);
+					this.fsQuad.render(renderer);
+				} else {
+					renderer.setRenderTarget(readBuffer);
+					this.fsQuad.render(renderer);
+				}
+				break;
 		}
 
-		// 1. Extract Bright Areas
+		// Restore renderer settings
+		renderer.setClearColor(this._oldClearColor, this.oldClearAlpha);
+		renderer.autoClear = oldAutoClear;
+	}
 
+	// 辅助方法：渲染模糊通道
+	renderBlurPasses(renderer, readBuffer, targetLevel) {
+		// 1. Extract Bright Areas
 		this.highPassUniforms['tDiffuse'].value = readBuffer.texture;
 		this.highPassUniforms['luminosityThreshold'].value = this.threshold;
 		this.fsQuad.material = this.materialHighPassFilter;
-
 		renderer.setRenderTarget(this.renderTargetBright);
 		renderer.clear();
 		this.fsQuad.render(renderer);
 
 		// 2. Blur All the mips progressively
-
 		let inputRenderTarget = this.renderTargetBright;
 
-		for (let i = 0; i < this.nMips; i++) {
+		// 如果指定了目标级别，则只渲染到该级别
+		const maxLevel = targetLevel >= 0 ? targetLevel + 1 : this.nMips;
 
+		for (let i = 0; i < maxLevel; i++) {
 			this.fsQuad.material = this.separableBlurMaterials[i];
 
 			this.separableBlurMaterials[i].uniforms['colorTexture'].value = inputRenderTarget.texture;
@@ -256,44 +480,7 @@ class UnrealBloomPass extends Pass {
 			this.fsQuad.render(renderer);
 
 			inputRenderTarget = this.renderTargetsVertical[i];
-
 		}
-
-		// Composite All the mips
-
-		this.fsQuad.material = this.compositeMaterial;
-		this.compositeMaterial.uniforms['bloomStrength'].value = this.strength;
-		this.compositeMaterial.uniforms['bloomRadius'].value = this.radius;
-		this.compositeMaterial.uniforms['bloomTintColors'].value = this.bloomTintColors;
-
-		renderer.setRenderTarget(this.renderTargetsHorizontal[0]);
-		renderer.clear();
-		this.fsQuad.render(renderer);
-
-		// Blend it additively over the input texture
-
-		this.fsQuad.material = this.blendMaterial;
-		this.copyUniforms['tDiffuse'].value = this.renderTargetsHorizontal[0].texture;
-
-		if (maskActive) renderer.state.buffers.stencil.setTest(true);
-
-		if (this.renderToScreen) {
-
-			renderer.setRenderTarget(null);
-			this.fsQuad.render(renderer);
-
-		} else {
-
-			renderer.setRenderTarget(readBuffer);
-			this.fsQuad.render(renderer);
-
-		}
-
-		// Restore renderer settings
-
-		renderer.setClearColor(this._oldClearColor, this.oldClearAlpha);
-		renderer.autoClear = oldAutoClear;
-
 	}
 
 	getSeperableBlurMaterial(kernelRadius) {
@@ -407,7 +594,38 @@ class UnrealBloomPass extends Pass {
 
 	}
 
+
+	/**
+	 * 设置输出模式
+	 * @param {Number} mode - 输出模式，使用UnrealBloomPass.OUTPUT枚举
+	 */
+	setOutputMode(mode) {
+		this.output = mode;
+		console.log(`已设置输出模式：${Object.keys(UnrealBloomPass.OUTPUT).find(key => UnrealBloomPass.OUTPUT[key] === mode) || "未知"}`);
+	}
+
+	/**
+	 * 循环切换输出模式，便于调试
+	 */
+	cycleOutputMode() {
+		const modes = Object.values(UnrealBloomPass.OUTPUT);
+		const currentIndex = modes.indexOf(this.output);
+		const nextIndex = (currentIndex + 1) % modes.length;
+		this.setOutputMode(modes[nextIndex]);
+	}
 }
+
+UnrealBloomPass.OUTPUT = {
+	"Default": 0,
+	"Beauty": 1,
+	"Brightness": 2,
+	"Blur1": 3,
+	"Blur2": 4,
+	"Blur3": 5,
+	"Blur4": 6,
+	"Blur5": 7,
+	"Composite": 8
+};
 
 UnrealBloomPass.BlurDirectionX = new Vector2(1.0, 0.0);
 UnrealBloomPass.BlurDirectionY = new Vector2(0.0, 1.0);

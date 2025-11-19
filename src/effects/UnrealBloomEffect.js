@@ -87,7 +87,7 @@ export class UnrealBloomEffect extends Effect {
 
         /**
          * 是否进行亮度高通筛选。
-         * 设为 false 时，对选中区域直接做模糊合成，实现“只要选中就发光”的效果。
+         * 设为 false 时，对选中区域直接做模糊合成，实现"只要选中就发光"的效果。
          *
          * @type {Boolean}
          */
@@ -134,7 +134,7 @@ export class UnrealBloomEffect extends Effect {
         this.renderTargetMasked = new WebGLRenderTarget(1, 1, { depthBuffer: false });
         this.renderTargetMasked.texture.name = "UnrealBloom.Masked";
 
-        this.renderTargetSelection = new WebGLRenderTarget(1, 1, { 
+        this.renderTargetSelection = new WebGLRenderTarget(1, 1, {
             depthBuffer: false,
             format: RGBAFormat,
             stencilBuffer: false
@@ -160,10 +160,6 @@ export class UnrealBloomEffect extends Effect {
         this.sceneDepthPass = null;
         this._initializeRenderTargetsAndMaterials();
 
-        // —— 调试输出 ----
-        this._debugMode = UnrealBloomEffect.DebugMode.NONE;
-        this._debugStoredIntensity = null;
-        this._debugStoredColor = new Color();
         this._depthEpsilon = this.depthMaskMaterial.epsilon;
     }
 
@@ -234,45 +230,6 @@ export class UnrealBloomEffect extends Effect {
         return this.renderTargetSelection;
     }
 
-    static get DebugMode() {
-        return {
-            NONE: "none",
-            SELECTION_MASK: "selection-mask",
-            HIGH_PASS: "high-pass"
-        };
-    }
-
-    get debugMode() {
-        return this._debugMode;
-    }
-
-    set debugMode(value) {
-        const modes = UnrealBloomEffect.DebugMode;
-        const allowed = value === modes.NONE || value === modes.SELECTION_MASK || value === modes.HIGH_PASS;
-        if (!allowed) {
-            console.warn(`[UnrealBloomEffect] Unsupported debug mode: ${value}`);
-            return;
-        }
-
-        if (this._debugMode === value) return;
-
-        if (this._debugMode !== modes.NONE && value === modes.NONE) {
-            if (this._debugStoredIntensity !== null) {
-                this.intensity = this._debugStoredIntensity;
-            }
-            if (this._debugStoredColor) {
-                this.uniforms.get("bloomColor").value.copy(this._debugStoredColor);
-            }
-            this._debugStoredIntensity = null;
-        } else if (this._debugMode === modes.NONE && value !== modes.NONE) {
-            this._debugStoredIntensity = this.intensity;
-            this._debugStoredColor.copy(this.uniforms.get("bloomColor").value);
-            this.intensity = 1.0;
-            this.uniforms.get("bloomColor").value.set(1, 1, 1);
-        }
-
-        this._debugMode = value;
-    }
 
     getSelection() { return this.selection; }
 
@@ -527,7 +484,7 @@ export class UnrealBloomEffect extends Effect {
                 });
 
                 this.selectionCopyPass.render(renderer, source, this.renderTargetSelection);
-                
+
                 // 创建一个材质，只显示选中的模型，完全隐藏未选中的部分
                 if (!this.selectionOnlyMaterial) {
                     this.selectionOnlyMaterial = new ShaderMaterial({
@@ -564,10 +521,12 @@ export class UnrealBloomEffect extends Effect {
                         `
                     });
                 }
-                
+
                 // 使用这个材质重新渲染选择层，确保只显示选中的模型
+                // 注意：使用 source.texture 而不是 renderTargetSelection.texture 来避免反馈循环
+                // 因为我们要渲染到 renderTargetSelection，不能同时从它读取
                 this.selectionOnlyMaterial.uniforms.tOriginal.value = inputBuffer.texture;
-                this.selectionOnlyMaterial.uniforms.tSelection.value = this.renderTargetSelection.texture;
+                this.selectionOnlyMaterial.uniforms.tSelection.value = source.texture;
                 const selectionOnlyPass = new ShaderPass(this.selectionOnlyMaterial, "tOriginal");
                 selectionOnlyPass.render(renderer, inputBuffer, this.renderTargetSelection);
             } else {
@@ -582,14 +541,6 @@ export class UnrealBloomEffect extends Effect {
             const highPass = new ShaderPass(this.materialHighPassFilter, "tDiffuse");
             highPass.render(renderer, source, this.renderTargetBright);
             brightInput = this.renderTargetBright;
-        }
-
-        if (this._debugMode === UnrealBloomEffect.DebugMode.SELECTION_MASK) {
-            const targetTexture = source && source.texture ? source.texture : null;
-            if (targetTexture) {
-                this.uniforms.get("map").value = targetTexture;
-            }
-            return;
         }
 
         // 2) 逐级进行可分离高斯模糊（横向→纵向），构建 MIP 链
@@ -613,14 +564,6 @@ export class UnrealBloomEffect extends Effect {
             currentInput = this.renderTargetsVertical[i];
         }
 
-        if (this._debugMode === UnrealBloomEffect.DebugMode.HIGH_PASS) {
-            const debugTexture = (this.useHighPass ? this.renderTargetBright : brightInput).texture;
-            if (debugTexture) {
-                this.uniforms.get("map").value = debugTexture;
-            }
-            return;
-        }
-
         // 3) 合成所有 MIP 结果
         this.compositeMaterial.uniforms.bloomTintColors.value = this.bloomTintColors;
         const compositePass = new ShaderPass(this.compositeMaterial);
@@ -628,9 +571,9 @@ export class UnrealBloomEffect extends Effect {
 
         // 4) 将结果纹理传给最终 effect 的片元着色器，由混合函数叠加到主图
         this.uniforms.get("map").value = this.renderTargetsHorizontal[0].texture;
-        
+
         // 根据输出模式设置不同的纹理
-        switch(this.output) {
+        switch (this.output) {
             case UnrealBloomEffect.OUTPUT.Beauty:
                 this.uniforms.get("map").value = source.texture;
                 break;
@@ -669,7 +612,6 @@ export class UnrealBloomEffect extends Effect {
                     if (this.renderTargetSelection.texture.format !== RGBAFormat) {
                         this.renderTargetSelection.texture.format = RGBAFormat;
                     }
-                    // 直接使用已经处理好的选择层纹理，它现在只包含选中的模型，背景完全透明
                     this.uniforms.get("map").value = this.renderTargetSelection.texture;
                 }
                 break;
@@ -690,6 +632,7 @@ export class UnrealBloomEffect extends Effect {
         this.renderTargetSelection.setSize(width, height);
         if (this.depthPass) this.depthPass.setSize(width, height);
         if (this.sceneDepthPass) this.sceneDepthPass.setSize(width, height);
+
 
         for (let i = 0; i < this.nMips; i++) {
 
