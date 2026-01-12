@@ -396,13 +396,13 @@ class SelectiveSSRPass extends Pass {
 
 		// dispose render targets
 
-		this.beautyRenderTarget.dispose();
-		this.prevRenderTarget.dispose();
-		this.normalRenderTarget.dispose();
-		this.metalnessRenderTarget.dispose();
-		this.ssrRenderTarget.dispose();
-		this.blurRenderTarget.dispose();
-		this.blurRenderTarget2.dispose();
+		this.beautyRenderTarget?.dispose();
+		this.prevRenderTarget?.dispose();
+		this.normalRenderTarget?.dispose();
+		this.metalnessRenderTarget?.dispose();
+		this.ssrRenderTarget?.dispose();
+		this.blurRenderTarget?.dispose();
+		this.blurRenderTarget2?.dispose();
 		// this.blurRenderTarget3.dispose();
 
 		// dispose materials

@@ -874,7 +874,7 @@ export class EffectComposer {
 		}
 
 		this.deleteDepthTexture();
-		this.deleteNormalTarget();
+		// this.deleteNormalTarget();
 		this.copyPass.dispose();
 		this.timer.dispose();
 
