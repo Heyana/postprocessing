@@ -11,7 +11,6 @@ export * from "./DepthMaskMaterial.js";
 export * from "./MultiSampleDepthMaskMaterial.js";
 export * from "./DownsamplingMaterial.js";
 export * from "./EdgeDetectionMaterial.js";
-export * from "./EdgeDetectionMaterial.js";
 export * from "./EffectMaterial.js";
 export * from "./GaussianBlurMaterial.js";
 export * from "./GodRaysMaterial.js";
@@ -22,13 +21,8 @@ export * from "./SMAAWeightsMaterial.js";
 export * from "./SSAOMaterial.js";
 export * from "./TiltShiftBlurMaterial.js";
 export * from "./UpsamplingMaterial.js";
-export * from "./RiverMaterial.js";
-export * from "./OceanMaterial.js";
 export * from "./InteriorMappingMaterial.js";
 export * from "./TangentSpaceInteriorMaterial.js";
-export * from "./FakeInteriorMaterial.js";
-export * from "./InteriorRoomMaterial.js";
-export * from "./FlowRiverMaterial.js";
 /** @deprecated Renamed to KawaseBlurMaterial. */
 export { KawaseBlurMaterial as ConvolutionMaterial } from "./KawaseBlurMaterial.js";
 /** @deprecated Renamed to EdgeDetectionMaterial. */
