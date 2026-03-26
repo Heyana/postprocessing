@@ -1,6 +1,6 @@
-import { Uniform, Vector2, Vector3, Color, LinearFilter, RGBAFormat, WebGLRenderTarget, HalfFloatType, Matrix4, RepeatWrapping, DataTexture } from "three";
-import { BlendFunction } from "../enums/BlendFunction.js";
 import { Effect, EffectAttribute } from "postprocessing";
+import { DataTexture, LinearFilter, Matrix4, RepeatWrapping, Uniform, Vector2, Vector3, WebGLRenderTarget } from "three";
+import { BlendFunction } from "../enums/BlendFunction.js";
 import fragmentShader from "./shaders/sky-atmosphere.frag.glsl";
 import { SkyAtmosphereUtils } from "./utils/SkyAtmosphereUtils.js";
 

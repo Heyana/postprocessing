@@ -85,7 +85,11 @@
     "start": "hugo server -s manual -e development",
     "watch": "run-p watch:* start",
     "watch:css": "sass --no-source-map -I manual/assets/css/src/values manual/assets/css/src:manual/assets/css/dist -w",
-    "watch:js": "node esbuild -w"
+    "watch:js": "node esbuild -w",
+    "analyze": "node analyze-bundle.js",
+    "visualize": "node visualize-bundle.js",
+    "build:vite": "vite build",
+    "analyze:vite": "vite build --mode analyze"
   },
   "peerDependencies": {},
   "devDependencies": {
@@ -112,6 +116,7 @@
     "postcss": "8.x.x",
     "postcss-cli": "11.x.x",
     "postcss-preset-env": "10.x.x",
+    "rollup-plugin-visualizer": "^6.0.5",
     "sass": "1.x.x",
     "spatial-controls": "6.x.x",
     "stylelint": "16.x.x",
@@ -121,7 +126,8 @@
     "tiny-glob": "0.x.x",
     "tslib": "2.x.x",
     "tweakpane": "4.x.x",
-    "typescript": "5.8.x"
+    "typescript": "5.8.x",
+    "vite": "^7.3.1"
   },
   "dependencies": {
     "run-scene-core": "^0.168.2"
