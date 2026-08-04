@@ -40,3 +40,9 @@ resources/
 *.lock
 *.log
 *.tmp
+
+# Secrets & local auth (never commit)
+auth.json
+.codex/
+*.backup.*
+*.backup-*
